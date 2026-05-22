@@ -1,0 +1,231 @@
+package com.example.visualvibefincal.ui.screens
+
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
+import androidx.navigation.NavController
+import java.util.Locale
+
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.visualvibefincal.ui.viewmodel.HistoryViewModel
+import com.example.visualvibefincal.data.model.HistoryItem
+import com.example.visualvibefincal.ui.components.ValidatedTextField
+import com.example.visualvibefincal.utils.ValidationUtils
+import com.example.visualvibefincal.R
+import com.example.visualvibefincal.ui.viewmodel.AssistantMessageType
+import com.example.visualvibefincal.ui.viewmodel.AssistantState
+import com.example.visualvibefincal.ui.viewmodel.AssistantViewModel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+@Composable
+fun BMIScreen(
+    navController: NavController,
+    isDarkMode: Boolean,
+    assistantViewModel: AssistantViewModel,
+    historyViewModel: HistoryViewModel = viewModel()
+) {
+    var weight by remember { mutableStateOf("") }
+    var height by remember { mutableStateOf("") }
+    var age by remember { mutableStateOf("") }
+    var weightError by remember { mutableStateOf<String?>(null) }
+    var heightError by remember { mutableStateOf<String?>(null) }
+    var ageError by remember { mutableStateOf<String?>(null) }
+    var bmiResult by remember { mutableStateOf<Double?>(null) }
+    var bmiCategory by remember { mutableStateOf("") }
+
+    val history by historyViewModel.histories.collectAsState()
+    val screenHistory = history["bmi"] ?: emptyList()
+    var isLoadingHistory by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        delay(1000)
+        isLoadingHistory = false
+    }
+
+    val isInputValid = ValidationUtils.isValidPositiveNumeric(weight) && 
+                     ValidationUtils.isValidPositiveNumeric(height) &&
+                     ValidationUtils.isValidPositiveNumeric(age)
+
+    val coroutineScope = rememberCoroutineScope()
+
+    CalculatorScreenScaffold(
+        title = "BMI Calculator",
+        navController = navController,
+        isDarkMode = isDarkMode
+    ) { innerPadding ->
+        val scrollState = rememberScrollState()
+        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(scrollState)
+            ) {
+                CalculatorCard(isDarkMode = isDarkMode) {
+                    val emptyError = stringResource(R.string.field_cannot_be_empty)
+                    val invalidError = "Must be a positive number"
+
+                    ValidatedTextField(
+                        value = weight,
+                        onValueChange = { 
+                            weight = ValidationUtils.formatNumericInput(it, allowNegative = false)
+                            weightError = if (weight.isEmpty()) emptyError 
+                                          else if (!ValidationUtils.isValidPositiveNumeric(weight)) invalidError
+                                          else null
+                        },
+                        label = "Weight (kg)",
+                        error = weightError,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Enter your weight in kilograms. Currently: $weight"
+                        }
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    ValidatedTextField(
+                        value = height,
+                        onValueChange = { 
+                            height = ValidationUtils.formatNumericInput(it, allowNegative = false)
+                            heightError = if (height.isEmpty()) emptyError
+                                          else if (!ValidationUtils.isValidPositiveNumeric(height)) invalidError
+                                          else null
+                        },
+                        label = "Height (cm)",
+                        error = heightError,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Enter your height in centimeters. Currently: $height"
+                        }
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    ValidatedTextField(
+                        value = age,
+                        onValueChange = { 
+                            age = ValidationUtils.formatNumericInput(it, allowNegative = false)
+                            ageError = if (age.isEmpty()) emptyError
+                                       else if (!ValidationUtils.isValidPositiveNumeric(age)) invalidError
+                                       else null
+                        },
+                        label = "Age",
+                        error = ageError,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Enter your age. Currently: $age"
+                        }
+                    )
+
+                    Spacer(Modifier.height(32.dp))
+
+                    BouncyButton(
+                        onClick = {
+                            if (!isInputValid) {
+                                if (weight.isEmpty()) weightError = "Required"
+                                if (height.isEmpty()) heightError = "Required"
+                                if (age.isEmpty()) ageError = "Required"
+                                return@BouncyButton
+                            }
+                            val w = weight.toDoubleOrNull() ?: 0.0
+                            val h = (height.toDoubleOrNull() ?: 0.0) / 100 // cm to m
+                            val a = age.toIntOrNull() ?: 0
+                            if (w > 0 && h > 0) {
+                                val bmi = w / (h * h)
+                                bmiResult = bmi
+                                
+                                // Simplified NHS interpretation for adults (18+)
+                                // For children, it would require centile charts, but usually 
+                                // we stick to adult categories unless specified otherwise for simplicity.
+                                bmiCategory = when {
+                                    bmi < 18.5 -> "Underweight"
+                                    bmi < 25 -> "Healthy weight"
+                                    bmi < 30 -> "Overweight"
+                                    else -> "Obese"
+                                }
+
+                                assistantViewModel.showMessage("Analyzing your stats for age $a...", AssistantState.THINKING, AssistantMessageType.THOUGHT, durationMs = 1500)
+                                
+                                coroutineScope.launch {
+                                    delay(1500)
+                                    val msg = when (bmiCategory) {
+                                        "Healthy weight" -> "You're in the healthy range for your age! 🌟"
+                                        "Underweight" -> "The NHS recommends a balanced diet to reach a healthy weight. 🍎"
+                                        "Overweight" -> "Small changes in diet and activity can make a big difference! 🏃‍♂️"
+                                        else -> "It's worth chatting with a GP about your health goals. ❤️"
+                                    }
+                                    assistantViewModel.showMessage(msg, AssistantState.HAPPY)
+                                }
+
+                                historyViewModel.addToHistory(
+                                    "bmi",
+                                    HistoryItem(
+                                        title = "BMI: ${String.format(Locale.getDefault(), "%.1f", bmi)}",
+                                        result = "$bmiCategory (Age: $a)",
+                                        details = "Weight: $w kg | Height: ${height} cm"
+                                    )
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(56.dp),
+                        enabled = isInputValid
+                    ) {
+                        Text("Calculate BMI", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                    }
+
+                    if (bmiResult != null) {
+                        Spacer(Modifier.height(32.dp))
+                        ResultDisplay(label = "Your BMI", value = "${String.format(Locale.getDefault(), "%.1f", bmiResult)}", isDarkMode = isDarkMode)
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            bmiCategory,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = when (bmiCategory) {
+                                "Healthy weight" -> Color(0xFF00D1B2)
+                                "Underweight" -> Color.Blue
+                                "Overweight" -> Color.Yellow
+                                else -> Color.Red
+                            }
+                        )
+                        Text(
+                            "Interpretation based on NHS adult guidelines (18+)",
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                            fontSize = 12.sp,
+                            color = if (isDarkMode) Color.Gray else Color.DarkGray
+                        )
+                    }
+                }
+                
+                HistorySection(
+                    screenKey = "bmi",
+                    history = screenHistory,
+                    isDarkMode = isDarkMode,
+                    isLoading = isLoadingHistory,
+                    onClearHistory = { historyViewModel.clearHistory("bmi") }
+                )
+                
+                Spacer(Modifier.height(24.dp))
+            }
+
+            VerticalScrollbar(
+                scrollState = scrollState,
+                modifier = Modifier.align(androidx.compose.ui.Alignment.CenterEnd).padding(end = 2.dp)
+            )
+        }
+    }
+}

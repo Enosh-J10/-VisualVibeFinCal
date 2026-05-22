@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="200dp"
+    android:height="200dp"
+    android:viewportWidth="100"
+    android:viewportHeight="100">
+
+    <!-- Thin outer circle -->
+    <path
+        android:pathData="M50,5 A45,45 0 1,1 49.9,5"
+        android:strokeWidth="1"
+        android:strokeColor="#80FFFFFF" />
+
+    <!-- Top Chevron (Teal) -->
+    <path
+        android:fillColor="@color/accent_teal"
+        android:pathData="M50,20 L85,60 L72,60 L50,35 L28,60 L15,60 Z" />
+
+    <!-- Middle Chevron (White) -->
+    <path
+        android:fillColor="@color/white"
+        android:pathData="M50,40 L70,65 L60,65 L50,53 L40,65 L30,65 Z" />
+
+    <!-- Bottom Chevron (Teal) -->
+    <path
+        android:fillColor="@color/accent_teal"
+        android:pathData="M50,58 L62,72 L55,72 L50,66 L45,72 L38,72 Z" />
+
+    <!-- Decorative Dots -->
+    <path
+        android:fillColor="@color/accent_teal"
+        android:pathData="M18,30 A2,2 0 1,1 17.9,30" />
+    <path
+        android:fillColor="@color/accent_teal"
+        android:pathData="M12,80 A2,2 0 1,1 11.9,80" />
+    <path
+        android:fillColor="@color/accent_teal"
+        android:pathData="M88,35 A1.5,1.5 0 1,1 87.9,35" />
+
+</vector>

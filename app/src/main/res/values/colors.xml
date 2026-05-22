@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+    <color name="splash_bg_start">#0F2027</color>
+    <color name="splash_bg_end">#203A43</color>
+    <color name="accent_teal">#00D1B2</color>
+    <color name="text_secondary">#B0BEC5</color>
+    <color name="input_bg">#F5F5F5</color>
+    <color name="button_primary">#00D1B2</color>
+ </resources>
