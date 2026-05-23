@@ -177,6 +177,7 @@ fun HomeScreen(
     }
 
     Scaffold(
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             CenterAlignedTopAppBar(
                 title = { Text(stringResource(R.string.fincalc), fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black) },
@@ -202,7 +203,8 @@ fun HomeScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent
-                )
+                ),
+                windowInsets = WindowInsets.statusBars
             )
         },
         bottomBar = {
@@ -210,6 +212,7 @@ fun HomeScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(if (isDarkMode) Color.Black.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.8f))
+                    .navigationBarsPadding()
                     .padding(vertical = 8.dp)
             ) {
                 if (favoriteTools.isNotEmpty()) {
@@ -255,7 +258,8 @@ fun HomeScreen(
                 Spacer(Modifier.height(8.dp))
             }
         },
-        containerColor = Color.Transparent
+        containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets.systemBars
     ) { innerPadding ->
         key(refreshTrigger) {
             Box(

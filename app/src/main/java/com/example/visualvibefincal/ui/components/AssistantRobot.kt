@@ -64,6 +64,9 @@ fun AssistantRobot(
     val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
     val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
     val screenPaddingPx = with(density) { 16.dp.toPx() }
+    
+    val navigationBarsHeightPx = WindowInsets.navigationBars.getBottom(density).toFloat()
+    val statusBarHeightPx = WindowInsets.statusBars.getTop(density).toFloat()
 
     val robotWidth = 70.dp
     val robotHeight = 90.dp
@@ -73,9 +76,9 @@ fun AssistantRobot(
     val bubbleMaxWidth = 220.dp
     val bubbleMaxWidthPx = with(density) { bubbleMaxWidth.toPx() }
 
-    // Starts in the bottom right
+    // Starts in the bottom right, accounting for navigation bars
     val initialX = screenWidthPx - robotWidthPx - screenPaddingPx
-    val initialY = screenHeightPx - robotHeightPx - with(density) { 120.dp.toPx() }
+    val initialY = screenHeightPx - robotHeightPx - navigationBarsHeightPx - with(density) { 32.dp.toPx() }
 
     val animX = remember { Animatable(if (prefs.lastPosX != -1f) prefs.lastPosX else initialX) }
     val animY = remember { Animatable(if (prefs.lastPosY != -1f) prefs.lastPosY else initialY) }
@@ -159,8 +162,8 @@ fun AssistantRobot(
     // Place the message bubble so it doesn't go off screen
     val isNearRight = animX.value > (screenWidthPx - robotWidthPx - bubbleMaxWidthPx)
     val isNearLeft = animX.value < (bubbleMaxWidthPx + screenPaddingPx)
-    val isNearBottom = animY.value > screenHeightPx * 0.7f
-    val isNearTop = animY.value < screenHeightPx * 0.3f
+    val isNearBottom = animY.value > (screenHeightPx - navigationBarsHeightPx - robotHeightPx - 100f)
+    val isNearTop = animY.value < (statusBarHeightPx + 100f)
 
     val bubbleAlignment = when {
         isNearRight -> Alignment.CenterEnd
@@ -253,7 +256,7 @@ fun AssistantRobot(
                                 change.consume()
                                 coroutineScope.launch {
                                     animX.snapTo((animX.value + dragAmount.x).coerceIn(0f, screenWidthPx - robotWidthPx))
-                                    animY.snapTo((animY.value + dragAmount.y).coerceIn(0f, screenHeightPx - robotHeightPx))
+                                    animY.snapTo((animY.value + dragAmount.y).coerceIn(statusBarHeightPx, screenHeightPx - robotHeightPx - navigationBarsHeightPx))
                                 }
                             }
                         )

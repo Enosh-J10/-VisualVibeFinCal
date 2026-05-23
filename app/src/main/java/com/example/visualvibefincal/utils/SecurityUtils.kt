@@ -49,7 +49,24 @@ object SecurityUtils {
     }
 
     fun setAppPin(context: Context, pin: String) {
-        getEncryptedPrefs(context).edit().putString("app_pin", pin).apply()
+        // Hash the PIN before saving for better security
+        val hashedPin = hashPin(pin)
+        getEncryptedPrefs(context).edit().putString("app_pin", hashedPin).apply()
+    }
+
+    fun verifyPin(context: Context, inputPin: String): Boolean {
+        val savedPin = getAppPin(context) ?: return false
+        return savedPin == hashPin(inputPin)
+    }
+
+    private fun hashPin(pin: String): String {
+        return try {
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            val hash = digest.digest(pin.toByteArray())
+            hash.joinToString("") { "%02x".format(it) }
+        } catch (e: Exception) {
+            pin // Fallback to plain text if hashing fails (should not happen)
+        }
     }
 
     fun isBiometricEnabled(context: Context): Boolean {

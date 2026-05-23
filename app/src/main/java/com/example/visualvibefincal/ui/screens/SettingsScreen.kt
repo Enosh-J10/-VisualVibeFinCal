@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.biometric.BiometricManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -53,12 +54,13 @@ fun SettingsScreen(
     assistantViewModel: AssistantViewModel
 ) {
     val context = LocalContext.current
+    val securePrefs = remember { SecurityUtils.getEncryptedPrefs(context) }
     val sharedPref = remember { context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE) }
     val coroutineScope = rememberCoroutineScope()
     val assistantPrefs by assistantViewModel.prefs.collectAsState()
 
-    val email = sharedPref.getString("email", "No Email") ?: "No Email"
-    val initialName = sharedPref.getString("name", email.split("@").firstOrNull()?.replaceFirstChar { it.uppercase() } ?: "User") ?: "User"
+    val email = securePrefs.getString("email", "No Email") ?: "No Email"
+    val initialName = securePrefs.getString("name", email.split("@").firstOrNull()?.replaceFirstChar { it.uppercase() } ?: "User") ?: "User"
     val initialProfilePic = sharedPref.getString("profile_pic", null)
 
     var userName by remember { mutableStateOf(initialName) }
@@ -72,18 +74,35 @@ fun SettingsScreen(
     var appLockEnabled by remember { mutableStateOf(SecurityUtils.isAppLockEnabled(context)) }
     var biometricEnabled by remember { mutableStateOf(SecurityUtils.isBiometricEnabled(context)) }
     var showPinDialog by remember { mutableStateOf(false) }
-    var newPin by remember { mutableStateOf("") }
+    
+    // PIN Setup/Reset State
+    var pinStep by remember { mutableStateOf(1) } // 1: Old PIN (if exists), 2: New PIN, 3: Confirm PIN
+    var currentPinInput by remember { mutableStateOf("") }
+    var newPinInput by remember { mutableStateOf("") }
+    var confirmPinInput by remember { mutableStateOf("") }
+    var pinError by remember { mutableStateOf<String?>(null) }
+
+    val hasExistingPin = remember { SecurityUtils.getAppPin(context) != null }
+
+    val biometricManager = remember { BiometricManager.from(context) }
+    val canUseBiometric = remember {
+        biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+    }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri ->
             if (uri != null) {
-                context.contentResolver.takePersistableUriPermission(
-                    uri,
-                    Intent.FLAG_GRANT_READ_URI_PERMISSION
-                )
-                profilePicUri = uri
-                sharedPref.edit { putString("profile_pic", uri.toString()) }
+                try {
+                    context.contentResolver.takePersistableUriPermission(
+                        uri,
+                        Intent.FLAG_GRANT_READ_URI_PERMISSION
+                    )
+                    profilePicUri = uri
+                    sharedPref.edit { putString("profile_pic", uri.toString()) }
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Failed to save profile picture", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     )
@@ -175,7 +194,6 @@ fun SettingsScreen(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Visibility Toggle
                 SettingsItem(
                     title = stringResource(R.string.show_assistant),
                     trailing = {
@@ -187,7 +205,6 @@ fun SettingsScreen(
                 )
 
                 if (assistantPrefs.isEnabled) {
-                    // Mute Toggle
                     SettingsItem(
                         title = stringResource(R.string.mute_assistant),
                         trailing = {
@@ -198,7 +215,6 @@ fun SettingsScreen(
                         }
                     )
 
-                    // Robot Preview Box
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -215,7 +231,6 @@ fun SettingsScreen(
 
                     Spacer(Modifier.height(16.dp))
 
-                    // Appearance Theme
                     Text(stringResource(R.string.appearance_theme), modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     FlowRow(
                         modifier = Modifier
@@ -243,7 +258,6 @@ fun SettingsScreen(
                         }
                     }
 
-                    // Custom Mode Toggle
                     SettingsItem(
                         title = stringResource(R.string.custom_mode),
                         trailing = {
@@ -270,7 +284,6 @@ fun SettingsScreen(
 
                     Spacer(Modifier.height(8.dp))
 
-                    // Message Frequency
                     Text(stringResource(R.string.interaction_frequency), modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     Row(
                         modifier = Modifier
@@ -287,7 +300,6 @@ fun SettingsScreen(
                         }
                     }
 
-                    // Reset Position Button
                     SettingsItem(
                         title = stringResource(R.string.reset_position),
                         trailing = {
@@ -413,6 +425,7 @@ fun SettingsScreen(
                             checked = appLockEnabled,
                             onCheckedChange = { 
                                 if (it) {
+                                    pinStep = if (hasExistingPin) 1 else 2
                                     showPinDialog = true
                                 } else {
                                     appLockEnabled = false
@@ -430,8 +443,12 @@ fun SettingsScreen(
                             Switch(
                                 checked = biometricEnabled,
                                 onCheckedChange = { 
-                                    biometricEnabled = it
-                                    SecurityUtils.setBiometricEnabled(context, it)
+                                    if (canUseBiometric) {
+                                        biometricEnabled = it
+                                        SecurityUtils.setBiometricEnabled(context, it)
+                                    } else {
+                                        Toast.makeText(context, "Biometric hardware not available or not enrolled.", Toast.LENGTH_LONG).show()
+                                    }
                                 }
                             )
                         }
@@ -440,7 +457,10 @@ fun SettingsScreen(
                     SettingsItem(
                         title = stringResource(R.string.change_pin),
                         trailing = {
-                            TextButton(onClick = { showPinDialog = true }) {
+                            TextButton(onClick = { 
+                                pinStep = if (hasExistingPin) 1 else 2
+                                showPinDialog = true 
+                            }) {
                                 Text(stringResource(R.string.change_pin).uppercase().split(" ").last(), color = Color(0xFF00D1B2), fontWeight = FontWeight.Bold)
                             }
                         }
@@ -491,11 +511,7 @@ fun SettingsScreen(
             },
             confirmButton = {
                 BouncyButton(onClick = { 
-                    sharedPref.edit {
-                        putString("name", userName)
-                        putString("email", userEmail)
-                    }
-                    SecurityUtils.getEncryptedPrefs(context).edit {
+                    securePrefs.edit {
                         putString("name", userName)
                         putString("email", userEmail)
                     }
@@ -566,34 +582,111 @@ fun SettingsScreen(
 
     if (showPinDialog) {
         AlertDialog(
-            onDismissRequest = { showPinDialog = false },
+            onDismissRequest = { 
+                showPinDialog = false
+                currentPinInput = ""
+                newPinInput = ""
+                confirmPinInput = ""
+                pinError = null
+            },
             shape = RoundedCornerShape(24.dp),
             containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White,
-            title = { Text(stringResource(R.string.set_pin_title), fontWeight = FontWeight.Bold) },
+            title = { 
+                Text(
+                    text = when(pinStep) {
+                        1 -> "Verify Current PIN"
+                        2 -> "Set New 4-Digit PIN"
+                        3 -> "Confirm New PIN"
+                        else -> "PIN Setup"
+                    }, 
+                    fontWeight = FontWeight.Bold
+                ) 
+            },
             text = {
-                ValidatedTextField(
-                    value = newPin,
-                    onValueChange = { if (it.length <= 4) newPin = it },
-                    label = stringResource(R.string.enter_pin),
-                    keyboardType = KeyboardType.NumberPassword,
-                    visualTransformation = PasswordVisualTransformation()
-                )
+                Column {
+                    ValidatedTextField(
+                        value = when(pinStep) {
+                            1 -> currentPinInput
+                            2 -> newPinInput
+                            3 -> confirmPinInput
+                            else -> ""
+                        },
+                        onValueChange = { input ->
+                            if (input.length <= 4 && input.all { it.isDigit() }) {
+                                when(pinStep) {
+                                    1 -> currentPinInput = input
+                                    2 -> newPinInput = input
+                                    3 -> confirmPinInput = input
+                                }
+                                pinError = null
+                            }
+                        },
+                        label = when(pinStep) {
+                            1 -> "Current PIN"
+                            2 -> "New PIN"
+                            3 -> "Confirm PIN"
+                            else -> "PIN"
+                        },
+                        keyboardType = KeyboardType.NumberPassword,
+                        visualTransformation = PasswordVisualTransformation(),
+                        error = pinError
+                    )
+                }
             },
             confirmButton = {
                 BouncyButton(
-                    enabled = newPin.length == 4,
+                    enabled = (when(pinStep) {
+                        1 -> currentPinInput.length == 4
+                        2 -> newPinInput.length == 4
+                        3 -> confirmPinInput.length == 4
+                        else -> false
+                    }),
                     onClick = {
-                        SecurityUtils.setAppPin(context, newPin)
-                        SecurityUtils.setAppLockEnabled(context, true)
-                        appLockEnabled = true
-                        showPinDialog = false
-                        newPin = ""
-                        Toast.makeText(context, context.getString(R.string.pin_set_success), Toast.LENGTH_SHORT).show()
+                        when(pinStep) {
+                            1 -> {
+                                if (SecurityUtils.verifyPin(context, currentPinInput)) {
+                                    pinStep = 2
+                                    pinError = null
+                                } else {
+                                    pinError = "Incorrect current PIN"
+                                    currentPinInput = ""
+                                }
+                            }
+                            2 -> {
+                                pinStep = 3
+                            }
+                            3 -> {
+                                if (newPinInput == confirmPinInput) {
+                                    SecurityUtils.setAppPin(context, newPinInput)
+                                    SecurityUtils.setAppLockEnabled(context, true)
+                                    appLockEnabled = true
+                                    showPinDialog = false
+                                    currentPinInput = ""
+                                    newPinInput = ""
+                                    confirmPinInput = ""
+                                    Toast.makeText(context, "PIN updated successfully", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    pinError = "PINs do not match"
+                                    confirmPinInput = ""
+                                }
+                            }
+                        }
                     }
-                ) { Text(stringResource(R.string.save), fontWeight = FontWeight.Bold) }
+                ) { 
+                    Text(
+                        if (pinStep == 3) "Save" else "Next", 
+                        fontWeight = FontWeight.Bold
+                    ) 
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showPinDialog = false }) { Text(stringResource(R.string.cancel), color = Color.Gray) }
+                TextButton(onClick = { 
+                    showPinDialog = false
+                    currentPinInput = ""
+                    newPinInput = ""
+                    confirmPinInput = ""
+                    pinError = null
+                }) { Text(stringResource(R.string.cancel), color = Color.Gray) }
             }
         )
     }

@@ -85,8 +85,16 @@ class LoginActivity : AppCompatActivity() {
             val securePref = SecurityUtils.getEncryptedPrefs(this)
             val savedEmail = securePref.getString("email", null)
             val savedPassword = securePref.getString("password", null)
+            val hasAccount = securePref.getBoolean("has_account", false)
 
-            if (email == savedEmail && password == savedPassword && !email.isNullOrEmpty()) {
+            if (!hasAccount || savedEmail == null) {
+                Toast.makeText(this, "No account found. Please sign up first.", Toast.LENGTH_LONG).show()
+                android.util.Log.w("LoginActivity", "Login attempt with no saved account record")
+                return@setOnClickListener
+            }
+
+            if (email == savedEmail && password == savedPassword) {
+                android.util.Log.d("LoginActivity", "Login successful for: $email")
                 getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
                     putBoolean("is_guest", false)
                     putString("email", email)
@@ -101,6 +109,7 @@ class LoginActivity : AppCompatActivity() {
                 }
                 finish()
             } else {
+                android.util.Log.i("LoginActivity", "Invalid credentials for: $email")
                 Toast.makeText(this, getString(R.string.invalid_credentials), Toast.LENGTH_SHORT).show()
             }
         }

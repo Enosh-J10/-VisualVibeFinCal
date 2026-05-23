@@ -17,6 +17,7 @@ import androidx.core.content.edit
 import androidx.navigation.compose.rememberNavController
 import androidx.compose.foundation.layout.Box
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.visualvibefincal.ui.theme.FinCalcTheme
 import com.example.visualvibefincal.ui.components.AssistantRobot
 import com.example.visualvibefincal.ui.navigation.NavGraph
 import com.example.visualvibefincal.ui.navigation.Screen
@@ -110,27 +111,3 @@ class HomeActivity : ComponentActivity() {
     }
 }
 
-@Composable
-fun FinCalcTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    val colorScheme = if (darkTheme) {
-        darkColorScheme(
-            primary = Color(0xFF00D1B2),
-            background = Color(0xFF0F2027),
-            surface = Color(0xFF203A43),
-            onBackground = Color.White,
-            onSurface = Color.White
-        )
-    } else {
-        lightColorScheme(
-            primary = Color(0xFF00D1B2),
-            background = Color.White,
-            surface = Color(0xFFF0F4F8),
-            onBackground = Color.Black,
-            onSurface = Color.Black
-        )
-    }
-    MaterialTheme(
-        colorScheme = colorScheme,
-        content = content
-    )
-}

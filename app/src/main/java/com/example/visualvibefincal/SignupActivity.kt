@@ -132,18 +132,16 @@ class SignupActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            val sharedPref = SecurityUtils.getEncryptedPrefs(this)
-            sharedPref.edit {
+            val securePref = SecurityUtils.getEncryptedPrefs(this)
+            securePref.edit {
                 putString("name", name)
                 putString("email", email)
                 putString("password", password)
+                // Mark that we have a saved account
+                putBoolean("has_account", true)
             }
             
-            // Also update regular prefs for non-sensitive data if needed
-            getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
-                putString("email", email)
-                putString("name", name)
-            }
+            android.util.Log.d("SignupActivity", "User record saved successfully for: $email")
             
             Toast.makeText(this, getString(R.string.signup_successful), Toast.LENGTH_SHORT).show()
             startActivity(Intent(this, LoginActivity::class.java))

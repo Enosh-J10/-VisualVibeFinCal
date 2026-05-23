@@ -207,6 +207,7 @@ fun CalculatorScreenScaffold(
     content: @Composable (PaddingValues) -> Unit
 ) {
     Scaffold(
+        modifier = Modifier.fillMaxSize(),
         topBar = {
             TopAppBar(
                 title = { Text(title, fontWeight = FontWeight.Bold) },
@@ -219,10 +220,12 @@ fun CalculatorScreenScaffold(
                     containerColor = Color.Transparent,
                     titleContentColor = if (isDarkMode) Color.White else Color.Black,
                     navigationIconContentColor = if (isDarkMode) Color.White else Color.Black
-                )
+                ),
+                windowInsets = WindowInsets.statusBars
             )
         },
-        containerColor = Color.Transparent
+        containerColor = Color.Transparent,
+        contentWindowInsets = WindowInsets.systemBars
     ) { innerPadding ->
         Box(
             modifier = Modifier
@@ -234,6 +237,8 @@ fun CalculatorScreenScaffold(
                         Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFF0F4F8)))
                     }
                 )
+                .navigationBarsPadding()
+                .imePadding()
         ) {
             content(innerPadding)
         }
