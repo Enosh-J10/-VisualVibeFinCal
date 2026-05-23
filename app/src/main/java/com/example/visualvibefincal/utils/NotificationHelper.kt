@@ -37,7 +37,7 @@ object NotificationHelper {
         )
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // Replace with app icon later
+            .setSmallIcon(android.R.drawable.ic_dialog_info) // Use a better icon here eventually
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -48,7 +48,7 @@ object NotificationHelper {
             try {
                 notify(System.currentTimeMillis().toInt(), builder.build())
             } catch (e: SecurityException) {
-                // Handle missing permission on Android 13+
+                // If we don't have permission to show notifications
             }
         }
     }

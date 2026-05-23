@@ -139,15 +139,13 @@ fun BMIScreen(
                                 return@BouncyButton
                             }
                             val w = weight.toDoubleOrNull() ?: 0.0
-                            val h = (height.toDoubleOrNull() ?: 0.0) / 100 // cm to m
+                            val h = (height.toDoubleOrNull() ?: 0.0) / 100 // convert cm to meters
                             val a = age.toIntOrNull() ?: 0
                             if (w > 0 && h > 0) {
                                 val bmi = w / (h * h)
                                 bmiResult = bmi
                                 
-                                // Simplified NHS interpretation for adults (18+)
-                                // For children, it would require centile charts, but usually 
-                                // we stick to adult categories unless specified otherwise for simplicity.
+                                // Standard categories for adults
                                 bmiCategory = when {
                                     bmi < 18.5 -> "Underweight"
                                     bmi < 25 -> "Healthy weight"
@@ -155,15 +153,15 @@ fun BMIScreen(
                                     else -> "Obese"
                                 }
 
-                                assistantViewModel.showMessage("Analyzing your stats for age $a...", AssistantState.THINKING, AssistantMessageType.THOUGHT, durationMs = 1500)
+                                assistantViewModel.showMessage("Checking your BMI for age $a...", AssistantState.THINKING, AssistantMessageType.THOUGHT, durationMs = 1500)
                                 
                                 coroutineScope.launch {
                                     delay(1500)
                                     val msg = when (bmiCategory) {
-                                        "Healthy weight" -> "You're in the healthy range for your age! 🌟"
-                                        "Underweight" -> "The NHS recommends a balanced diet to reach a healthy weight. 🍎"
+                                        "Healthy weight" -> "You're in the healthy range! 🌟"
+                                        "Underweight" -> "You might need a more balanced diet to reach a healthy weight. 🍎"
                                         "Overweight" -> "Small changes in diet and activity can make a big difference! 🏃‍♂️"
-                                        else -> "It's worth chatting with a GP about your health goals. ❤️"
+                                        else -> "It's worth chatting with a doctor about your health goals. ❤️"
                                     }
                                     assistantViewModel.showMessage(msg, AssistantState.HAPPY)
                                 }
@@ -202,7 +200,7 @@ fun BMIScreen(
                             }
                         )
                         Text(
-                            "Interpretation based on NHS adult guidelines (18+)",
+                            "Based on standard adult guidelines (18+)",
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             fontSize = 12.sp,

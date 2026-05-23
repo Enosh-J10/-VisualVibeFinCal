@@ -73,7 +73,7 @@ fun AssistantRobot(
     val bubbleMaxWidth = 220.dp
     val bubbleMaxWidthPx = with(density) { bubbleMaxWidth.toPx() }
 
-    // Initial position: Bottom Right
+    // Starts in the bottom right
     val initialX = screenWidthPx - robotWidthPx - screenPaddingPx
     val initialY = screenHeightPx - robotHeightPx - with(density) { 120.dp.toPx() }
 
@@ -93,7 +93,7 @@ fun AssistantRobot(
     val bodyColor = Color(if (prefs.isCustomMode) prefs.customBodyColor.hex else prefs.theme.bodyColor.hex)
     val accentColor = Color(if (prefs.isCustomMode) prefs.customAccentColor.hex else prefs.theme.accentColor.hex)
 
-    // Idle Animations
+    // Floating and breathing animations
     val infiniteTransition = rememberInfiniteTransition(label = "robot_idle")
     val floatAnim by infiniteTransition.animateFloat(
         initialValue = 0f,
@@ -135,7 +135,7 @@ fun AssistantRobot(
         label = "waveBounce"
     )
 
-    // Action Animations
+    // Reactions like jumping or waving
     val jumpAnim = remember { Animatable(0f) }
     val rotationAnim = remember { Animatable(0f) }
 
@@ -156,7 +156,7 @@ fun AssistantRobot(
         }
     }
 
-    // Dynamic Bubble Positioning
+    // Place the message bubble so it doesn't go off screen
     val isNearRight = animX.value > (screenWidthPx - robotWidthPx - bubbleMaxWidthPx)
     val isNearLeft = animX.value < (bubbleMaxWidthPx + screenPaddingPx)
     val isNearBottom = animY.value > screenHeightPx * 0.7f
@@ -234,7 +234,7 @@ fun AssistantRobot(
                     translationY = (translationY + waveBounce) // Combined Y translation
                 }
                 .semantics {
-                    contentDescription = "Visual Vibe Assistant, state: ${robotState.name.lowercase()}. Double tap for a tip, long press for settings."
+                    contentDescription = "Robot assistant. Tap for a tip, hold for settings."
                     role = androidx.compose.ui.semantics.Role.Button
                 }
                 .pointerInput(Unit) {
@@ -271,7 +271,7 @@ fun AssistantRobot(
                                 }
                             },
                             onLongPress = {
-                                 viewModel.showMessage("Opening Settings! ⚙️", AssistantState.THINKING, AssistantMessageType.THOUGHT)
+                                 viewModel.showMessage("Opening Settings...", AssistantState.THINKING, AssistantMessageType.THOUGHT)
                                  onOpenSettings()
                             }
                         )

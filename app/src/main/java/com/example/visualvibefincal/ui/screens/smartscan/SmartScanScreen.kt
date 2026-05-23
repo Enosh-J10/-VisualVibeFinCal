@@ -152,7 +152,7 @@ fun SmartScanScreen(
                                 .weight(1f)
                                 .height(56.dp)
                                 .semantics {
-                                    contentDescription = "Scan Receipt: Open camera to capture a physical receipt"
+                                    contentDescription = "Scan a receipt using your camera"
                                 },
                             shape = RoundedCornerShape(12.dp)
                         ) {
@@ -170,7 +170,7 @@ fun SmartScanScreen(
                                 .weight(1f)
                                 .height(56.dp)
                                 .semantics {
-                                    contentDescription = "Upload Bill: Choose a receipt or bill from your device storage"
+                                    contentDescription = "Upload a receipt from your phone"
                                 },
                             shape = RoundedCornerShape(12.dp),
                             containerColor = Color.Transparent
@@ -681,7 +681,7 @@ private fun preprocessImage(bitmap: Bitmap): Bitmap {
     val canvas = Canvas(bmp)
     val paint = Paint()
     
-    // Grayscale + Contrast enhancement
+    // Grayscale + Contrast
     val contrast = 1.4f
     val brightness = -15f
     val cm = ColorMatrix(floatArrayOf(
@@ -757,10 +757,7 @@ private fun detectTotal(lines: List<Line>): Pair<Double, Boolean> {
 }
 
 private fun extractAmount(text: String): Double? {
-    // Enhanced Regex to support:
-    // 1. Currencies: $1,234.56, £10.00, €45,00, 50.00 USD, 100 EUR
-    // 2. Formats: 1.234,56 (EU style) or 1,234.56 (US style)
-    // 3. Simple numbers: 45.00, 100.00
+    // Regex for different currencies and formats
     val regex = Regex("""(?i)(?:[$£€¥]|USD|EUR|GBP)?\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})(?:\s*(?:USD|EUR|GBP))?""")
     val match = regex.find(text)
     if (match != null) {

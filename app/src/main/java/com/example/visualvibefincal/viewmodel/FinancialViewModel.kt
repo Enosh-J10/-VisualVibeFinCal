@@ -58,12 +58,12 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
 
         val totalSpent = currentMonthExpenses.sumOf { it.amount }
         if (budget != null && totalSpent > budget.amount) {
-            suggestions.add("You've exceeded your monthly budget! Try to cut back on non-essentials. 📉")
+            suggestions.add("You went over your budget! Maybe try to spend a bit less for the rest of the month. 📉")
         }
 
         val foodExpenses = currentMonthExpenses.filter { it.category == "Food & Dining" }.sumOf { it.amount }
         if (foodExpenses > totalSpent * 0.4 && totalSpent > 0) {
-            suggestions.add("You are spending a lot on food this month (over 40% of total). 🍕")
+            suggestions.add("You're spending a lot on food lately—maybe try some home cooking? 🍕")
         }
 
         if (currentMonthExpenses.size > 5 && totalSpent < 50) {

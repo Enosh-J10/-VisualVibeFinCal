@@ -58,7 +58,7 @@ class HomeActivity : ComponentActivity() {
             }
         })
         
-        // Request Notification Permission for Android 13+
+        // Ask for permission to show notifications on newer Android versions
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val permission = android.Manifest.permission.POST_NOTIFICATIONS
             if (androidx.core.content.ContextCompat.checkSelfPermission(this, permission) != 

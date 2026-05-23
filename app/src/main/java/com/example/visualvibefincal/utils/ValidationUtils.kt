@@ -28,14 +28,14 @@ object ValidationUtils {
     }
 
     fun formatNumericInput(input: String, allowNegative: Boolean = true): String {
-        // Only allow numbers and one decimal point
+        // Only allow digits, dots, and minus signs
         var filtered = input.filter { it.isDigit() || it == '.' || it == '-' }
         
         // Handle negative sign
         if (!allowNegative) {
             filtered = filtered.replace("-", "")
         } else if (filtered.count { it == '-' } > 1 || (filtered.contains('-') && filtered.indexOf('-') != 0)) {
-            // Keep only the first minus if it's at the start
+            // Only allow a minus sign at the very beginning
             val hasLeadingMinus = filtered.startsWith("-")
             filtered = (if (hasLeadingMinus) "-" else "") + filtered.replace("-", "")
         }

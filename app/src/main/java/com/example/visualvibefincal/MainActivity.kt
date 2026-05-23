@@ -13,12 +13,12 @@ import com.example.visualvibefincal.utils.NotificationHelper
 
 class MainActivity : AppCompatActivity() {
     private val tips = listOf(
-        "Saving 10% monthly can grow significantly over time 📈",
-        "Track your expenses to stay ahead 💰",
-        "Compound interest is the eighth wonder of the world!",
-        "Always keep an emergency fund of 3-6 months.",
-        "Diversify your investments to manage risk.",
-        "A healthy BMI is generally between 18.5 and 24.9 🍎"
+        "Try to save a bit of your money every month! 📈",
+        "Track your spending to see where your money goes 💰",
+        "The earlier you start saving, the more it grows! 🪙",
+        "It's good to keep some cash for emergencies. 🏦",
+        "Don't put all your eggs in one basket when investing. 🥚",
+        "Staying active helps keep your BMI in a healthy range 🍎"
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -37,7 +37,7 @@ class MainActivity : AppCompatActivity() {
         }
         handler.post(updateTipRunnable)
 
-        // Splash screen delay of 3 seconds
+        // Wait 3 seconds then go to login or lock screen
         handler.postDelayed({
             handler.removeCallbacks(updateTipRunnable)
             if (SecurityUtils.isAppLockEnabled(this)) {

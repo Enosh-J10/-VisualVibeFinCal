@@ -162,10 +162,10 @@ fun SettingsScreen(
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
-            // --- Assistant Settings Section ---
+            // Assistant Settings
             CalculatorCard(isDarkMode = isDarkMode) {
                 Text(
-                    text = "🤖 Assistant Settings",
+                    text = "Assistant",
                     modifier = Modifier.fillMaxWidth(),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -300,10 +300,10 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // --- Backup & Restore Section ---
+            // Backup & Restore
             CalculatorCard(isDarkMode = isDarkMode) {
                 Text(
-                    text = "💾 Backup & Restore",
+                    text = "Backup & Restore",
                     modifier = Modifier.fillMaxWidth(),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -355,10 +355,10 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            // --- Privacy & Trust Section ---
+            // Privacy
             CalculatorCard(isDarkMode = isDarkMode) {
                 Text(
-                    text = "🛡️ Privacy & Trust",
+                    text = "Privacy",
                     modifier = Modifier.fillMaxWidth(),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -367,9 +367,9 @@ fun SettingsScreen(
 
                 Spacer(Modifier.height(8.dp))
                 
-                PrivacyNote("Your data is stored locally on your device.")
-                PrivacyNote("Camera is used only for scanning receipts.")
-                PrivacyNote("Biometric lock protects your app access.")
+                PrivacyNote("Your data stays on this device.")
+                PrivacyNote("Camera is only for scanning.")
+                PrivacyNote("Fingerprint/Face ID for extra security.")
                 
                 Spacer(Modifier.height(8.dp))
                 
@@ -453,9 +453,8 @@ fun SettingsScreen(
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Developer Credits", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
+                    Text("Made by", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
                     Spacer(Modifier.height(4.dp))
-                    Text("Designed & Developed by", fontSize = 12.sp)
                     Text("Enosh Jaques", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }

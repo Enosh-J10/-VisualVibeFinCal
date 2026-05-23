@@ -193,10 +193,10 @@ fun CalculatorScreen(
                                             } else if (display == "Error") {
                                                 display = if (isOperator) "0$char" else char
                                             } else if (isOperator && isLastCharOperator) {
-                                                // Replace last operator with new one
+                                                // Switch out the operator
                                                 display = display.dropLast(1) + char
                                             } else if (char == "." ) {
-                                                // Prevent multiple dots in the same number
+                                                // Only allow one decimal point
                                                 val lastNumber = display.split(Regex("[+\\-*/^()]")).last()
                                                 if (!lastNumber.contains(".")) {
                                                     display += char

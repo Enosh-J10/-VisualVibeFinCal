@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">FinCalc</string>
     <string name="fincalc">FinCalc</string>
-    <string name="smart_financial_calculations">Smart Financial Calculations</string>
+    <string name="smart_financial_calculations">Money tools for everyone</string>
     <string name="app_logo">App Logo</string>
 
     <!-- Login Strings -->

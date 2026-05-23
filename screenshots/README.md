@@ -1,17 +1,15 @@
 # App Screenshots
 
-This folder contains screenshots of the FinCalc application.
+This folder is for screenshots of the app.
 
-## Screenshot Guidelines
-1. Take screenshots of the app on your device or emulator.
-2. Name them appropriately (e.g., `home_screen.png`, `currency_converter.png`).
-3. Place them in this folder.
-4. Update the main project README to point to these files if necessary.
+### How to add them:
+1. Take a screenshot on your phone.
+2. Save it here.
+3. Update the main README if you want to show them there too.
 
-## Expected Screenshots:
-- **Home Screen**: Showcasing the tool categories and recent/favorite tools.
-- **Currency Converter**: Demonstrating live rate conversion.
-- **Smart Scan**: Showing the OCR processing of a receipt.
-- **Insights Dashboard**: Displaying spending charts and summaries.
-- **Assistant Robot**: Showing the interactive AI companion.
-- **Settings Screen**: Demonstrating security and personalization options.
+### Suggested screens to include:
+* **Home**: The main menu with all the tools.
+* **Insights**: The spending charts.
+* **Smart Scan**: Scanning a receipt.
+* **Assistant**: The little robot character.
+* **Settings**: PIN lock and customization options.

@@ -84,19 +84,19 @@ class AssistantViewModel : ViewModel() {
     private var messageJob: Job? = null
 
     private val financialTips = listOf(
-        "Saving 10% monthly can grow significantly over time 📈",
-        "Track your expenses to stay ahead 💰",
-        "Compound interest is the eighth wonder of the world!",
-        "Always keep an emergency fund of 3-6 months.",
-        "Diversify your investments to manage risk.",
-        "Small changes in interest rates can mean big savings on loans."
+        "Try saving 10% of your money each month! 📈",
+        "Keep track of your spending so you know where it goes. 💰",
+        "The earlier you save, the more you earn! 🪙",
+        "It's a good idea to have some emergency cash ready. 🏦",
+        "Don't put all your money in one place. 🥚",
+        "Even a small drop in interest rates can save you a lot! 📉"
     )
 
     private val funFacts = listOf(
-        "I'm 99% calculator, 1% comedian 🤖",
-        "Math is fun… sometimes 😄",
-        "I never sleep, I just compute.",
-        "Beep boop! Processing awesomeness..."
+        "I'm mostly a calculator, but I try to be funny too 🤖",
+        "Math is actually pretty cool! 😄",
+        "I'm always ready to help. No sleep for me!",
+        "Beep boop! Just thinking..."
     )
 
     fun showMessage(
@@ -110,15 +110,15 @@ class AssistantViewModel : ViewModel() {
         messageJob?.cancel()
         messageJob = viewModelScope.launch {
             _messageType.value = type
-            // Respect WAVING state if it's currently active
+            // Keep waving if I'm already doing it
             if (_robotState.value != AssistantState.WAVING) {
                 _robotState.value = state
             }
             _isTyping.value = true
-            delay(1000) // Simulate typing
+            delay(1000) // Wait a bit to look like I'm typing
             _isTyping.value = false
             _message.value = text
-            // After typing, switch to the intended expression if not waving anymore
+            // Show the right face after typing
             if (_robotState.value != AssistantState.WAVING) {
                 _robotState.value = state
             }
@@ -134,7 +134,7 @@ class AssistantViewModel : ViewModel() {
         if (!_prefs.value.isEnabled) return
         viewModelScope.launch {
             _robotState.value = AssistantState.WAVING
-            delay(1500) // Duration of the wave animation
+            delay(1500) // How long to wave for
             if (_message.value == null) {
                 _robotState.value = AssistantState.IDLE
             } else {
