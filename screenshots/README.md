@@ -2,7 +2,7 @@
 
 This folder contains screenshots of the FinCalc application.
 
-## How to add screenshots
+## Screenshot Guidelines
 1. Take screenshots of the app on your device or emulator.
 2. Name them appropriately (e.g., `home_screen.png`, `currency_converter.png`).
 3. Place them in this folder.
