@@ -240,17 +240,18 @@ fun CalculatorScreenScaffold(
 @Composable
 fun CalculatorCard(
     isDarkMode: Boolean,
+    modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Card(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
-            .padding(24.dp),
-        shape = RoundedCornerShape(24.dp),
+            .padding(horizontal = 24.dp, vertical = 12.dp),
+        shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(
-            containerColor = (if (isDarkMode) Color(0xFF1B2C33) else Color.White).copy(alpha = 0.9f)
+            containerColor = (if (isDarkMode) Color(0xFF1B2C33) else Color.White).copy(alpha = 0.95f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
             modifier = Modifier.padding(24.dp),
@@ -350,6 +351,35 @@ fun HistorySection(
                 }
             }
         }
+    }
+}
+
+@Composable
+fun EmptyState(
+    message: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth().padding(48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(64.dp),
+                tint = Color.Gray.copy(alpha = 0.3f)
+            )
+            Spacer(Modifier.height(16.dp))
+        }
+        Text(
+            text = message,
+            color = Color.Gray,
+            textAlign = TextAlign.Center,
+            fontSize = 16.sp
+        )
     }
 }
 

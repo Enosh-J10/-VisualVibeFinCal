@@ -19,6 +19,14 @@ import com.example.visualvibefincal.ui.screens.CalculatorScreen
 import com.example.visualvibefincal.ui.screens.SalaryScreen
 import com.example.visualvibefincal.ui.screens.NoteBookScreen
 import com.example.visualvibefincal.ui.screens.smartscan.SmartScanScreen
+import com.example.visualvibefincal.ui.screens.InsightsDashboardScreen
+import com.example.visualvibefincal.ui.screens.BudgetPlannerScreen
+import com.example.visualvibefincal.ui.screens.GoalsScreen
+import com.example.visualvibefincal.ui.screens.OnboardingScreen
+import android.content.Context
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 
 import com.example.visualvibefincal.viewmodel.AssistantViewModel
 
@@ -30,9 +38,13 @@ fun NavGraph(
     onLogout: () -> Unit,
     assistantViewModel: AssistantViewModel
 ) {
+    val context = LocalContext.current
+    val sharedPref = remember { context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE) }
+    val isOnboardingComplete = remember { mutableStateOf(sharedPref.getBoolean("onboarding_complete", false)) }
+
     NavHost(
         navController = navController,
-        startDestination = Screen.Home.route
+        startDestination = if (isOnboardingComplete.value) Screen.Home.route else Screen.Onboarding.route
     ) {
         composable(Screen.Home.route) {
             HomeScreen(
@@ -52,12 +64,17 @@ fun NavGraph(
                         "salary" -> navController.navigate(Screen.Salary.route)
                         "notes" -> navController.navigate(Screen.NoteBook.route)
                         "smart_scan" -> navController.navigate(Screen.SmartScan.route)
+                        "insights" -> navController.navigate(Screen.Insights.route)
+                        "budget" -> navController.navigate(Screen.Budget.route)
+                        "goals" -> navController.navigate(Screen.Goals.route)
                         "settings" -> navController.navigate(Screen.Settings.route)
                     }
                 },
-                assistantViewModel = assistantViewModel
+                assistantViewModel = assistantViewModel,
+                financialViewModel = viewModel()
             )
         }
+        // ... existing routes ...
         composable(Screen.CurrencyConverter.route) { 
             CurrencyConverterScreen(
                 navController = navController, 
@@ -80,6 +97,19 @@ fun NavGraph(
         composable(Screen.NoteBook.route) { NoteBookScreen(navController, isDarkMode, assistantViewModel = assistantViewModel) }
         composable(Screen.SmartScan.route) { SmartScanScreen(navController, isDarkMode, assistantViewModel = assistantViewModel) }
         
+        composable(Screen.Insights.route) { InsightsDashboardScreen(navController, isDarkMode, assistantViewModel) }
+        composable(Screen.Budget.route) { BudgetPlannerScreen(navController, isDarkMode, assistantViewModel) }
+        composable(Screen.Goals.route) { GoalsScreen(navController, isDarkMode, assistantViewModel) }
+        composable(Screen.Onboarding.route) { 
+            OnboardingScreen(onFinished = {
+                sharedPref.edit().putBoolean("onboarding_complete", true).apply()
+                isOnboardingComplete.value = true
+                navController.navigate(Screen.Home.route) {
+                    popUpTo(Screen.Onboarding.route) { inclusive = true }
+                }
+            }) 
+        }
+
         composable(Screen.Settings.route) {
             // Reusing the Settings content from HomeScreen's Dialog if possible, 
             // but for a dedicated screen, we might want a slightly different layout.

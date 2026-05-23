@@ -298,7 +298,87 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(24.dp))
+
+            // --- Backup & Restore Section ---
+            CalculatorCard(isDarkMode = isDarkMode) {
+                Text(
+                    text = "💾 Backup & Restore",
+                    modifier = Modifier.fillMaxWidth(),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00D1B2)
+                )
+
+                Spacer(Modifier.height(16.dp))
+
+                val exportLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.CreateDocument("application/json")
+                ) { uri ->
+                    uri?.let {
+                        coroutineScope.launch {
+                            val success = com.example.visualvibefincal.utils.BackupUtils.exportData(context, it)
+                            if (success) Toast.makeText(context, "Backup successful", Toast.LENGTH_SHORT).show()
+                            else Toast.makeText(context, "Backup failed", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+
+                val importLauncher = rememberLauncherForActivityResult(
+                    contract = ActivityResultContracts.OpenDocument()
+                ) { uri ->
+                    uri?.let {
+                        coroutineScope.launch {
+                            val success = com.example.visualvibefincal.utils.BackupUtils.importData(context, it)
+                            if (success) Toast.makeText(context, "Restore successful", Toast.LENGTH_SHORT).show()
+                            else Toast.makeText(context, "Restore failed", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    BouncyButton(
+                        onClick = { exportLauncher.launch("fincalc_backup_${System.currentTimeMillis()}.json") },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Export JSON")
+                    }
+                    BouncyButton(
+                        onClick = { importLauncher.launch(arrayOf("application/json")) },
+                        modifier = Modifier.weight(1f),
+                        containerColor = Color.Transparent
+                    ) {
+                        Text("Import JSON", color = Color(0xFF00D1B2))
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // --- Privacy & Trust Section ---
+            CalculatorCard(isDarkMode = isDarkMode) {
+                Text(
+                    text = "🛡️ Privacy & Trust",
+                    modifier = Modifier.fillMaxWidth(),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00D1B2)
+                )
+
+                Spacer(Modifier.height(8.dp))
+                
+                PrivacyNote("Your data is stored locally on your device.")
+                PrivacyNote("Camera is used only for scanning receipts.")
+                PrivacyNote("Biometric lock protects your app access.")
+                
+                Spacer(Modifier.height(8.dp))
+                
+                TextButton(onClick = { /* Navigate to Terms if exists */ }) {
+                    Text("Privacy Policy & Terms", color = Color(0xFF00D1B2), fontSize = 12.sp)
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
 
             SettingsItem(title = "Feedback & Review", trailing = {
                 IconButton(onClick = { showFeedbackDialog = true }) {
@@ -510,6 +590,18 @@ fun SettingsScreen(
                 TextButton(onClick = { showPinDialog = false }) { Text("Cancel", color = Color.Gray) }
             }
         )
+    }
+}
+
+@Composable
+fun PrivacyNote(text: String) {
+    Row(
+        modifier = Modifier.padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(modifier = Modifier.size(6.dp).background(Color(0xFF00D1B2), CircleShape))
+        Spacer(Modifier.width(12.dp))
+        Text(text, fontSize = 12.sp, color = Color.Gray)
     }
 }
 

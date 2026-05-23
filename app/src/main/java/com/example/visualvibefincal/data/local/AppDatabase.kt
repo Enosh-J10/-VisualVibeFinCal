@@ -4,12 +4,18 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.example.visualvibefincal.data.local.dao.BudgetDao
 import com.example.visualvibefincal.data.local.dao.ExpenseDao
+import com.example.visualvibefincal.data.local.dao.GoalDao
+import com.example.visualvibefincal.data.local.entity.Budget
 import com.example.visualvibefincal.data.local.entity.Expense
+import com.example.visualvibefincal.data.local.entity.Goal
 
-@Database(entities = [Expense::class], version = 3)
+@Database(entities = [Expense::class, Goal::class, Budget::class], version = 4)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
+    abstract fun goalDao(): GoalDao
+    abstract fun budgetDao(): BudgetDao
 
     companion object {
         @Volatile

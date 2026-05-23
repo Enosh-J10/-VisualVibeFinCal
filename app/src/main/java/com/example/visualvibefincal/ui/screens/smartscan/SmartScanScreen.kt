@@ -713,6 +713,10 @@ private fun detectTotal(lines: List<Line>): Pair<Double, Boolean> {
         if (amount != null) {
             // Skip obvious non-totals like dates or phone numbers
             if (text.contains("/") || (text.contains("-") && text.length > 10)) return@forEachIndexed
+            
+            // Filter out phone numbers or long codes
+            val digitsOnly = text.replace(Regex("[^0-9]"), "")
+            if (digitsOnly.length >= 10 && !text.contains(".") && !text.contains(",")) return@forEachIndexed
 
             var priority = 0
             if (totalKeywords.any { text.contains(it) }) {
@@ -844,11 +848,12 @@ private fun extractDate(text: String): Long {
 private fun detectCategory(text: String): String {
     val lower = text.lowercase()
     val categories = mapOf(
-        "Food & Dining" to listOf("restaurant", "cafe", "food", "takeaway", "pizza", "burger", "coffee", "mcdonald", "starbucks", "eat"),
-        "Fuel / Transport" to listOf("petrol", "fuel", "diesel", "station", "shell", "bp", "esso", "texaco", "uber", "train", "bus"),
-        "Shopping" to listOf("store", "mart", "supermarket", "shop", "tesco", "asda", "sainsbury", "lidl", "aldi", "amazon", "retail"),
-        "Bills" to listOf("electricity", "water", "gas", "internet", "bill", "invoice", "utility", "phone", "mobile"),
-        "Health" to listOf("pharmacy", "medical", "clinic", "boots", "hospital", "doctor", "dentist")
+        "Food & Dining" to listOf("restaurant", "cafe", "food", "takeaway", "pizza", "burger", "coffee", "mcdonald", "starbucks", "eat", "grocery", "bakery", "deli"),
+        "Fuel / Transport" to listOf("petrol", "fuel", "diesel", "station", "shell", "bp", "esso", "texaco", "uber", "train", "bus", "transport", "parking", "garage"),
+        "Shopping" to listOf("store", "mart", "supermarket", "shop", "tesco", "asda", "sainsbury", "lidl", "aldi", "amazon", "retail", "clothing", "fashion", "electronics"),
+        "Bills" to listOf("electricity", "water", "gas", "internet", "bill", "invoice", "utility", "phone", "mobile", "rent", "insurance", "subscription"),
+        "Health" to listOf("pharmacy", "medical", "clinic", "boots", "hospital", "doctor", "dentist", "health", "gym", "fitness"),
+        "Travel" to listOf("hotel", "flight", "airline", "booking", "holiday", "resort")
     )
 
     for ((cat, keywords) in categories) {

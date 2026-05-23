@@ -12,6 +12,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -32,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.visualvibefincal.R
 import com.example.visualvibefincal.domain.model.Category
 import com.example.visualvibefincal.domain.model.Tool
@@ -43,13 +46,16 @@ import androidx.work.*
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 
+import com.example.visualvibefincal.viewmodel.FinancialViewModel
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
     isDarkMode: Boolean, 
     onLogout: () -> Unit,
     onNavigateToTool: (String) -> Unit,
-    assistantViewModel: AssistantViewModel
+    assistantViewModel: AssistantViewModel,
+    financialViewModel: FinancialViewModel = viewModel()
 ) {
     val context = LocalContext.current
     val sharedPref = remember { context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE) }
@@ -70,6 +76,10 @@ fun HomeScreen(
 
     val isGuest = remember { sharedPref.getBoolean("is_guest", false) }
 
+    val expenses by financialViewModel.allExpenses.collectAsState()
+    val currentMonth = financialViewModel.getCurrentMonth()
+    val budget by financialViewModel.getBudgetForMonth(currentMonth).collectAsState(initial = null)
+
     val allTools = remember {
         listOf(
             Tool("curr", "Currency", R.drawable.ic_currency),
@@ -83,9 +93,21 @@ fun HomeScreen(
             Tool("calc", "Calculator", R.drawable.ic_calc),
             Tool("salary", "Salary Calculator", R.drawable.ic_salary),
             Tool("notes", "Note Book", R.drawable.ic_calc),
-            Tool("smart_scan", "Smart Scan", R.drawable.ic_calc)
+            Tool("smart_scan", "Smart Scan", R.drawable.ic_calc),
+            Tool("insights", "Insights", R.drawable.ic_calc),
+            Tool("budget", "Budget Planner", R.drawable.ic_calc),
+            Tool("goals", "Savings Goals", R.drawable.ic_calc)
         )
     }
+
+    val favoritesState = remember {
+        val initialIds = sharedPref.getString("favorite_tools", "") ?: ""
+        val initialList = initialIds.split(",")
+            .filter { it.isNotBlank() }
+            .mapNotNull { id -> allTools.find { it.id == id } }
+        mutableStateOf(initialList)
+    }
+    val favoriteTools = favoritesState.value
 
     val recentToolsState = remember {
         val initialIds = sharedPref.getString("recent_tools", "") ?: ""
@@ -111,11 +133,27 @@ fun HomeScreen(
         onNavigateToTool(toolId)
     }
 
+    val toggleFavorite: (String) -> Unit = { toolId ->
+        val currentFavorites = sharedPref.getString("favorite_tools", "") ?: ""
+        val favList = currentFavorites.split(",").filter { it.isNotBlank() }.toMutableList()
+        if (favList.contains(toolId)) {
+            favList.remove(toolId)
+        } else {
+            favList.add(toolId)
+        }
+        val updatedFavorites = favList.joinToString(",")
+        sharedPref.edit { putString("favorite_tools", updatedFavorites) }
+        
+        favoritesState.value = updatedFavorites.split(",")
+            .filter { it.isNotBlank() }
+            .mapNotNull { id -> allTools.find { it.id == id } }
+    }
+
     val categories = listOf(
+        Category("Insights & Planning", allTools.filter { it.id in listOf("insights", "budget", "goals") }, if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFE3F2FD)),
         Category("Finance Basics", allTools.filter { it.id in listOf("curr", "loan", "tip") }, if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFF0F4F8)),
         Category("Advanced", allTools.filter { it.id in listOf("tax", "perc", "smart_scan") }, if (isDarkMode) Color(0xFF1E322E) else Color(0xFFE8F5E9)),
-        Category("General", allTools.filter { it.id in listOf("unit", "date", "bmi") }, if (isDarkMode) Color(0xFF332A1B) else Color(0xFFFFF3E0)),
-        Category("Personal", allTools.filter { it.id in listOf("calc", "salary", "notes") }, if (isDarkMode) Color(0xFF2E1B33) else Color(0xFFF3E5F5))
+        Category("Personal", allTools.filter { it.id in listOf("unit", "date", "bmi", "calc", "salary", "notes") }, if (isDarkMode) Color(0xFF2E1B33) else Color(0xFFF3E5F5))
     )
 
     var refreshTrigger by remember { mutableIntStateOf(0) }
@@ -130,7 +168,12 @@ fun HomeScreen(
     LaunchedEffect(Unit) {
         delay(1000)
         assistantViewModel.triggerWave()
-        assistantViewModel.showMessage("Welcome back! Ready to save some money? 💰")
+        val suggestions = financialViewModel.getSmartSuggestions(expenses, budget)
+        if (suggestions.isNotEmpty()) {
+            assistantViewModel.showMessage(suggestions.random(), AssistantState.HAPPY)
+        } else {
+            assistantViewModel.showMessage("Welcome back! Ready to save some money? 💰")
+        }
     }
 
     Scaffold(
@@ -169,6 +212,28 @@ fun HomeScreen(
                     .background(if (isDarkMode) Color.Black.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.8f))
                     .padding(vertical = 8.dp)
             ) {
+                if (favoriteTools.isNotEmpty()) {
+                    Text(
+                        "Favorites",
+                        color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Black.copy(alpha = 0.7f),
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                    LazyRow(
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(favoriteTools, key = { "fav_${it.id}" }) { tool ->
+                            RecentToolChip(tool, isDarkMode) {
+                                handleNavigateToTool(tool.id)
+                            }
+                        }
+                    }
+                    Spacer(Modifier.height(8.dp))
+                }
+
                 Text(
                     stringResource(R.string.recent_tools),
                     color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Black.copy(alpha = 0.7f),
@@ -217,12 +282,12 @@ fun HomeScreen(
                         verticalArrangement = Arrangement.Center
                     ) {
                         Row(Modifier.fillMaxWidth().weight(1f)) {
-                            CategoryCard(categories[0], Modifier.weight(1f).fillMaxHeight(), visible, 0, isDarkMode, handleNavigateToTool)
-                            CategoryCard(categories[1], Modifier.weight(1f).fillMaxHeight(), visible, 1, isDarkMode, handleNavigateToTool)
+                            CategoryCard(categories[0], Modifier.weight(1f).fillMaxHeight(), visible, 0, isDarkMode, handleNavigateToTool, favoriteTools, toggleFavorite)
+                            CategoryCard(categories[1], Modifier.weight(1f).fillMaxHeight(), visible, 1, isDarkMode, handleNavigateToTool, favoriteTools, toggleFavorite)
                         }
                         Row(Modifier.fillMaxWidth().weight(1f)) {
-                            CategoryCard(categories[2], Modifier.weight(1f).fillMaxHeight(), visible, 2, isDarkMode, handleNavigateToTool)
-                            CategoryCard(categories[3], Modifier.weight(1f).fillMaxHeight(), visible, 3, isDarkMode, handleNavigateToTool)
+                            CategoryCard(categories[2], Modifier.weight(1f).fillMaxHeight(), visible, 2, isDarkMode, handleNavigateToTool, favoriteTools, toggleFavorite)
+                            CategoryCard(categories[3], Modifier.weight(1f).fillMaxHeight(), visible, 3, isDarkMode, handleNavigateToTool, favoriteTools, toggleFavorite)
                         }
                     }
                 }
@@ -248,7 +313,9 @@ fun CategoryCard(
     visible: Boolean, 
     index: Int, 
     isDarkMode: Boolean,
-    onNavigateToTool: (String) -> Unit
+    onNavigateToTool: (String) -> Unit,
+    favoriteTools: List<Tool>,
+    onToggleFavorite: (String) -> Unit
 ) {
     val animatedAlpha by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
@@ -281,16 +348,26 @@ fun CategoryCard(
             )
             Spacer(Modifier.height(8.dp))
             category.tools.forEach { tool ->
-                ToolItem(tool, isDarkMode) {
-                    onNavigateToTool(tool.id)
-                }
+                ToolItem(
+                    tool = tool, 
+                    isDarkMode = isDarkMode, 
+                    isFavorite = favoriteTools.any { it.id == tool.id },
+                    onToggleFavorite = { onToggleFavorite(tool.id) },
+                    onClick = { onNavigateToTool(tool.id) }
+                )
             }
         }
     }
 }
 
 @Composable
-fun ToolItem(tool: Tool, isDarkMode: Boolean, onClick: () -> Unit) {
+fun ToolItem(
+    tool: Tool, 
+    isDarkMode: Boolean, 
+    isFavorite: Boolean,
+    onToggleFavorite: () -> Unit,
+    onClick: () -> Unit
+) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -311,8 +388,20 @@ fun ToolItem(tool: Tool, isDarkMode: Boolean, onClick: () -> Unit) {
             tool.name,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
-            color = if (isDarkMode) Color.White.copy(alpha = 0.9f) else Color.Black.copy(alpha = 0.8f)
+            color = if (isDarkMode) Color.White.copy(alpha = 0.9f) else Color.Black.copy(alpha = 0.8f),
+            modifier = Modifier.weight(1f)
         )
+        IconButton(
+            onClick = { onToggleFavorite() },
+            modifier = Modifier.size(24.dp)
+        ) {
+            Icon(
+                imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
+                contentDescription = "Toggle Favorite",
+                tint = if (isFavorite) Color.Red else Color.Gray.copy(alpha = 0.5f),
+                modifier = Modifier.size(16.dp)
+            )
+        }
     }
 }
 
