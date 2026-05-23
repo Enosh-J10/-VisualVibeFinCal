@@ -32,11 +32,11 @@ import java.util.Locale
 import kotlin.math.pow
 
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.visualvibefincal.ui.viewmodel.HistoryViewModel
+import com.example.visualvibefincal.viewmodel.HistoryViewModel
 import com.example.visualvibefincal.data.model.HistoryItem
-import com.example.visualvibefincal.ui.viewmodel.AssistantViewModel
-import com.example.visualvibefincal.ui.viewmodel.AssistantState
-import com.example.visualvibefincal.ui.viewmodel.AssistantMessageType
+import com.example.visualvibefincal.viewmodel.AssistantViewModel
+import com.example.visualvibefincal.viewmodel.AssistantState
+import com.example.visualvibefincal.viewmodel.AssistantMessageType
 import com.example.visualvibefincal.ui.components.ValidatedTextField
 import com.example.visualvibefincal.utils.ValidationUtils
 

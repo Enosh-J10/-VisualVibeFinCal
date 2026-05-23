@@ -1,59 +1,56 @@
-FinCalc – All-in-One Financial Utility App
+# FinCalc – All-in-One Financial Utility App 📊
 
-FinCalc is a modern Android financial utility application developed using Kotlin and Jetpack Compose. The application was designed to provide users with multiple financial tools and utilities within a single platform while maintaining a clean, modern, and user-friendly fintech-style interface.
+FinCalc is a modern Android financial utility application developed using **Kotlin** and **Jetpack Compose**. It provides users with a comprehensive suite of financial tools and utilities within a single platform, maintaining a clean, modern, and user-friendly fintech-style interface.
 
-The app includes real-time currency conversion using API integration, multiple financial calculators, Smart Scan OCR bill processing, expense tracking, and an interactive floating assistant robot. FinCalc was developed with a strong focus on usability, accessibility, modern UI/UX design, error handling, customization, and security.
+## 🚀 Features
 
-Features
-Real-time Currency Converter with live API rates
-Loan Calculator
-Percentage Calculator
-Tax & Discount Calculator
-Tip Calculator
-Unit Converter
-BMI Calculator
-Salary Calculator
-Smart Scan OCR for physical and digital bills
-Expense Tracking System
-Interactive Floating Assistant Robot
-Assistant Customization (colors, accessories, visibility)
-Dark/Light Mode Support
-Notifications and Reminders
-Input Validation and Error Handling
-Biometric / PIN Security Support
-Technologies Used
-Kotlin
-Jetpack Compose
-Material 3
-MVVM Architecture
-Room Database
-Retrofit API Integration
-OCR / Text Recognition
-Android SDK
-Project Structure
+- **Real-time Currency Converter**: Live exchange rates via API integration.
+- **Financial Calculators**: Loan, Salary, Tax & Discount, Tip & Split, and Percentage calculators.
+- **Smart Scan (OCR)**: Integrated Smart Scan feature for digitizing financial documents and receipts using Google ML Kit.
+- **Interactive Assistant**: A floating assistant robot to help you navigate and provide smart financial insights.
+- **Expense Tracking**: Built-in system to track your financial activities.
+- **Health & Lifestyle**: Includes a BMI Calculator and a dedicated Notebook for financial notes.
+- **Security & Customization**: App lock (PIN/Biometric), notification settings, and personalization options for the assistant and UI.
+- **Modern UI**: Built with Material Design 3 and smooth Compose animations.
 
-The application follows a structured MVVM architecture to improve scalability, maintainability, and code organization. The project is divided into layers including:
+## 🛠 Technologies Used
 
-Data Layer (API, database, repositories)
-Domain Layer (business logic and models)
-UI Layer (screens, components, navigation)
-ViewModels (state and logic management)
-Utilities (validation, notifications, security)
-Purpose of the Application
+- **Language**: Kotlin
+- **UI Framework**: Jetpack Compose / Material 3
+- **Architecture**: MVVM (Model-View-ViewModel)
+- **Local Database**: Room (for notes, history, and expenses)
+- **Networking**: Retrofit & OkHttp (for live currency rates)
+- **Image Processing**: Google ML Kit (for OCR)
+- **Dependency Injection**: Manual / ViewModelProvider
+- **Navigation**: Compose Navigation
 
-The main purpose of FinCalc is to simplify financial calculations and expense management by combining multiple tools into a single mobile application. The project also aims to provide a modern and engaging user experience through animations, personalization, and interactive features.
+## 📁 Project Structure
 
-Future Improvements
+The project follows a clean MVVM architecture:
 
-Future versions of the application may include:
+- `data`: Handles data sources (API services, Room database, repositories).
+- `domain`: Contains business logic, models, and repository interfaces.
+- `ui`: Contains the UI layer (Screens, Components, Navigation).
+- `viewmodel`: Contains ViewModels that bridge the domain and UI layers.
+- `utils`: Helper classes for validation, security, and notifications.
 
-AI-powered financial insights
-Voice assistant support
-Cloud synchronization
-Advanced analytics dashboard
-Investment and budgeting tools
-Improved OCR accuracy
-Developer
+## 🎯 Purpose of the Application
 
-Developed by Enosh Jaques
-Android Application Development Project – 2026
+The main purpose of FinCalc is to simplify financial calculations and expense management by combining multiple tools into a single mobile application. It aims to provide a modern and engaging user experience through interactive features and smart automation.
+
+## 👷 Developer
+
+**Enosh Jaques**
+*Android Application Development Project – 2026*
+
+## 📝 Future Improvements
+
+- [ ] AI-powered financial insights and budgeting advice.
+- [ ] Voice assistant support for hands-free calculations.
+- [ ] Cloud synchronization for cross-device data backup.
+- [ ] Advanced analytics dashboard with charting.
+- [ ] Multi-language support.
+
+---
+
+*Disclaimer: This app is for educational and informational purposes. Always consult with a financial professional for critical financial decisions.*

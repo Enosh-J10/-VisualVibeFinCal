@@ -1,4 +1,4 @@
-package com.example.visualvibefincal.ui.viewmodel
+package com.example.visualvibefincal.viewmodel
 
 import android.content.Context
 import androidx.compose.runtime.getValue

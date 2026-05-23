@@ -21,11 +21,11 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.visualvibefincal.ui.viewmodel.HistoryViewModel
+import com.example.visualvibefincal.viewmodel.HistoryViewModel
 import com.example.visualvibefincal.data.model.HistoryItem
-import com.example.visualvibefincal.ui.viewmodel.AssistantViewModel
-import com.example.visualvibefincal.ui.viewmodel.AssistantState
-import com.example.visualvibefincal.ui.viewmodel.AssistantMessageType
+import com.example.visualvibefincal.viewmodel.AssistantViewModel
+import com.example.visualvibefincal.viewmodel.AssistantState
+import com.example.visualvibefincal.viewmodel.AssistantMessageType
 
 @Composable
 fun DateTimeScreen(

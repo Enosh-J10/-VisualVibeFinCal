@@ -30,14 +30,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import java.util.Locale
 import com.example.visualvibefincal.data.model.CurrencyData
-import com.example.visualvibefincal.ui.viewmodel.CurrencyUiState
-import com.example.visualvibefincal.ui.viewmodel.CurrencyViewModel
+import com.example.visualvibefincal.viewmodel.CurrencyUiState
+import com.example.visualvibefincal.viewmodel.CurrencyViewModel
 import com.example.visualvibefincal.ui.components.ValidatedTextField
 import com.example.visualvibefincal.utils.ValidationUtils
 
-import com.example.visualvibefincal.ui.viewmodel.AssistantViewModel
-import com.example.visualvibefincal.ui.viewmodel.AssistantState
-import com.example.visualvibefincal.ui.viewmodel.AssistantMessageType
+import com.example.visualvibefincal.viewmodel.AssistantViewModel
+import com.example.visualvibefincal.viewmodel.AssistantState
+import com.example.visualvibefincal.viewmodel.AssistantMessageType
 
 @Composable
 fun CurrencyConverterScreen(

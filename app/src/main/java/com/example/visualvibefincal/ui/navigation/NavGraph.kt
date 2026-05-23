@@ -5,7 +5,7 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.visualvibefincal.ui.viewmodel.CurrencyViewModelFactory
+import com.example.visualvibefincal.viewmodel.CurrencyViewModelFactory
 import com.example.visualvibefincal.ui.screens.HomeScreen
 import com.example.visualvibefincal.ui.screens.CurrencyConverterScreen
 import com.example.visualvibefincal.ui.screens.LoanCalculatorScreen
@@ -20,7 +20,7 @@ import com.example.visualvibefincal.ui.screens.SalaryScreen
 import com.example.visualvibefincal.ui.screens.NoteBookScreen
 import com.example.visualvibefincal.ui.screens.smartscan.SmartScanScreen
 
-import com.example.visualvibefincal.ui.viewmodel.AssistantViewModel
+import com.example.visualvibefincal.viewmodel.AssistantViewModel
 
 @Composable
 fun NavGraph(

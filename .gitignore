@@ -1,15 +1,27 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
+# Build folder
 /build
+app/build
+
+# Gradle
+.gradle/
+
+# IDE files
+/.idea/
+*.iml
+
+# Local configuration
+local.properties
+
+# Logs and captures
 /captures
+*.hprof
+
+# OS generated files
+.DS_Store
+
+# C++ build artifacts
 .externalNativeBuild
 .cxx
-local.properties
+
+# Secrets (if any)
+google-services.json

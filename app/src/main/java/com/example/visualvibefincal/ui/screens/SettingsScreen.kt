@@ -38,7 +38,7 @@ import coil.compose.AsyncImage
 import com.example.visualvibefincal.R
 import com.example.visualvibefincal.ui.components.AssistantRobot
 import com.example.visualvibefincal.ui.components.ValidatedTextField
-import com.example.visualvibefincal.ui.viewmodel.*
+import com.example.visualvibefincal.viewmodel.*
 import com.example.visualvibefincal.utils.SecurityUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

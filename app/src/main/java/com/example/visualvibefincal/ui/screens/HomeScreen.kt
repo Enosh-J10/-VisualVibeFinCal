@@ -35,9 +35,9 @@ import androidx.core.content.edit
 import com.example.visualvibefincal.R
 import com.example.visualvibefincal.domain.model.Category
 import com.example.visualvibefincal.domain.model.Tool
-import com.example.visualvibefincal.ui.viewmodel.AssistantViewModel
-import com.example.visualvibefincal.ui.viewmodel.AssistantMessageType
-import com.example.visualvibefincal.ui.viewmodel.AssistantState
+import com.example.visualvibefincal.viewmodel.AssistantViewModel
+import com.example.visualvibefincal.viewmodel.AssistantMessageType
+import com.example.visualvibefincal.viewmodel.AssistantState
 import com.example.visualvibefincal.utils.ReminderWorker
 import androidx.work.*
 import kotlinx.coroutines.delay

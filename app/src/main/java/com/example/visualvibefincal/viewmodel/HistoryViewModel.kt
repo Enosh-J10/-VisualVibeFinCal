@@ -1,4 +1,4 @@
-package com.example.visualvibefincal.ui.viewmodel
+package com.example.visualvibefincal.viewmodel
 
 import android.app.Application
 import android.content.Context

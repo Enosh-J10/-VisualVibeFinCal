@@ -54,9 +54,9 @@ import com.example.visualvibefincal.ui.screens.ScanItemSkeleton
 import com.example.visualvibefincal.ui.screens.BouncyButton
 import com.example.visualvibefincal.ui.screens.CalculatorCard
 import com.example.visualvibefincal.utils.NotificationHelper
-import com.example.visualvibefincal.ui.viewmodel.AssistantViewModel
-import com.example.visualvibefincal.ui.viewmodel.AssistantState
-import com.example.visualvibefincal.ui.viewmodel.AssistantMessageType
+import com.example.visualvibefincal.viewmodel.AssistantViewModel
+import com.example.visualvibefincal.viewmodel.AssistantState
+import com.example.visualvibefincal.viewmodel.AssistantMessageType
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.Text.Line

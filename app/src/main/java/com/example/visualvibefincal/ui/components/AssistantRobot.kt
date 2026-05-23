@@ -37,9 +37,9 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.visualvibefincal.ui.viewmodel.AssistantMessageType
-import com.example.visualvibefincal.ui.viewmodel.AssistantState
-import com.example.visualvibefincal.ui.viewmodel.AssistantViewModel
+import com.example.visualvibefincal.viewmodel.AssistantMessageType
+import com.example.visualvibefincal.viewmodel.AssistantState
+import com.example.visualvibefincal.viewmodel.AssistantViewModel
 import kotlinx.coroutines.launch
 
 @Composable

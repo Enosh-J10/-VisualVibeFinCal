@@ -25,9 +25,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 import com.example.visualvibefincal.ui.components.ValidatedTextField
 import com.example.visualvibefincal.utils.ValidationUtils
-import com.example.visualvibefincal.ui.viewmodel.AssistantViewModel
-import com.example.visualvibefincal.ui.viewmodel.AssistantState
-import com.example.visualvibefincal.ui.viewmodel.AssistantMessageType
+import com.example.visualvibefincal.viewmodel.AssistantViewModel
+import com.example.visualvibefincal.viewmodel.AssistantState
+import com.example.visualvibefincal.viewmodel.AssistantMessageType
 import com.example.visualvibefincal.ui.screens.BouncyButton
 import com.example.visualvibefincal.ui.screens.CalculatorCard
 import com.example.visualvibefincal.ui.screens.CalculatorScreenScaffold

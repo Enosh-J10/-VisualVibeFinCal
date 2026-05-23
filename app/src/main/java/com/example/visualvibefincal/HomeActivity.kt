@@ -22,8 +22,8 @@ import com.example.visualvibefincal.ui.navigation.NavGraph
 import com.example.visualvibefincal.ui.navigation.Screen
 import com.example.visualvibefincal.utils.SecurityUtils
 import com.example.visualvibefincal.utils.NotificationHelper
-import com.example.visualvibefincal.ui.viewmodel.AssistantViewModel
-import com.example.visualvibefincal.ui.viewmodel.AssistantState
+import com.example.visualvibefincal.viewmodel.AssistantViewModel
+import com.example.visualvibefincal.viewmodel.AssistantState
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
