@@ -15,10 +15,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import kotlinx.coroutines.delay
-import androidx.navigation.NavController
-import java.util.Locale
-
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.visualvibefincal.viewmodel.HistoryViewModel
@@ -31,6 +27,8 @@ import com.example.visualvibefincal.viewmodel.AssistantState
 import com.example.visualvibefincal.viewmodel.AssistantViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.navigation.NavController
+import java.util.Locale
 
 @Composable
 fun BMIScreen(
@@ -64,7 +62,7 @@ fun BMIScreen(
     val coroutineScope = rememberCoroutineScope()
 
     CalculatorScreenScaffold(
-        title = "BMI Calculator",
+        title = stringResource(R.string.bmi_calculator),
         navController = navController,
         isDarkMode = isDarkMode
     ) { innerPadding ->
@@ -77,7 +75,8 @@ fun BMIScreen(
             ) {
                 CalculatorCard(isDarkMode = isDarkMode) {
                     val emptyError = stringResource(R.string.field_cannot_be_empty)
-                    val invalidError = "Must be a positive number"
+                    val invalidError = stringResource(R.string.invalid_number)
+                    val requiredError = stringResource(R.string.required)
 
                     ValidatedTextField(
                         value = weight,
@@ -87,7 +86,7 @@ fun BMIScreen(
                                           else if (!ValidationUtils.isValidPositiveNumeric(weight)) invalidError
                                           else null
                         },
-                        label = "Weight (kg)",
+                        label = stringResource(R.string.weight_kg),
                         error = weightError,
                         modifier = Modifier.semantics {
                             contentDescription = "Enter your weight in kilograms. Currently: $weight"
@@ -104,7 +103,7 @@ fun BMIScreen(
                                           else if (!ValidationUtils.isValidPositiveNumeric(height)) invalidError
                                           else null
                         },
-                        label = "Height (cm)",
+                        label = stringResource(R.string.height_cm),
                         error = heightError,
                         modifier = Modifier.semantics {
                             contentDescription = "Enter your height in centimeters. Currently: $height"
@@ -121,7 +120,7 @@ fun BMIScreen(
                                        else if (!ValidationUtils.isValidPositiveNumeric(age)) invalidError
                                        else null
                         },
-                        label = "Age",
+                        label = stringResource(R.string.age),
                         error = ageError,
                         modifier = Modifier.semantics {
                             contentDescription = "Enter your age. Currently: $age"
@@ -133,9 +132,9 @@ fun BMIScreen(
                     BouncyButton(
                         onClick = {
                             if (!isInputValid) {
-                                if (weight.isEmpty()) weightError = "Required"
-                                if (height.isEmpty()) heightError = "Required"
-                                if (age.isEmpty()) ageError = "Required"
+                                if (weight.isEmpty()) weightError = requiredError
+                                if (height.isEmpty()) heightError = requiredError
+                                if (age.isEmpty()) ageError = requiredError
                                 return@BouncyButton
                             }
                             val w = weight.toDoubleOrNull() ?: 0.0
@@ -179,15 +178,20 @@ fun BMIScreen(
                         modifier = Modifier.fillMaxWidth().height(56.dp),
                         enabled = isInputValid
                     ) {
-                        Text("Calculate BMI", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.calculate_bmi), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
 
                     if (bmiResult != null) {
                         Spacer(Modifier.height(32.dp))
-                        ResultDisplay(label = "Your BMI", value = "${String.format(Locale.getDefault(), "%.1f", bmiResult)}", isDarkMode = isDarkMode)
+                        ResultDisplay(label = stringResource(R.string.your_bmi), value = "${String.format(Locale.getDefault(), "%.1f", bmiResult)}", isDarkMode = isDarkMode)
                         Spacer(Modifier.height(16.dp))
                         Text(
-                            bmiCategory,
+                            when(bmiCategory) {
+                                "Underweight" -> stringResource(R.string.underweight)
+                                "Healthy weight" -> stringResource(R.string.healthy_weight)
+                                "Overweight" -> stringResource(R.string.overweight)
+                                else -> stringResource(R.string.obese)
+                            },
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             fontSize = 24.sp,
@@ -200,7 +204,7 @@ fun BMIScreen(
                             }
                         )
                         Text(
-                            "Based on standard adult guidelines (18+)",
+                            stringResource(R.string.bmi_guidelines),
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                             fontSize = 12.sp,

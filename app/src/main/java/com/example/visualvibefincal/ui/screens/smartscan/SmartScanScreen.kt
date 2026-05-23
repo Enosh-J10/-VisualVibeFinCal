@@ -72,6 +72,9 @@ import java.text.SimpleDateFormat
 import java.util.*
 import java.util.concurrent.Executors
 
+import androidx.compose.ui.res.stringResource
+import com.example.visualvibefincal.R
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SmartScanScreen(
@@ -94,8 +97,21 @@ fun SmartScanScreen(
         isLoading = false
     }
 
+    val analyzingBillMsg = stringResource(R.string.msg_analyzing_bill)
+    val foundReceiptMsg = stringResource(R.string.msg_found_receipt)
+    val couldNotReadMsg = stringResource(R.string.msg_could_not_read)
+    val openingCameraMsg = stringResource(R.string.msg_opening_camera)
+    val chooseFileMsg = stringResource(R.string.msg_choose_file)
+    val processingScanMsg = stringResource(R.string.msg_processing_scan)
+    val scanCompleteMsg = stringResource(R.string.msg_scan_complete)
+    val scanFailedMsg = stringResource(R.string.msg_scan_failed)
+    val couldNotReadReceiptToast = stringResource(R.string.could_not_read_receipt)
+    val expenseSavedToast = stringResource(R.string.expense_saved)
+    val expenseAddedTitle = stringResource(R.string.expense_added_notif_title)
+    val expenseAddedDesc = stringResource(R.string.expense_added_notif_desc)
+
     CalculatorScreenScaffold(
-        title = "Smart Scan",
+        title = stringResource(R.string.smart_scan),
         navController = navController,
         isDarkMode = isDarkMode
     ) { innerPadding ->
@@ -122,10 +138,10 @@ fun SmartScanScreen(
                             uri?.let {
                                 scope.launch {
                                     isProcessing = true
-                                    assistantViewModel.showMessage("Analyzing bill...", AssistantState.THINKING, AssistantMessageType.THOUGHT)
+                                    assistantViewModel.showMessage(analyzingBillMsg, AssistantState.THINKING, AssistantMessageType.THOUGHT)
                                     val result = processUri(context, it)
                                     if (result != null) {
-                                        assistantViewModel.showMessage("Found a receipt!", AssistantState.HAPPY)
+                                        assistantViewModel.showMessage(foundReceiptMsg, AssistantState.HAPPY)
                                         editingExpense = Expense(
                                             amount = result.amount,
                                             date = result.date,
@@ -135,8 +151,8 @@ fun SmartScanScreen(
                                             notes = ""
                                         )
                                     } else {
-                                        assistantViewModel.showMessage("Could not read this receipt", AssistantState.ERROR)
-                                        Toast.makeText(context, "Could not read receipt", Toast.LENGTH_SHORT).show()
+                                        assistantViewModel.showMessage(couldNotReadMsg, AssistantState.ERROR)
+                                        Toast.makeText(context, couldNotReadReceiptToast, Toast.LENGTH_SHORT).show()
                                     }
                                     isProcessing = false
                                 }
@@ -145,7 +161,7 @@ fun SmartScanScreen(
 
                         BouncyButton(
                             onClick = { 
-                                assistantViewModel.showMessage("Opening camera... 📸", AssistantState.IDLE)
+                                assistantViewModel.showMessage(openingCameraMsg, AssistantState.IDLE)
                                 showScanner = true 
                             },
                             modifier = Modifier
@@ -158,12 +174,12 @@ fun SmartScanScreen(
                         ) {
                             Icon(Icons.Default.CameraAlt, contentDescription = null)
                             Spacer(Modifier.width(8.dp))
-                            Text("Scan Receipt", fontWeight = FontWeight.SemiBold)
+                            Text(stringResource(R.string.scan_receipt), fontWeight = FontWeight.SemiBold)
                         }
 
                         BouncyButton(
                             onClick = { 
-                                assistantViewModel.showMessage("Choose a file to scan 📁", AssistantState.IDLE)
+                                assistantViewModel.showMessage(chooseFileMsg, AssistantState.IDLE)
                                 filePickerLauncher.launch("*/*") 
                             },
                             modifier = Modifier
@@ -184,7 +200,7 @@ fun SmartScanScreen(
                             ) {
                                 Icon(Icons.Default.FileUpload, contentDescription = null, tint = Color(0xFF00D1B2))
                                 Spacer(Modifier.width(8.dp))
-                                Text("Upload Bill", fontWeight = FontWeight.SemiBold, color = Color(0xFF00D1B2))
+                                Text(stringResource(R.string.upload_bill), fontWeight = FontWeight.SemiBold, color = Color(0xFF00D1B2))
                             }
                         }
                     }
@@ -200,7 +216,7 @@ fun SmartScanScreen(
                 // Recent Scans Header
                 item {
                     Text(
-                        "Recent Scans",
+                        stringResource(R.string.recent_scans),
                         fontWeight = FontWeight.Bold,
                         fontSize = 18.sp,
                         color = if (isDarkMode) Color.White else Color.Black
@@ -214,7 +230,7 @@ fun SmartScanScreen(
                 } else if (expenses.isEmpty()) {
                     item {
                         Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                            Text("No scans yet", color = Color.Gray)
+                            Text(stringResource(R.string.no_scans_yet), color = Color.Gray)
                         }
                     }
                 } else {
@@ -236,10 +252,10 @@ fun SmartScanScreen(
                 showScanner = false
                 scope.launch {
                     isProcessing = true
-                    assistantViewModel.showMessage("Processing scan...", AssistantState.THINKING, AssistantMessageType.THOUGHT)
+                    assistantViewModel.showMessage(processingScanMsg, AssistantState.THINKING, AssistantMessageType.THOUGHT)
                     val result = processUri(context, uri)
                     if (result != null) {
-                        assistantViewModel.showMessage("Scan complete!", AssistantState.HAPPY)
+                        assistantViewModel.showMessage(scanCompleteMsg, AssistantState.HAPPY)
                         editingExpense = Expense(
                             amount = result.amount,
                             date = result.date,
@@ -249,8 +265,8 @@ fun SmartScanScreen(
                             notes = ""
                         )
                     } else {
-                        assistantViewModel.showMessage("Scanning failed", AssistantState.ERROR)
-                        Toast.makeText(context, "Could not read receipt", Toast.LENGTH_SHORT).show()
+                        assistantViewModel.showMessage(scanFailedMsg, AssistantState.ERROR)
+                        Toast.makeText(context, couldNotReadReceiptToast, Toast.LENGTH_SHORT).show()
                     }
                     isProcessing = false
                 }
@@ -271,8 +287,12 @@ fun SmartScanScreen(
                         expenseDao.updateExpense(updatedExpense)
                     }
                     editingExpense = null
-                    Toast.makeText(context, "Expense saved", Toast.LENGTH_SHORT).show()
-                    NotificationHelper.showNotification(context, "Expense Added", "Successfully added ${updatedExpense.amount} for ${updatedExpense.merchant}")
+                    Toast.makeText(context, expenseSavedToast, Toast.LENGTH_SHORT).show()
+                    NotificationHelper.showNotification(
+                        context, 
+                        expenseAddedTitle, 
+                        String.format(expenseAddedDesc, String.format("%.2f", updatedExpense.amount), updatedExpense.merchant)
+                    )
                 }
             }
         )
@@ -323,7 +343,7 @@ fun ChartsSection(expenses: List<Expense>, isDarkMode: Boolean) {
     CalculatorCard(isDarkMode = isDarkMode) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {
-                Text("Total Spending", fontSize = 12.sp, color = Color.Gray)
+                Text(stringResource(R.string.total_spending), fontSize = 12.sp, color = Color.Gray)
                 Text("$${String.format("%.2f", total)}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
             }
             Icon(Icons.Default.PieChart, contentDescription = null, tint = Color(0xFF00D1B2))
@@ -397,35 +417,47 @@ fun EditExpenseDialog(expense: Expense, isDarkMode: Boolean, onDismiss: () -> Un
     var merchant by remember { mutableStateOf(expense.merchant) }
     var category by remember { mutableStateOf(expense.category) }
     var notes by remember { mutableStateOf(expense.notes) }
+    
+    val merchantRequiredError = stringResource(R.string.merchant_required)
+    val amountRequiredError = stringResource(R.string.amount_required)
+    val invalidAmountError = stringResource(R.string.invalid_amount)
+    
     var amountError by remember { mutableStateOf<String?>(null) }
     var merchantError by remember { mutableStateOf<String?>(null) }
 
-    val categories = listOf("Food & Dining", "Fuel / Transport", "Shopping", "Bills", "Health", "Other")
+    val categories = listOf(
+        stringResource(R.string.cat_food),
+        stringResource(R.string.cat_transport),
+        stringResource(R.string.cat_shopping),
+        stringResource(R.string.cat_bills),
+        stringResource(R.string.cat_health),
+        stringResource(R.string.cat_other)
+    )
     var expanded by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (expense.id == 0) "Save Expense" else "Edit Expense") },
+        title = { Text(if (expense.id == 0) stringResource(R.string.save_expense) else stringResource(R.string.edit_expense)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 com.example.visualvibefincal.ui.components.ValidatedTextField(
                     value = merchant,
                     onValueChange = { 
                         merchant = it
-                        merchantError = if (it.isBlank()) "Merchant is required" else null
+                        merchantError = if (it.isBlank()) merchantRequiredError else null
                     },
-                    label = "Merchant",
+                    label = stringResource(R.string.merchant),
                     error = merchantError
                 )
                 com.example.visualvibefincal.ui.components.ValidatedTextField(
                     value = amount,
                     onValueChange = { 
                         amount = com.example.visualvibefincal.utils.ValidationUtils.formatNumericInput(it)
-                        amountError = if (amount.isBlank()) "Amount is required" 
-                                      else if (amount.toDoubleOrNull() == null) "Invalid amount"
+                        amountError = if (amount.isBlank()) amountRequiredError
+                                      else if (amount.toDoubleOrNull() == null) invalidAmountError
                                       else null
                     },
-                    label = "Amount",
+                    label = stringResource(R.string.amount),
                     error = amountError
                 )
                 
@@ -435,7 +467,7 @@ fun EditExpenseDialog(expense: Expense, isDarkMode: Boolean, onDismiss: () -> Un
                         value = category,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Category") },
+                        label = { Text(stringResource(R.string.category)) },
                         modifier = Modifier.fillMaxWidth().clickable { expanded = true },
                         trailingIcon = { 
                             IconButton(onClick = { expanded = true }) {
@@ -467,7 +499,7 @@ fun EditExpenseDialog(expense: Expense, isDarkMode: Boolean, onDismiss: () -> Un
                 com.example.visualvibefincal.ui.components.ValidatedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = "Add Notes (Optional)",
+                    label = stringResource(R.string.notes_optional),
                     error = null
                 )
             }
@@ -481,10 +513,10 @@ fun EditExpenseDialog(expense: Expense, isDarkMode: Boolean, onDismiss: () -> Un
                 enabled = merchant.isNotBlank() && amount.isNotBlank() && amountError == null && merchantError == null,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))
             ) {
-                Text("Save")
+                Text(stringResource(R.string.save))
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
 
@@ -495,6 +527,7 @@ fun CameraScannerDialog(onDismiss: () -> Unit, onImageCaptured: (Uri) -> Unit) {
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
     val previewView = remember { PreviewView(context) }
     val imageCapture = remember { ImageCapture.Builder().build() }
+    val cameraPermissionDeniedMsg = stringResource(R.string.camera_permission_denied)
     
     var hasCameraPermission by remember { 
         mutableStateOf(
@@ -509,7 +542,7 @@ fun CameraScannerDialog(onDismiss: () -> Unit, onImageCaptured: (Uri) -> Unit) {
         if (isGranted) {
             startCamera(context, lifecycleOwner, previewView, imageCapture)
         } else {
-            Toast.makeText(context, "Camera permission denied", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, cameraPermissionDeniedMsg, Toast.LENGTH_SHORT).show()
             onDismiss()
         }
     }

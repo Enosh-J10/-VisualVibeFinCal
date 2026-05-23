@@ -40,6 +40,9 @@ import com.example.visualvibefincal.viewmodel.AssistantMessageType
 import com.example.visualvibefincal.ui.components.ValidatedTextField
 import com.example.visualvibefincal.utils.ValidationUtils
 
+import androidx.compose.ui.res.stringResource
+import com.example.visualvibefincal.R
+
 @Composable
 fun UnitConverterScreen(
     navController: NavController,
@@ -76,8 +79,11 @@ fun UnitConverterScreen(
         "Data" to listOf("Bits", "Bytes", "Kilobytes", "Megabytes", "Gigabytes", "Terabytes", "Petabytes")
     )
 
+    val convertingMsg = stringResource(R.string.msg_converting_units)
+    val enterValueMsg = stringResource(R.string.enter_value)
+
     CalculatorScreenScaffold(
-        title = "Unit Converter",
+        title = stringResource(R.string.unit_converter),
         navController = navController,
         isDarkMode = isDarkMode
     ) { innerPadding ->
@@ -182,9 +188,9 @@ fun UnitConverterScreen(
                         value = inputValue,
                         onValueChange = {
                             inputValue = ValidationUtils.formatNumericInput(it, allowNegative = (selectedCategory == "Temp"))
-                            inputValueError = if (inputValue.isEmpty()) "Enter value" else null
+                            inputValueError = if (inputValue.isEmpty()) enterValueMsg else null
                         },
-                        label = "Value",
+                        label = stringResource(R.string.value),
                         error = inputValueError,
                         modifier = Modifier.fillMaxWidth().semantics {
                             contentDescription = "Enter value to convert. Currently: $inputValue"
@@ -195,7 +201,7 @@ fun UnitConverterScreen(
 
                     Row(Modifier.fillMaxWidth()) {
                         Column(Modifier.weight(1f)) {
-                            Text("From", fontSize = 12.sp, color = Color.Gray)
+                            Text(stringResource(R.string.from), fontSize = 12.sp, color = Color.Gray)
                             UnitDropdown(
                                 selectedUnit = fromUnit, 
                                 units = categories[selectedCategory]!!, 
@@ -208,7 +214,7 @@ fun UnitConverterScreen(
                         }
                         Spacer(Modifier.width(16.dp))
                         Column(Modifier.weight(1f)) {
-                            Text("To", fontSize = 12.sp, color = Color.Gray)
+                            Text(stringResource(R.string.to), fontSize = 12.sp, color = Color.Gray)
                             UnitDropdown(
                                 selectedUnit = toUnit, 
                                 units = categories[selectedCategory]!!, 
@@ -228,7 +234,7 @@ fun UnitConverterScreen(
                             scope.launch {
                                 isConverting = true
                                 outputValue = null
-                                assistantViewModel.showMessage("Converting units...", AssistantState.THINKING, AssistantMessageType.THOUGHT)
+                                assistantViewModel.showMessage(convertingMsg, AssistantState.THINKING, AssistantMessageType.THOUGHT)
                                 delay(600) // Simulate processing time
                                 val v = inputValue.toDoubleOrNull() ?: 0.0
                                 resultValue = inputValue
@@ -259,7 +265,7 @@ fun UnitConverterScreen(
                         if (isConverting) {
                             CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
                         } else {
-                            Text("Convert", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.convert), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -278,7 +284,7 @@ fun UnitConverterScreen(
                             ) {
                                 val baseRate = convertUnits(1.0, resultFrom, resultTo, resultCategory)
                                 Text(
-                                    "Conversion Rate",
+                                    stringResource(R.string.conversion_rate),
                                     fontSize = 12.sp,
                                     color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray
                                 )
@@ -299,7 +305,7 @@ fun UnitConverterScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("From", fontSize = 12.sp, color = Color.Gray)
+                                        Text(stringResource(R.string.from), fontSize = 12.sp, color = Color.Gray)
                                         val formattedVal = resultValue.toDoubleOrNull()?.let { 
                                             String.format(Locale.getDefault(), "%.2f", it) 
                                         } ?: resultValue
@@ -313,7 +319,7 @@ fun UnitConverterScreen(
                                     )
                                     
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("To", fontSize = 12.sp, color = Color.Gray)
+                                        Text(stringResource(R.string.to), fontSize = 12.sp, color = Color.Gray)
                                         Text("${String.format(Locale.getDefault(), "%.4f", outputValue)} $resultTo", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
                                     }
                                 }

@@ -42,9 +42,136 @@
     <string name="logout">Logout</string>
     <string name="help">Help</string>
 
-    <!-- Categories -->
+    <!-- General -->
+    <string name="required">Required</string>
+    <string name="invalid_number">Must be a positive number</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
+    <string name="clear">Clear</string>
+    <string name="history">History</string>
+    <string name="no_results">No results</string>
+    <string name="no_history_yet">No history yet</string>
 
-    <!-- Tools -->
+    <!-- BMI Screen -->
+    <string name="bmi_calculator">BMI Calculator</string>
+    <string name="weight_kg">Weight (kg)</string>
+    <string name="height_cm">Height (cm)</string>
+    <string name="age">Age</string>
+    <string name="calculate_bmi">Calculate BMI</string>
+    <string name="your_bmi">Your BMI</string>
+    <string name="bmi_guidelines">Based on standard adult guidelines (18+)</string>
+    <string name="underweight">Underweight</string>
+    <string name="healthy_weight">Healthy weight</string>
+    <string name="overweight">Overweight</string>
+    <string name="obese">Obese</string>
+
+    <!-- Currency Converter -->
+    <string name="currency_converter">Currency Converter</string>
+    <string name="amount">Amount</string>
+    <string name="from">From</string>
+    <string name="to">To</string>
+    <string name="convert">Convert</string>
+    <string name="exchange_rate">Exchange Rate</string>
+    <string name="converted">Converted</string>
+    <string name="fetching_rates">Fetching latest rates…</string>
+    <string name="enter_amount">Enter amount</string>
+    <string name="valid_amount">Please enter a valid amount</string>
+    <string name="currency_not_supported">Currency %1$s not supported</string>
+    <string name="network_error">Network Error: Please try again</string>
+
+    <!-- Smart Scan -->
+    <string name="smart_scan">Smart Scan</string>
+    <string name="scan_receipt">Scan Receipt</string>
+    <string name="upload_bill">Upload Bill</string>
+    <string name="recent_scans">Recent Scans</string>
+    <string name="total_spending">Total Spending</string>
+    <string name="no_scans_yet">No scans yet</string>
+    <string name="save_expense">Save Expense</string>
+    <string name="edit_expense">Edit Expense</string>
+    <string name="merchant">Merchant</string>
+    <string name="category">Category</string>
+    <string name="notes_optional">Add Notes (Optional)</string>
+    <string name="merchant_required">Merchant is required</string>
+    <string name="amount_required">Amount is required</string>
+    <string name="invalid_amount">Invalid amount</string>
+    <string name="expense_saved">Expense saved</string>
+    <string name="expense_added_notif_title">Expense Added</string>
+    <string name="expense_added_notif_desc">Successfully added %1$s for %2$s</string>
+    <string name="camera_permission_denied">Camera permission denied</string>
+    <string name="could_not_read_receipt">Could not read receipt</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="edit_profile">Edit Profile</string>
+    <string name="dark_mode">Dark Mode</string>
+    <string name="assistant">Assistant</string>
+    <string name="show_assistant">Show Assistant</string>
+    <string name="mute_assistant">Mute Assistant</string>
+    <string name="style_preview">Style Preview</string>
+    <string name="appearance_theme">Appearance Theme</string>
+    <string name="custom_mode">Custom Mode</string>
+    <string name="head_color">Head Color</string>
+    <string name="body_color">Body Color</string>
+    <string name="accent_color_label">Accent Color</string>
+    <string name="interaction_frequency">Interaction Frequency</string>
+    <string name="reset_position">Reset Position</string>
+    <string name="backup_restore">Backup &amp; Restore</string>
+    <string name="export_json">Export JSON</string>
+    <string name="import_json">Import JSON</string>
+    <string name="backup_successful">Backup successful</string>
+    <string name="backup_failed">Backup failed</string>
+    <string name="restore_successful">Restore successful</string>
+    <string name="restore_failed">Restore failed</string>
+    <string name="privacy">Privacy</string>
+    <string name="data_stays_device">Your data stays on this device.</string>
+    <string name="camera_usage">Camera is only for scanning.</string>
+    <string name="security_usage">Fingerprint/Face ID for extra security.</string>
+    <string name="privacy_terms">Privacy Policy &amp; Terms</string>
+    <string name="feedback_review">Feedback &amp; Review</string>
+    <string name="help_troubleshoot">Help &amp; Troubleshoot</string>
+    <string name="security">Security</string>
+    <string name="app_lock_pin">App Lock (PIN)</string>
+    <string name="biometric_login">Biometric Login</string>
+    <string name="change_pin">Change PIN</string>
+    <string name="made_by">Made by</string>
+    <string name="profile_updated">Profile updated</string>
+    <string name="feedback_help">Your feedback helps me improve!</string>
+    <string name="describe_experience">Describe your experience…</string>
+    <string name="feedback_ready">Feedback ready to send!</string>
+    <string name="set_pin_title">Set 4-Digit PIN</string>
+    <string name="enter_pin">Enter PIN</string>
+    <string name="pin_set_success">PIN set successfully</string>
+    <string name="sending_feedback">Sending feedback…</string>
+    <string name="no_email_app">No email app found</string>
+
+    <!-- Unit Converter -->
+    <string name="unit_converter">Unit Converter</string>
+    <string name="value">Value</string>
+    <string name="conversion_rate">Conversion Rate</string>
+    <string name="msg_converting_units">Converting units…</string>
+    <string name="enter_value">Enter value</string>
+
+    <!-- Categories -->
+    <string name="cat_food">Food &amp; Dining</string>
+    <string name="cat_transport">Fuel / Transport</string>
+    <string name="cat_shopping">Shopping</string>
+    <string name="cat_bills">Bills</string>
+    <string name="cat_health">Health</string>
+    <string name="cat_travel">Travel</string>
+    <string name="cat_other">Other</string>
+
+    <!-- Assistant -->
+    <string name="msg_analyzing_bill">Analyzing bill…</string>
+    <string name="msg_found_receipt">Found a receipt!</string>
+    <string name="msg_could_not_read">Could not read this receipt</string>
+    <string name="msg_opening_camera">Opening camera… 📸</string>
+    <string name="msg_choose_file">Choose a file to scan 📁</string>
+    <string name="msg_processing_scan">Processing scan…</string>
+    <string name="msg_scan_complete">Scan complete!</string>
+    <string name="msg_scan_failed">Scanning failed</string>
+    <string name="msg_fetching_rates">Fetching latest rates…</string>
+    <string name="msg_conversion_result">Here\'s your result!</string>
+    <string name="msg_check_connection">Check your connection!</string>
 
     <string name="terms_and_conditions_text">These Terms and Conditions govern your use of the FinCalc mobile application (“the App”), operated by the developer. By downloading, accessing, or using the App, you agree to be bound by these Terms. If you do not agree with any part of these Terms, you must discontinue use of the App immediately.\n\nFinCalc is a financial calculation and conversion tool designed solely for general informational and educational purposes. The App provides features such as loan calculations, interest estimations, tax approximations, currency conversions, unit conversions, and related computational tools. The information and results generated by the App are estimates only and must not be interpreted as financial, investment, tax, or legal advice.\n\nWhile every effort is made to ensure accuracy and reliability, we do not guarantee that any calculations, data, or results provided by the App are complete, accurate, or up to date. Users acknowledge that financial rates and values may change over time and may be influenced by external or third-party sources beyond our control.\n\nBy using this App, you agree that you are solely responsible for any decisions or actions taken based on the information provided. We accept no liability for any financial loss, investment loss, damages, or consequences arising from reliance on the App. Your use of the App is entirely at your own risk.\n\nYou further agree not to misuse the App in any way, including attempting to reverse engineer, modify, disrupt, or exploit its functionality for unlawful or unauthorized purposes. All intellectual property rights relating to the App, including its design, branding, features, and content, remain the exclusive property of the developer and are protected under applicable copyright laws.\n\nWe reserve the right to update, modify, or revise these Terms at any time without prior notice. Continued use of the App following any changes constitutes acceptance of the revised Terms. We also reserve the right to suspend or terminate access to the App where misuse, abuse, or violation of these Terms is identified.\n\nFor any queries or concerns relating to these Terms, you may contact the developer through the provided support contact details.\n\nThis Privacy Policy explains how FinCalc (“the App”) handles user information. We are committed to protecting your privacy in accordance with the UK General Data Protection Regulation (UK GDPR) and applicable data protection laws.\n\nFinCalc does not require users to create an account in its basic form; however, in cases where user accounts or optional features are introduced, limited personal information such as name, email address, or authentication credentials may be collected. In addition, the App may collect non-personal usage data such as device information, crash reports, and interaction analytics solely for the purpose of improving performance, stability, and user experience.\n\nAny data stored by the App locally on your device, such as calculation history or user preferences, remains stored on your device unless explicitly stated otherwise. We do not sell, rent, or trade personal data to any third parties under any circumstances.\n\nWe may use third-party services such as analytics providers, crash reporting tools, or external financial data sources (for example, currency exchange rate APIs). These third parties may process limited technical data under their own privacy policies, and we are not responsible for their independent practices.\n\nWe implement reasonable technical and organizational measures to safeguard user data; however, no system of electronic storage or transmission can be guaranteed as completely secure, and we cannot ensure absolute security of information.\n\nUnder UK GDPR, users may have rights including access to their data, correction of inaccurate information, deletion of data where applicable, and withdrawal of consent where processing is based on consent. Any requests relating to such rights may be directed to the support contact provided by the developer.\n\nThe App is not intended for use by children below the applicable digital consent age, and we do not knowingly collect personal data from minors. If such data is discovered, it will be deleted promptly.\n\nWe reserve the right to update or amend this Privacy Policy at any time. Continued use of the App following any updates indicates acceptance of the revised Privacy Policy.\n\nFor any privacy-related enquiries, you may contact the developer via the official support email provided within the App.</string>
 </resources>

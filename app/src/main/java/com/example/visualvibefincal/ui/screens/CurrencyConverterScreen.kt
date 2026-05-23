@@ -39,6 +39,9 @@ import com.example.visualvibefincal.viewmodel.AssistantViewModel
 import com.example.visualvibefincal.viewmodel.AssistantState
 import com.example.visualvibefincal.viewmodel.AssistantMessageType
 
+import androidx.compose.ui.res.stringResource
+import com.example.visualvibefincal.R
+
 @Composable
 fun CurrencyConverterScreen(
     navController: NavController,
@@ -66,6 +69,12 @@ fun CurrencyConverterScreen(
     val availableCurrencies by viewModel.availableCurrencies.collectAsState()
     val history by viewModel.history.collectAsState()
 
+    val fetchingRatesMsg = stringResource(R.string.msg_fetching_rates)
+    val conversionResultMsg = stringResource(R.string.msg_conversion_result)
+    val checkConnectionMsg = stringResource(R.string.msg_check_connection)
+    val currencyNotSupportedMsg = stringResource(R.string.currency_not_supported)
+    val networkErrorMsg = stringResource(R.string.network_error)
+
     LaunchedEffect(uiState) {
         if (uiState is CurrencyUiState.Success) {
             val response = (uiState as CurrencyUiState.Success).data
@@ -83,7 +92,7 @@ fun CurrencyConverterScreen(
                     val amountDbl = amount.toDoubleOrNull() ?: 0.0
                     viewModel.convert(amountDbl, rate)
                     
-                    assistantViewModel.showMessage("Here's your result!", AssistantState.HAPPY)
+                    assistantViewModel.showMessage(conversionResultMsg, AssistantState.HAPPY)
                     
                     // Add to history
                     viewModel.addToHistory(
@@ -97,21 +106,21 @@ fun CurrencyConverterScreen(
                     )
                 } else {
                     Log.e("CurrencyDebug", "ERROR: $targetCode not found in API keys!")
-                    assistantViewModel.showMessage("Currency $targetCode not supported", AssistantState.ERROR)
-                    Toast.makeText(context, "Currency $targetCode not supported by API", Toast.LENGTH_SHORT).show()
+                    val errorMsg = String.format(currencyNotSupportedMsg, targetCode)
+                    assistantViewModel.showMessage(errorMsg, AssistantState.ERROR)
+                    Toast.makeText(context, errorMsg, Toast.LENGTH_SHORT).show()
                 }
                 isConversionRequested = false
             }
-            Log.d("CurrencyDebug", ">>> END API INSPECTION <<<")
         } else if (uiState is CurrencyUiState.Error) {
             Log.e("CurrencyDebug", "API ERROR: ${(uiState as CurrencyUiState.Error).message}")
             if (isConversionRequested) {
-                assistantViewModel.showMessage("Check your connection!", AssistantState.ERROR)
-                Toast.makeText(context, "Network Error: Please try again", Toast.LENGTH_LONG).show()
+                assistantViewModel.showMessage(checkConnectionMsg, AssistantState.ERROR)
+                Toast.makeText(context, networkErrorMsg, Toast.LENGTH_LONG).show()
                 isConversionRequested = false
             }
         } else if (uiState is CurrencyUiState.Loading && isConversionRequested) {
-            assistantViewModel.showMessage("Fetching latest rates...", AssistantState.THINKING, AssistantMessageType.THOUGHT)
+            assistantViewModel.showMessage(fetchingRatesMsg, AssistantState.THINKING, AssistantMessageType.THOUGHT)
         }
     }
 
@@ -122,7 +131,7 @@ fun CurrencyConverterScreen(
     }
 
     CalculatorScreenScaffold(
-        title = "Currency Converter",
+        title = stringResource(R.string.currency_converter),
         navController = navController,
         isDarkMode = isDarkMode
     ) { innerPadding ->
@@ -134,13 +143,16 @@ fun CurrencyConverterScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             CalculatorCard(isDarkMode = isDarkMode) {
+                val enterAmountError = stringResource(R.string.enter_amount)
+                val validAmountError = stringResource(R.string.valid_amount)
+
                 ValidatedTextField(
                     value = amount,
                     onValueChange = {
                         amount = ValidationUtils.formatNumericInput(it)
-                        amountError = if (amount.isEmpty()) "Enter amount" else null
+                        amountError = if (amount.isEmpty()) enterAmountError else null
                     },
-                    label = "Amount",
+                    label = stringResource(R.string.amount),
                     error = amountError
                 )
 
@@ -148,7 +160,7 @@ fun CurrencyConverterScreen(
 
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     CurrencySelector(
-                        label = "From",
+                        label = stringResource(R.string.from),
                         selected = fromCurrency,
                         expanded = expandedFrom,
                         onExpandedChange = { expandedFrom = it },
@@ -168,7 +180,7 @@ fun CurrencyConverterScreen(
                     )
 
                     CurrencySelector(
-                        label = "To",
+                        label = stringResource(R.string.to),
                         selected = toCurrency,
                         expanded = expandedTo,
                         onExpandedChange = { expandedTo = it },
@@ -184,14 +196,13 @@ fun CurrencyConverterScreen(
                 BouncyButton(
                     onClick = {
                         val amountDbl = amount.toDoubleOrNull()
-                        Log.d("CurrencyDebug", "Convert clicked! Amount: $amountDbl, From: $fromCurrency, To: $toCurrency")
                         
                         if (amountDbl != null && amountDbl > 0) {
                             isConversionRequested = true
-                            Toast.makeText(context, "Fetching latest rates...", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, fetchingRatesMsg, Toast.LENGTH_SHORT).show()
                             viewModel.fetchRates(fromCurrency.uppercase().trim())
                         } else {
-                            amountError = "Please enter a valid amount"
+                            amountError = validAmountError
                         }
                     },
                     modifier = Modifier
@@ -205,7 +216,7 @@ fun CurrencyConverterScreen(
                     if (uiState is CurrencyUiState.Loading && isConversionRequested) {
                         CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
-                        Text("Convert", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.convert), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                     }
                 }
 
@@ -227,7 +238,7 @@ fun CurrencyConverterScreen(
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Text(
-                                "Exchange Rate",
+                                stringResource(R.string.exchange_rate),
                                 fontSize = 12.sp,
                                 color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray
                             )
@@ -249,7 +260,7 @@ fun CurrencyConverterScreen(
                             ) {
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     val fromInfo = CurrencyData.getCurrency(resultFrom)
-                                    Text("Amount", fontSize = 12.sp, color = Color.Gray)
+                                    Text(stringResource(R.string.amount), fontSize = 12.sp, color = Color.Gray)
                                     val formattedAmount = resultAmount.toDoubleOrNull()?.let { 
                                         String.format(Locale.getDefault(), "%.2f", it) 
                                     } ?: resultAmount
@@ -264,7 +275,7 @@ fun CurrencyConverterScreen(
                                 
                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     val toInfo = CurrencyData.getCurrency(resultTo)
-                                    Text("Converted", fontSize = 12.sp, color = Color.Gray)
+                                    Text(stringResource(R.string.converted), fontSize = 12.sp, color = Color.Gray)
                                     Text("${toInfo.flag} ${toInfo.symbol}${String.format(Locale.getDefault(), "%.2f", convertedAmount)} ${toInfo.code}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
                                 }
                             }
@@ -298,13 +309,13 @@ fun CurrencyConverterScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            "History",
+                            stringResource(R.string.history),
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
                             color = if (isDarkMode) Color.White else Color.Black
                         )
                         TextButton(onClick = { viewModel.clearHistory() }) {
-                            Text("Clear", color = Color(0xFF00D1B2))
+                            Text(stringResource(R.string.clear), color = Color(0xFF00D1B2))
                         }
                     }
                     

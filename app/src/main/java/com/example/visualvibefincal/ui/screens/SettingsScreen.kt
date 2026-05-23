@@ -26,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -104,7 +105,7 @@ fun SettingsScreen(
     }
 
     CalculatorScreenScaffold(
-        title = "Settings",
+        title = stringResource(R.string.settings_title),
         navController = navController,
         isDarkMode = isDarkMode
     ) { innerPadding ->
@@ -148,13 +149,13 @@ fun SettingsScreen(
             Text(userEmail, fontSize = 14.sp, color = Color.Gray)
             
             TextButton(onClick = { showEditDialog = true }) {
-                Text("Edit Profile", color = Color(0xFF00D1B2), fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.edit_profile), color = Color(0xFF00D1B2), fontWeight = FontWeight.Bold)
             }
 
             Spacer(Modifier.height(24.dp))
 
             SettingsItem(
-                title = "Dark Mode",
+                title = stringResource(R.string.dark_mode),
                 trailing = {
                     Switch(checked = isDarkMode, onCheckedChange = onDarkModeChange)
                 }
@@ -165,7 +166,7 @@ fun SettingsScreen(
             // Assistant Settings
             CalculatorCard(isDarkMode = isDarkMode) {
                 Text(
-                    text = "Assistant",
+                    text = stringResource(R.string.assistant),
                     modifier = Modifier.fillMaxWidth(),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -176,7 +177,7 @@ fun SettingsScreen(
 
                 // Visibility Toggle
                 SettingsItem(
-                    title = "Show Assistant",
+                    title = stringResource(R.string.show_assistant),
                     trailing = {
                         Switch(
                             checked = assistantPrefs.isEnabled,
@@ -188,7 +189,7 @@ fun SettingsScreen(
                 if (assistantPrefs.isEnabled) {
                     // Mute Toggle
                     SettingsItem(
-                        title = "Mute Assistant",
+                        title = stringResource(R.string.mute_assistant),
                         trailing = {
                             Switch(
                                 checked = assistantPrefs.isMuted,
@@ -209,13 +210,13 @@ fun SettingsScreen(
                         Box(modifier = Modifier.size(100.dp)) {
                             AssistantRobot(viewModel = assistantViewModel, isDarkMode = isDarkMode, isPreview = true)
                         }
-                        Text("Style Preview", modifier = Modifier.align(Alignment.TopStart).padding(8.dp), fontSize = 10.sp, color = Color.Gray)
+                        Text(stringResource(R.string.style_preview), modifier = Modifier.align(Alignment.TopStart).padding(8.dp), fontSize = 10.sp, color = Color.Gray)
                     }
 
                     Spacer(Modifier.height(16.dp))
 
                     // Appearance Theme
-                    Text("Appearance Theme", modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.appearance_theme), modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     FlowRow(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -244,7 +245,7 @@ fun SettingsScreen(
 
                     // Custom Mode Toggle
                     SettingsItem(
-                        title = "Custom Mode",
+                        title = stringResource(R.string.custom_mode),
                         trailing = {
                             Switch(
                                 checked = assistantPrefs.isCustomMode,
@@ -255,13 +256,13 @@ fun SettingsScreen(
 
                     if (assistantPrefs.isCustomMode) {
                         Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                            CustomColorPicker("Head Color", assistantPrefs.customHeadColor) {
+                            CustomColorPicker(stringResource(R.string.head_color), assistantPrefs.customHeadColor) {
                                 assistantViewModel.setCustomColors(it, assistantPrefs.customBodyColor, assistantPrefs.customAccentColor, context)
                             }
-                            CustomColorPicker("Body Color", assistantPrefs.customBodyColor) {
+                            CustomColorPicker(stringResource(R.string.body_color), assistantPrefs.customBodyColor) {
                                 assistantViewModel.setCustomColors(assistantPrefs.customHeadColor, it, assistantPrefs.customAccentColor, context)
                             }
-                            CustomColorPicker("Accent Color", assistantPrefs.customAccentColor) {
+                            CustomColorPicker(stringResource(R.string.accent_color_label), assistantPrefs.customAccentColor) {
                                 assistantViewModel.setCustomColors(assistantPrefs.customHeadColor, assistantPrefs.customBodyColor, it, context)
                             }
                         }
@@ -270,7 +271,7 @@ fun SettingsScreen(
                     Spacer(Modifier.height(8.dp))
 
                     // Message Frequency
-                    Text("Interaction Frequency", modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.interaction_frequency), modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -288,7 +289,7 @@ fun SettingsScreen(
 
                     // Reset Position Button
                     SettingsItem(
-                        title = "Reset Position",
+                        title = stringResource(R.string.reset_position),
                         trailing = {
                             IconButton(onClick = { assistantViewModel.resetPosition(context) }) {
                                 Icon(Icons.Default.Refresh, contentDescription = "Reset Position", tint = Color(0xFF00D1B2))
@@ -303,7 +304,7 @@ fun SettingsScreen(
             // Backup & Restore
             CalculatorCard(isDarkMode = isDarkMode) {
                 Text(
-                    text = "Backup & Restore",
+                    text = stringResource(R.string.backup_restore),
                     modifier = Modifier.fillMaxWidth(),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -318,8 +319,8 @@ fun SettingsScreen(
                     uri?.let {
                         coroutineScope.launch {
                             val success = com.example.visualvibefincal.utils.BackupUtils.exportData(context, it)
-                            if (success) Toast.makeText(context, "Backup successful", Toast.LENGTH_SHORT).show()
-                            else Toast.makeText(context, "Backup failed", Toast.LENGTH_SHORT).show()
+                            if (success) Toast.makeText(context, context.getString(R.string.backup_successful), Toast.LENGTH_SHORT).show()
+                            else Toast.makeText(context, context.getString(R.string.backup_failed), Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -330,8 +331,8 @@ fun SettingsScreen(
                     uri?.let {
                         coroutineScope.launch {
                             val success = com.example.visualvibefincal.utils.BackupUtils.importData(context, it)
-                            if (success) Toast.makeText(context, "Restore successful", Toast.LENGTH_SHORT).show()
-                            else Toast.makeText(context, "Restore failed", Toast.LENGTH_SHORT).show()
+                            if (success) Toast.makeText(context, context.getString(R.string.restore_successful), Toast.LENGTH_SHORT).show()
+                            else Toast.makeText(context, context.getString(R.string.restore_failed), Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -341,14 +342,14 @@ fun SettingsScreen(
                         onClick = { exportLauncher.launch("fincalc_backup_${System.currentTimeMillis()}.json") },
                         modifier = Modifier.weight(1f)
                     ) {
-                        Text("Export JSON")
+                        Text(stringResource(R.string.export_json))
                     }
                     BouncyButton(
                         onClick = { importLauncher.launch(arrayOf("application/json")) },
                         modifier = Modifier.weight(1f),
                         containerColor = Color.Transparent
                     ) {
-                        Text("Import JSON", color = Color(0xFF00D1B2))
+                        Text(stringResource(R.string.import_json), color = Color(0xFF00D1B2))
                     }
                 }
             }
@@ -358,7 +359,7 @@ fun SettingsScreen(
             // Privacy
             CalculatorCard(isDarkMode = isDarkMode) {
                 Text(
-                    text = "Privacy",
+                    text = stringResource(R.string.privacy),
                     modifier = Modifier.fillMaxWidth(),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -367,44 +368,46 @@ fun SettingsScreen(
 
                 Spacer(Modifier.height(8.dp))
                 
-                PrivacyNote("Your data stays on this device.")
-                PrivacyNote("Camera is only for scanning.")
-                PrivacyNote("Fingerprint/Face ID for extra security.")
+                PrivacyNote(stringResource(R.string.data_stays_device))
+                PrivacyNote(stringResource(R.string.camera_usage))
+                PrivacyNote(stringResource(R.string.security_usage))
                 
                 Spacer(Modifier.height(8.dp))
                 
-                TextButton(onClick = { /* Navigate to Terms if exists */ }) {
-                    Text("Privacy Policy & Terms", color = Color(0xFF00D1B2), fontSize = 12.sp)
+                TextButton(onClick = { 
+                    context.startActivity(Intent(context, com.example.visualvibefincal.TermsActivity::class.java))
+                }) {
+                    Text(stringResource(R.string.privacy_terms), color = Color(0xFF00D1B2), fontSize = 12.sp)
                 }
             }
 
             Spacer(Modifier.height(24.dp))
 
-            SettingsItem(title = "Feedback & Review", trailing = {
+            SettingsItem(title = stringResource(R.string.feedback_review), trailing = {
                 IconButton(onClick = { showFeedbackDialog = true }) {
                     Icon(painterResource(R.drawable.ic_calc), contentDescription = "Feedback", modifier = Modifier.size(20.dp), tint = Color(0xFF00D1B2))
                 }
             })
             
-            SettingsItem(title = "Help & Troubleshoot", trailing = {
+            SettingsItem(title = stringResource(R.string.help_troubleshoot), trailing = {
                 Button(
                     onClick = { 
                         sendEmail("Help & Troubleshoot - Visual Vibe FinCal", "Hi Enosh,\n\nI need help with...")
                     }, 
                     colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.primary)
                 ) {
-                    Text("HELP")
+                    Text(stringResource(R.string.help).uppercase())
                 }
             })
 
             Spacer(Modifier.height(24.dp))
 
             CalculatorCard(isDarkMode = isDarkMode) {
-                Text("Security", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2), modifier = Modifier.fillMaxWidth())
+                Text(stringResource(R.string.security), fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2), modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
 
                 SettingsItem(
-                    title = "App Lock (PIN)",
+                    title = stringResource(R.string.app_lock_pin),
                     trailing = {
                         Switch(
                             checked = appLockEnabled,
@@ -422,7 +425,7 @@ fun SettingsScreen(
 
                 if (appLockEnabled) {
                     SettingsItem(
-                        title = "Biometric Login",
+                        title = stringResource(R.string.biometric_login),
                         trailing = {
                             Switch(
                                 checked = biometricEnabled,
@@ -435,10 +438,10 @@ fun SettingsScreen(
                     )
                     
                     SettingsItem(
-                        title = "Change PIN",
+                        title = stringResource(R.string.change_pin),
                         trailing = {
                             TextButton(onClick = { showPinDialog = true }) {
-                                Text("CHANGE", color = Color(0xFF00D1B2), fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.change_pin).uppercase().split(" ").last(), color = Color(0xFF00D1B2), fontWeight = FontWeight.Bold)
                             }
                         }
                     )
@@ -453,7 +456,7 @@ fun SettingsScreen(
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Column(Modifier.padding(16.dp)) {
-                    Text("Made by", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
+                    Text(stringResource(R.string.made_by), fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
                     Spacer(Modifier.height(4.dp))
                     Text("Enosh Jaques", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                 }
@@ -468,13 +471,13 @@ fun SettingsScreen(
             onDismissRequest = { showEditDialog = false },
             shape = RoundedCornerShape(24.dp),
             containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White,
-            title = { Text("Edit Profile", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.edit_profile), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
                     ValidatedTextField(
                         value = userName,
                         onValueChange = { userName = it },
-                        label = "Name",
+                        label = stringResource(R.string.full_name),
                         keyboardType = KeyboardType.Text
                     )
                     Spacer(Modifier.height(12.dp))
@@ -492,16 +495,20 @@ fun SettingsScreen(
                         putString("name", userName)
                         putString("email", userEmail)
                     }
+                    SecurityUtils.getEncryptedPrefs(context).edit {
+                        putString("name", userName)
+                        putString("email", userEmail)
+                    }
                     showEditDialog = false
-                    Toast.makeText(context, "Profile updated", Toast.LENGTH_SHORT).show()
-                }) { Text("Save", fontWeight = FontWeight.Bold) }
+                    Toast.makeText(context, context.getString(R.string.profile_updated), Toast.LENGTH_SHORT).show()
+                }) { Text(stringResource(R.string.save), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { 
                     userName = initialName
                     userEmail = email
                     showEditDialog = false 
-                }) { Text("Cancel", color = Color.Gray) }
+                }) { Text(stringResource(R.string.cancel), color = Color.Gray) }
             }
         )
     }
@@ -511,15 +518,15 @@ fun SettingsScreen(
             onDismissRequest = { if (!isSendingFeedback) showFeedbackDialog = false },
             shape = RoundedCornerShape(24.dp),
             containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White,
-            title = { Text("Feedback", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.feedback_review), fontWeight = FontWeight.Bold) },
             text = {
                 Column {
-                    Text("Your feedback helps me improve!", fontSize = 14.sp, color = Color.Gray)
+                    Text(stringResource(R.string.feedback_help), fontSize = 14.sp, color = Color.Gray)
                     Spacer(Modifier.height(12.dp))
                     ValidatedTextField(
                         value = feedbackText,
                         onValueChange = { feedbackText = it },
-                        label = "Describe your experience...",
+                        label = stringResource(R.string.describe_experience),
                         modifier = Modifier.height(120.dp),
                         keyboardType = KeyboardType.Text,
                         singleLine = false
@@ -531,10 +538,10 @@ fun SettingsScreen(
                     onClick = {
                         coroutineScope.launch {
                             isSendingFeedback = true
-                            assistantViewModel.showMessage("Sending feedback...", AssistantState.THINKING)
+                            assistantViewModel.showMessage(context.getString(R.string.sending_feedback), AssistantState.THINKING)
                             delay(1500)
                             sendEmail("Feedback - Visual Vibe FinCal", feedbackText)
-                            assistantViewModel.showMessage("Feedback ready to send!", AssistantState.HAPPY)
+                            assistantViewModel.showMessage(context.getString(R.string.feedback_ready), AssistantState.HAPPY)
                             isSendingFeedback = false
                             showFeedbackDialog = false
                             feedbackText = ""
@@ -545,13 +552,13 @@ fun SettingsScreen(
                     if (isSendingFeedback) {
                         CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
                     } else {
-                        Text("Send", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.sign_up).split(" ").last(), fontWeight = FontWeight.Bold)
                     }
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showFeedbackDialog = false }, enabled = !isSendingFeedback) {
-                    Text("Cancel", color = Color.Gray)
+                    Text(stringResource(R.string.cancel), color = Color.Gray)
                 }
             }
         )
@@ -562,12 +569,12 @@ fun SettingsScreen(
             onDismissRequest = { showPinDialog = false },
             shape = RoundedCornerShape(24.dp),
             containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White,
-            title = { Text("Set 4-Digit PIN", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.set_pin_title), fontWeight = FontWeight.Bold) },
             text = {
                 ValidatedTextField(
                     value = newPin,
                     onValueChange = { if (it.length <= 4) newPin = it },
-                    label = "Enter PIN",
+                    label = stringResource(R.string.enter_pin),
                     keyboardType = KeyboardType.NumberPassword,
                     visualTransformation = PasswordVisualTransformation()
                 )
@@ -581,12 +588,12 @@ fun SettingsScreen(
                         appLockEnabled = true
                         showPinDialog = false
                         newPin = ""
-                        Toast.makeText(context, "PIN set successfully", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.pin_set_success), Toast.LENGTH_SHORT).show()
                     }
-                ) { Text("Save", fontWeight = FontWeight.Bold) }
+                ) { Text(stringResource(R.string.save), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                TextButton(onClick = { showPinDialog = false }) { Text("Cancel", color = Color.Gray) }
+                TextButton(onClick = { showPinDialog = false }) { Text(stringResource(R.string.cancel), color = Color.Gray) }
             }
         )
     }

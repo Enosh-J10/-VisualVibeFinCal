@@ -18,6 +18,7 @@ import androidx.core.net.toUri
 import androidx.core.content.edit
 import androidx.core.widget.addTextChangedListener
 import com.example.visualvibefincal.utils.ValidationUtils
+import com.example.visualvibefincal.utils.SecurityUtils
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
@@ -131,11 +132,17 @@ class SignupActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            val sharedPref = getSharedPreferences("UserPrefs", MODE_PRIVATE)
+            val sharedPref = SecurityUtils.getEncryptedPrefs(this)
             sharedPref.edit {
                 putString("name", name)
                 putString("email", email)
                 putString("password", password)
+            }
+            
+            // Also update regular prefs for non-sensitive data if needed
+            getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
+                putString("email", email)
+                putString("name", name)
             }
             
             Toast.makeText(this, getString(R.string.signup_successful), Toast.LENGTH_SHORT).show()

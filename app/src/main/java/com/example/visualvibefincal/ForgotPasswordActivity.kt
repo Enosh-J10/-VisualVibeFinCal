@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.edit
+import com.example.visualvibefincal.utils.SecurityUtils
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 
@@ -23,11 +24,11 @@ class ForgotPasswordActivity : AppCompatActivity() {
             val newPassword = etNewPassword.text.toString()
 
             if (email.isNotEmpty() && newPassword.isNotEmpty()) {
-                val sharedPref = getSharedPreferences("UserPrefs", MODE_PRIVATE)
-                val savedEmail = sharedPref.getString("email", null)
+                val securePref = SecurityUtils.getEncryptedPrefs(this)
+                val savedEmail = securePref.getString("email", null)
 
                 if (email == savedEmail) {
-                    sharedPref.edit {
+                    securePref.edit {
                         putString("password", newPassword)
                     }
                     Toast.makeText(this, getString(R.string.password_updated), Toast.LENGTH_SHORT).show()

@@ -32,12 +32,12 @@ class MainActivity : AppCompatActivity() {
         val updateTipRunnable = object : Runnable {
             override fun run() {
                 tvTip.text = tips.random()
-                handler.postDelayed(this, 1000)
+                handler.postDelayed(this, 3000) // Change to 3 seconds for better readability
             }
         }
         handler.post(updateTipRunnable)
 
-        // Wait 3 seconds then go to login or lock screen
+        // Wait 6 seconds then go to login or lock screen (enough to see 2 tips)
         handler.postDelayed({
             handler.removeCallbacks(updateTipRunnable)
             if (SecurityUtils.isAppLockEnabled(this)) {

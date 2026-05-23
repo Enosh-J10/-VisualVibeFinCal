@@ -52,6 +52,7 @@ object BackupUtils {
             val db = AppDatabase.getDatabase(context)
             data.expenses.forEach { db.expenseDao().insertExpense(it.copy(id = 0)) }
             data.goals.forEach { db.goalDao().insertGoal(it.copy(id = 0)) }
+            data.budgets.forEach { db.budgetDao().insertBudget(it.copy(id = 0)) }
             
             true
         } catch (e: Exception) {

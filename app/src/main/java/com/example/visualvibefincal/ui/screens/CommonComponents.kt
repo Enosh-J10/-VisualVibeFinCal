@@ -35,6 +35,9 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 
+import androidx.compose.ui.res.stringResource
+import com.example.visualvibefincal.R
+
 @Composable
 fun SettingsItem(
     title: String,
@@ -309,13 +312,13 @@ fun HistorySection(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "History",
+                    stringResource(R.string.history),
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
                     color = if (isDarkMode) Color.White else Color.Black
                 )
                 TextButton(onClick = onClearHistory) {
-                    Text("Clear", color = Color(0xFF00D1B2))
+                    Text(stringResource(R.string.clear), color = Color(0xFF00D1B2))
                 }
             }
 

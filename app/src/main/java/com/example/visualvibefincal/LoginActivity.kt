@@ -82,13 +82,14 @@ class LoginActivity : AppCompatActivity() {
 
             if (hasError) return@setOnClickListener
 
-            val sharedPref = getSharedPreferences("UserPrefs", MODE_PRIVATE)
-            val savedEmail = sharedPref.getString("email", null)
-            val savedPassword = sharedPref.getString("password", null)
+            val securePref = SecurityUtils.getEncryptedPrefs(this)
+            val savedEmail = securePref.getString("email", null)
+            val savedPassword = securePref.getString("password", null)
 
-            if (email == savedEmail && password == savedPassword && email.isNotEmpty()) {
-                sharedPref.edit {
+            if (email == savedEmail && password == savedPassword && !email.isNullOrEmpty()) {
+                getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
                     putBoolean("is_guest", false)
+                    putString("email", email)
                 }
                 Toast.makeText(this, getString(R.string.login_successful), Toast.LENGTH_SHORT).show()
                 if (SecurityUtils.isAppLockEnabled(this)) {
