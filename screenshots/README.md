@@ -9,5 +9,5 @@ This folder is for screenshots of the app.
 
 ### Included Screenshots:
 * **home_screen.png**: The main menu showing tool categories and the robot assistant.
-* **settings_screen.png**: Assistant personalization and app settings.
+* **assistant_robot.png**: Assistant personalization and app settings.
 * **currency_converter.png**: Live currency rates and conversion history.

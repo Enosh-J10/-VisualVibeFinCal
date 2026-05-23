@@ -40,7 +40,7 @@ Here is a look at the app in action:
 
 | Home Screen | Assistant Settings | Currency Converter |
 | :---: | :---: | :---: |
-| ![Home Screen](./screenshots/home_screen.png) | ![Assistant Settings](./screenshots/settings_screen.png) | ![Currency Converter](./screenshots/currency_converter.png) |
+| ![Home Screen](./screenshots/home_screen.png) | ![Assistant Settings](./screenshots/assistant_robot.png) | ![Currency Converter](./screenshots/currency_converter.png) |
 
 For more, check the [screenshots](./screenshots) folder.
 
