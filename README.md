@@ -1,42 +1,85 @@
 # FinCalc – All-in-One Financial Utility App 📊
 
-FinCalc is a modern Android financial utility application developed using **Kotlin** and **Jetpack Compose**. It provides users with a comprehensive suite of financial tools and utilities within a single platform, maintaining a clean, modern, and user-friendly fintech-style interface.
+FinCalc is a professional-grade, modern Android financial utility application built with **Kotlin** and **Jetpack Compose**. It provides users with a comprehensive suite of financial tools, smart expense tracking, and AI-driven insights, all within a clean, Material 3 interface.
 
-## 🚀 Features
+## 🚀 Key Features
 
-- **Real-time Currency Converter**: Live exchange rates via API integration.
-- **Financial Calculators**: Loan, Salary, Tax & Discount, Tip & Split, and Percentage calculators.
-- **Smart Scan (OCR)**: Integrated Smart Scan feature for digitizing financial documents and receipts using Google ML Kit.
-- **Interactive Assistant**: A floating assistant robot to help you navigate and provide smart financial insights.
-- **Expense Tracking**: Built-in system to track your financial activities.
-- **Health & Lifestyle**: Includes a BMI Calculator and a dedicated Notebook for financial notes.
-- **Security & Customization**: App lock (PIN/Biometric), notification settings, and personalization options for the assistant and UI.
-- **Modern UI**: Built with Material Design 3 and smooth Compose animations.
+### 💰 Financial Planning & Tracking
+- **Insights Dashboard**: Visual summaries of your financial health, including monthly spending trends and category-wise breakdowns.
+- **Budget Planner**: Set monthly spending limits and receive real-time warnings and progress updates.
+- **Savings Goals**: Create and track multiple savings targets with visual progress bars.
+- **Expense Tracking**: Easily log and manage your daily expenses.
+
+### 🧮 Smart Tools & Calculators
+- **Smart Scan (OCR)**: Automatically digitize receipts and bills using Google ML Kit. Detects totals, merchants, and categories automatically.
+- **Real-time Currency Converter**: Live exchange rates for over 150 currencies via API integration.
+- **Versatile Calculators**: Loan, Salary, Tax & Discount, Tip & Split, Percentage, and Unit converters.
+- **Personal Tools**: Integrated BMI Calculator, Date/Time tools, and a secure Notebook.
+
+### 🤖 Intelligent Assistant
+- **Interactive Robot**: A persistent, customizable floating assistant that provides smart financial suggestions, guidance, and real-time feedback on your budget.
+- **Smart Suggestions**: Rule-based AI tips based on your spending habits and financial data.
+
+### 🛡️ Security & Privacy
+- **App Lock**: Protect your data with a secure 4-digit PIN or Biometric authentication.
+- **Privacy First**: All sensitive data is stored locally on your device.
+- **Trust Indicators**: Transparent explanations of camera and biometric usage.
 
 ## 🛠 Technologies Used
 
 - **Language**: Kotlin
 - **UI Framework**: Jetpack Compose / Material 3
 - **Architecture**: MVVM (Model-View-ViewModel)
-- **Local Database**: Room (for notes, history, and expenses)
-- **Networking**: Retrofit & OkHttp (for live currency rates)
-- **Image Processing**: Google ML Kit (for OCR)
-- **Dependency Injection**: Manual / ViewModelProvider
-- **Navigation**: Compose Navigation
+- **Local Database**: Room (Expenses, Goals, Budgets, History)
+- **Networking**: Retrofit & OkHttp (Currency Rates)
+- **AI/ML**: Google ML Kit (Text Recognition)
+- **Background Tasks**: WorkManager (Daily Reminders)
+- **Local Storage**: SharedPreferences (Preferences & Settings)
+- **Navigation**: Jetpack Compose Navigation
 
 ## 📁 Project Structure
 
-The project follows a clean MVVM architecture:
+```text
+com.example.visualvibefincal
+├── data
+│   ├── local      # Room Database, DAOs, and Entities
+│   ├── model      # API Data Models
+│   └── repository # Data access implementations
+├── domain         # Business logic models
+├── ui
+│   ├── components # Reusable Compose UI elements
+│   ├── navigation # NavGraph and Screen definitions
+│   └── screens    # All feature screens (SmartScan, Insights, etc.)
+├── utils          # Helpers for validation, security, and backup
+└── viewmodel      # MVVM ViewModels
+```
 
-- `data`: Handles data sources (API services, Room database, repositories).
-- `domain`: Contains business logic, models, and repository interfaces.
-- `ui`: Contains the UI layer (Screens, Components, Navigation).
-- `viewmodel`: Contains ViewModels that bridge the domain and UI layers.
-- `utils`: Helper classes for validation, security, and notifications.
+## ⚙️ Installation & Setup
 
-## 🎯 Purpose of the Application
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/Enosh-J10/FinCalc.git
+   ```
+2. **Open in Android Studio**:
+   - Open the root folder in Android Studio (Ladybug or newer recommended).
+3. **Sync Gradle**:
+   - Let the project sync to download all dependencies.
+4. **Run the App**:
+   - Connect an Android device or start an emulator (API 24+).
+   - Click the "Run" button.
 
-The main purpose of FinCalc is to simplify financial calculations and expense management by combining multiple tools into a single mobile application. It aims to provide a modern and engaging user experience through interactive features and smart automation.
+## 📸 Screenshots
+
+*Check the [screenshots](./screenshots) folder for more details.*
+
+| Home Screen | Insights Dashboard | Smart Scan |
+| :---: | :---: | :---: |
+| [Placeholder] | [Placeholder] | [Placeholder] |
+
+## 📦 Release Information
+- **Version**: v1.0 Beta
+- **Status**: Stable Build
+- **Notes**: Initial release featuring Smart Scan AI, Budget Planning, and the Interactive Assistant.
 
 ## 👷 Developer
 
@@ -45,12 +88,12 @@ The main purpose of FinCalc is to simplify financial calculations and expense ma
 
 ## 📝 Future Improvements
 
-- [ ] AI-powered financial insights and budgeting advice.
-- [ ] Voice assistant support for hands-free calculations.
-- [ ] Cloud synchronization for cross-device data backup.
-- [ ] Advanced analytics dashboard with charting.
-- [ ] Multi-language support.
+- [ ] AI-powered advanced financial forecasting.
+- [ ] Cloud synchronization with end-to-end encryption.
+- [ ] Multi-currency budget support.
+- [ ] Voice-activated assistant interactions.
+- [ ] Dark mode dynamic theme refinement.
 
 ---
 
-*Disclaimer: This app is for educational and informational purposes. Always consult with a financial professional for critical financial decisions.*
+*Disclaimer: This app is for educational purposes. Always consult with a financial professional for critical decisions.*
