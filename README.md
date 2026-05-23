@@ -36,7 +36,13 @@ FinCalc is an Android app I built to put all the useful finance tools I need in 
 3. Build and run it on your phone or an emulator (API 24+).
 
 ## Screenshots
-Check the [screenshots](./screenshots) folder to see how it looks.
+Here is a look at the app in action:
+
+| Home Screen | Assistant Settings | Currency Converter |
+| :---: | :---: | :---: |
+| ![Home Screen](./screenshots/home_screen.png) | ![Assistant Settings](./screenshots/settings_screen.png) | ![Currency Converter](./screenshots/currency_converter.png) |
+
+For more, check the [screenshots](./screenshots) folder.
 
 ## Future Plans
 * Add better charts and graphs.

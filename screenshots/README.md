@@ -7,9 +7,7 @@ This folder is for screenshots of the app.
 2. Save it here.
 3. Update the main README if you want to show them there too.
 
-### Suggested screens to include:
-* **Home**: The main menu with all the tools.
-* **Insights**: The spending charts.
-* **Smart Scan**: Scanning a receipt.
-* **Assistant**: The little robot character.
-* **Settings**: PIN lock and customization options.
+### Included Screenshots:
+* **home_screen.png**: The main menu showing tool categories and the robot assistant.
+* **settings_screen.png**: Assistant personalization and app settings.
+* **currency_converter.png**: Live currency rates and conversion history.
