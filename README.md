@@ -38,11 +38,17 @@ FinCalc is an Android app I built to put all the useful finance tools I need in 
 ## Screenshots
 Here is a look at the app in action:
 
-| Home Screen | Assistant Settings | Currency Converter |
+| Home Dashboard | Assistant Settings | Currency Converter |
 | :---: | :---: | :---: |
 | ![Home Screen](./screenshots/home_screen.png) | ![Assistant Settings](./screenshots/assistant_robot.png) | ![Currency Converter](./screenshots/currency_converter.png) |
+| The main hub for all your finance tools. | Customize the robot assistant's look and behavior. | Real-time conversion with live exchange rates. |
 
 For more, check the [screenshots](./screenshots) folder.
+
+## Known Issues
+- **OCR Accuracy**: The receipt scanner might struggle with blurry photos or very long receipts.
+- **Internet Dependency**: You'll need a connection to fetch the latest currency exchange rates.
+- **Device UI**: Some animations might look slightly different depending on your phone's screen size.
 
 ## Future Plans
 * Add better charts and graphs.
