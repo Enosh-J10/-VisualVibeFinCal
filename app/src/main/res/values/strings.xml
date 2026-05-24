@@ -155,6 +155,14 @@
     <string name="create_new_pin">Create New PIN</string>
     <string name="confirm_new_pin">Confirm New PIN</string>
     <string name="biometric_not_available">Biometric not available on this device</string>
+    <string name="reset_email_sent">Password reset email sent. Please check your inbox.</string>
+    <string name="enter_email_reset">Enter your email address and we\'ll send you a link to reset your password.</string>
+    <string name="reset_link_sent_to">Success! A reset link has been sent to %1$s. Please follow the instructions in the email.</string>
+    <string name="send_reset_email">Send Reset Email</string>
+    <string name="sending">Sending…</string>
+    <string name="back_to_login">Back to Login</string>
+    <string name="no_account_found">No account found with this email.</string>
+    <string name="reset_failed">Failed to send reset email.</string>
 
     <!-- Unit Converter -->
     <string name="unit_converter">Unit Converter</string>

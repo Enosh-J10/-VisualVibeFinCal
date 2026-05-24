@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.text.SpannableString
 import android.text.Spanned
 import android.text.TextPaint
-import android.text.method.LinkMovementMethod
 import android.text.style.ClickableSpan
 import android.view.View
 import android.widget.CheckBox
@@ -23,10 +22,34 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import androidx.core.graphics.toColorInt
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.FirebaseAuthWeakPasswordException
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 
+/**
+ * SIGNUP FLOW UPDATE:
+ * Now uses Firebase Authentication to create users.
+ * 
+ * DEVELOPER SETUP:
+ * 1. Create a Firebase project at console.firebase.google.com
+ * 2. Add this Android app (com.example.visualvibefincal) to the project.
+ * 3. Download google-services.json and place it in the app/ folder.
+ * 4. Enable Email/Password provider in Firebase Console -> Authentication -> Sign-in method.
+ */
 class SignupActivity : AppCompatActivity() {
+    private lateinit var auth: FirebaseAuth
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        try {
+            auth = FirebaseAuth.getInstance()
+        } catch (e: Exception) {
+            // This might happen if google-services.json is missing or Firebase is not initialized
+            Toast.makeText(this, "Firebase not initialized. Check google-services.json", Toast.LENGTH_LONG).show()
+        }
+
         enableEdgeToEdge()
         setContentView(R.layout.activity_signup)
 
@@ -53,29 +76,16 @@ class SignupActivity : AppCompatActivity() {
             try {
                 startActivity(Intent.createChooser(intent, "Send Email"))
             } catch (_: Exception) {
-                Toast.makeText(this, "No email app found", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.no_email_app), Toast.LENGTH_SHORT).show()
             }
         }
 
         setupTermsClickable()
 
-        fun validateInputs() {
-            // We keep the button enabled to allow showing error messages on click
-            // but we can still use this to clear errors or perform live checks if needed
-        }
-
-        etName.addTextChangedListener { 
-            tilName.error = null
-        }
-        etEmail.addTextChangedListener { 
-            tilEmail.error = null
-        }
-        etPassword.addTextChangedListener { 
-            tilPassword.error = null
-        }
-        etConfirmPassword.addTextChangedListener { 
-            tilConfirmPassword.error = null
-        }
+        etName.addTextChangedListener { tilName.error = null }
+        etEmail.addTextChangedListener { tilEmail.error = null }
+        etPassword.addTextChangedListener { tilPassword.error = null }
+        etConfirmPassword.addTextChangedListener { tilConfirmPassword.error = null }
 
         btnSignup.setOnClickListener {
             val name = etName.text.toString().trim()
@@ -132,20 +142,39 @@ class SignupActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            val securePref = SecurityUtils.getEncryptedPrefs(this)
-            securePref.edit {
-                putString("name", name)
-                putString("email", email)
-                putString("password", password)
-                // Mark that we have a saved account
-                putBoolean("has_account", true)
-            }
-            
-            android.util.Log.d("SignupActivity", "User record saved successfully for: $email")
-            
-            Toast.makeText(this, getString(R.string.signup_successful), Toast.LENGTH_SHORT).show()
-            startActivity(Intent(this, LoginActivity::class.java))
-            finish()
+            // FIREBASE SIGNUP
+            btnSignup.isEnabled = false
+            auth.createUserWithEmailAndPassword(email, password)
+                .addOnCompleteListener(this) { task ->
+                    btnSignup.isEnabled = true
+                    if (task.isSuccessful) {
+                        // Success: Save non-sensitive data locally
+                        val securePref = SecurityUtils.getEncryptedPrefs(this)
+                        securePref.edit {
+                            putString("name", name)
+                            putString("email", email)
+                            putBoolean("has_account", true)
+                            // Remove any old local password if it exists
+                            remove("password")
+                        }
+                        
+                        android.util.Log.d("SignupActivity", "Firebase user created successfully: $email")
+                        Toast.makeText(this, getString(R.string.signup_successful), Toast.LENGTH_SHORT).show()
+                        startActivity(Intent(this, LoginActivity::class.java))
+                        finish()
+                    } else {
+                        // Failure: Show user-friendly error
+                        val exception = task.exception
+                        val message = when (exception) {
+                            is FirebaseAuthWeakPasswordException -> getString(R.string.password_too_short)
+                            is FirebaseAuthInvalidCredentialsException -> getString(R.string.invalid_email_format)
+                            is FirebaseAuthUserCollisionException -> "This email is already registered."
+                            else -> exception?.localizedMessage ?: "Signup failed. Please try again."
+                        }
+                        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                        android.util.Log.e("SignupActivity", "Firebase signup error", exception)
+                    }
+                }
         }
 
         tvLogin.setOnClickListener {
@@ -161,17 +190,15 @@ class SignupActivity : AppCompatActivity() {
 
         val termsAndConditions = "Terms & Conditions"
         val startIndex = fullText.indexOf(termsAndConditions)
-        val endIndex = startIndex + termsAndConditions.length
-
         if (startIndex != -1) {
+            val endIndex = startIndex + termsAndConditions.length
             val clickableSpan = object : ClickableSpan() {
                 override fun onClick(widget: View) {
                     startActivity(Intent(this@SignupActivity, TermsActivity::class.java))
                 }
-
                 override fun updateDrawState(ds: TextPaint) {
                     super.updateDrawState(ds)
-                    ds.color = "#00D1B2".toColorInt() // Match accent_teal
+                    ds.color = "#00D1B2".toColorInt()
                     ds.isUnderlineText = true
                 }
             }
@@ -179,24 +206,6 @@ class SignupActivity : AppCompatActivity() {
         }
 
         cbTerms.text = spannableString
-        cbTerms.setOnTouchListener { v, event ->
-            val checkbox = v as CheckBox
-            if (event.action == android.view.MotionEvent.ACTION_UP) {
-                val text = checkbox.text as Spanned
-                val x = event.x.toInt() - checkbox.totalPaddingLeft + checkbox.scrollX
-                val y = event.y.toInt() - checkbox.totalPaddingTop + checkbox.scrollY
-                
-                val layout = checkbox.layout
-                val line = layout.getLineForVertical(y)
-                val off = layout.getOffsetForHorizontal(line, x.toFloat())
-                
-                val spans = text.getSpans(off, off, ClickableSpan::class.java)
-                if (spans.isNotEmpty()) {
-                    spans[0].onClick(checkbox)
-                    return@setOnTouchListener true
-                }
-            }
-            false
-        }
+        cbTerms.movementMethod = android.text.method.LinkMovementMethod.getInstance()
     }
 }

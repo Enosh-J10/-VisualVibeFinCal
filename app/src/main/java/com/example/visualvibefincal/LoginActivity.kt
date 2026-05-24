@@ -15,10 +15,26 @@ import com.example.visualvibefincal.utils.SecurityUtils
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 
+/**
+ * LOGIN FLOW UPDATE:
+ * Now uses Firebase Authentication to sign in users.
+ */
 class LoginActivity : AppCompatActivity() {
+    private lateinit var auth: FirebaseAuth
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        try {
+            auth = FirebaseAuth.getInstance()
+        } catch (e: Exception) {
+            Toast.makeText(this, "Firebase initialization failed.", Toast.LENGTH_SHORT).show()
+        }
+
         enableEdgeToEdge()
         setContentView(R.layout.activity_login)
 
@@ -42,25 +58,20 @@ class LoginActivity : AppCompatActivity() {
             try {
                 startActivity(Intent.createChooser(intent, "Send Email"))
             } catch (_: Exception) {
-                Toast.makeText(this, "No email app found", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.no_email_app), Toast.LENGTH_SHORT).show()
             }
         }
 
         fun validateInputs() {
             val email = etEmail.text.toString().trim()
             val password = etPassword.text.toString()
-            
-            val isEmailValid = ValidationUtils.isValidEmail(email)
-            val isPasswordValid = password.isNotEmpty()
-            
-            btnLogin.isEnabled = isEmailValid && isPasswordValid
+            btnLogin.isEnabled = ValidationUtils.isValidEmail(email) && password.isNotEmpty()
         }
 
         etEmail.addTextChangedListener {
             tilEmail.error = null
             validateInputs()
         }
-        
         etPassword.addTextChangedListener {
             tilPassword.error = null
             validateInputs()
@@ -82,39 +93,52 @@ class LoginActivity : AppCompatActivity() {
 
             if (hasError) return@setOnClickListener
 
-            val securePref = SecurityUtils.getEncryptedPrefs(this)
-            val savedEmail = securePref.getString("email", null)
-            val savedPassword = securePref.getString("password", null)
-            val hasAccount = securePref.getBoolean("has_account", false)
-
-            if (!hasAccount || savedEmail == null) {
-                Toast.makeText(this, "No account found. Please sign up first.", Toast.LENGTH_LONG).show()
-                android.util.Log.w("LoginActivity", "Login attempt with no saved account record")
-                return@setOnClickListener
-            }
-
-            if (email == savedEmail && password == savedPassword) {
-                android.util.Log.d("LoginActivity", "Login successful for: $email")
-                SecurityUtils.skipNextLock = true
-                SecurityUtils.hasAuthenticatedThisSession = true
-
-                getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
-                    putBoolean("is_guest", false)
-                    putString("email", email)
+            // FIREBASE LOGIN
+            btnLogin.isEnabled = false
+            auth.signInWithEmailAndPassword(email, password)
+                .addOnCompleteListener(this) { task ->
+                    btnLogin.isEnabled = true
+                    if (task.isSuccessful) {
+                        android.util.Log.d("LoginActivity", "Firebase login successful: $email")
+                        SecurityUtils.skipNextLock = true
+                        SecurityUtils.hasAuthenticatedThisSession = true
+                        
+                        getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
+                            putBoolean("is_guest", false)
+                            putString("email", email)
+                        }
+                        
+                        Toast.makeText(this, getString(R.string.login_successful), Toast.LENGTH_SHORT).show()
+                        
+                        if (SecurityUtils.isAppLockEnabled(this)) {
+                            val intent = Intent(this, LockActivity::class.java)
+                            intent.putExtra("DESTINATION", "HOME")
+                            startActivity(intent)
+                        } else {
+                            startActivity(Intent(this, HomeActivity::class.java))
+                        }
+                        finish()
+                    } else {
+                        val exception = task.exception
+                        val message = when (exception) {
+                            is FirebaseAuthInvalidUserException -> "No account found with this email."
+                            is FirebaseAuthInvalidCredentialsException -> getString(R.string.invalid_credentials)
+                            else -> exception?.localizedMessage ?: "Login failed."
+                        }
+                        
+                        // Check if it's an old local account
+                        val securePref = SecurityUtils.getEncryptedPrefs(this)
+                        val savedEmail = securePref.getString("email", null)
+                        val savedPassword = securePref.getString("password", null)
+                        
+                        if (email == savedEmail && password == savedPassword && !savedPassword.isNullOrEmpty()) {
+                            Toast.makeText(this, "Please sign up again using our new secure system.", Toast.LENGTH_LONG).show()
+                        } else {
+                            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
+                        }
+                        android.util.Log.e("LoginActivity", "Firebase login error", exception)
+                    }
                 }
-                Toast.makeText(this, getString(R.string.login_successful), Toast.LENGTH_SHORT).show()
-                if (SecurityUtils.isAppLockEnabled(this)) {
-                    val intent = Intent(this, LockActivity::class.java)
-                    intent.putExtra("DESTINATION", "HOME")
-                    startActivity(intent)
-                } else {
-                    startActivity(Intent(this, HomeActivity::class.java))
-                }
-                finish()
-            } else {
-                android.util.Log.i("LoginActivity", "Invalid credentials for: $email")
-                Toast.makeText(this, getString(R.string.invalid_credentials), Toast.LENGTH_SHORT).show()
-            }
         }
 
         tvForgotPassword.setOnClickListener {
