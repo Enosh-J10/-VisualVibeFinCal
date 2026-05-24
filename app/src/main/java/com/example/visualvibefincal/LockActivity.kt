@@ -56,6 +56,9 @@ class LockActivity : FragmentActivity() {
     }
 
     private fun handleSuccess(isReturnToApp: Boolean, destination: String) {
+        SecurityUtils.hasAuthenticatedThisSession = true
+        SecurityUtils.skipNextLock = false
+
         if (isReturnToApp) {
             setResult(RESULT_OK)
             finish()

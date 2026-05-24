@@ -95,6 +95,9 @@ class LoginActivity : AppCompatActivity() {
 
             if (email == savedEmail && password == savedPassword) {
                 android.util.Log.d("LoginActivity", "Login successful for: $email")
+                SecurityUtils.skipNextLock = true
+                SecurityUtils.hasAuthenticatedThisSession = true
+
                 getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
                     putBoolean("is_guest", false)
                     putString("email", email)

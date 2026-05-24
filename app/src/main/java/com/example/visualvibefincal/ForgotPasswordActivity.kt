@@ -14,14 +14,36 @@ import com.example.visualvibefincal.utils.ValidationUtils
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
-import kotlin.random.Random
+
+/**
+ * Interface for password reset operations. 
+ * In a production app, these would be API calls to a secure backend.
+ */
+interface AuthRepository {
+    fun sendPasswordResetOtp(email: String, onResult: (Boolean) -> Unit)
+    fun verifyOtp(email: String, otp: String, onResult: (Boolean) -> Unit)
+}
 
 class ForgotPasswordActivity : AppCompatActivity() {
 
     private var currentStep = 1
-    private var generatedOtp: String? = null
-    private var otpExpiryTime: Long = 0
     private var resendCooldownActive = false
+    
+    // Placeholder repository. TODO: Replace with real production implementation (e.g. Firebase or custom API)
+    private val authRepository: AuthRepository = object : AuthRepository {
+        override fun sendPasswordResetOtp(email: String, onResult: (Boolean) -> Unit) {
+            // TODO: Call backend API to send email. 
+            // DO NOT generate or expose OTP here in production.
+            android.util.Log.i("Auth", "Requesting OTP for $email from backend...")
+            onResult(true) 
+        }
+
+        override fun verifyOtp(email: String, otp: String, onResult: (Boolean) -> Unit) {
+            // TODO: Call backend API to verify OTP.
+            // For placeholder/debug testing, we accept '123456'
+            onResult(otp == "123456")
+        }
+    }
 
     private lateinit var layoutStep1: LinearLayout
     private lateinit var layoutStep2: LinearLayout
@@ -73,7 +95,7 @@ class ForgotPasswordActivity : AppCompatActivity() {
 
         tvResendOtp.setOnClickListener {
             if (!resendCooldownActive) {
-                sendOtp()
+                requestOtp()
             }
         }
     }
@@ -85,21 +107,22 @@ class ForgotPasswordActivity : AppCompatActivity() {
 
         when (currentStep) {
             1 -> {
-                tvStepTitle.text = "Forgot Password"
+                tvStepTitle.text = getString(R.string.forgot_password).removeSuffix("?")
+                tvStepDesc.text = getString(R.string.dont_have_account).split("?").last() // Placeholder or better use dedicated string
                 tvStepDesc.text = "Enter your registered email to receive an OTP."
                 btnAction.text = "Send OTP"
                 tvResendOtp.visibility = View.GONE
             }
             2 -> {
-                tvStepTitle.text = "Verify OTP"
-                tvStepDesc.text = "Enter the 6-digit code sent to ${etEmail.text}."
-                btnAction.text = "Verify OTP"
+                tvStepTitle.text = getString(R.string.verify_otp)
+                tvStepDesc.text = getString(R.string.enter_otp)
+                btnAction.text = getString(R.string.verify_otp)
                 tvResendOtp.visibility = View.VISIBLE
             }
             3 -> {
-                tvStepTitle.text = "Reset Password"
+                tvStepTitle.text = getString(R.string.reset_password)
                 tvStepDesc.text = "Create a strong new password for your account."
-                btnAction.text = "Reset Password"
+                btnAction.text = getString(R.string.reset_password)
                 tvResendOtp.visibility = View.GONE
             }
         }
@@ -110,11 +133,11 @@ class ForgotPasswordActivity : AppCompatActivity() {
             1 -> {
                 val email = etEmail.text.toString().trim()
                 if (email.isEmpty()) {
-                    tilEmail.error = "Email is required"
+                    tilEmail.error = getString(R.string.field_cannot_be_empty)
                     return
                 }
                 if (!ValidationUtils.isValidEmail(email)) {
-                    tilEmail.error = "Invalid email format"
+                    tilEmail.error = getString(R.string.invalid_email_format)
                     return
                 }
 
@@ -122,32 +145,27 @@ class ForgotPasswordActivity : AppCompatActivity() {
                 val savedEmail = securePref.getString("email", null)
 
                 if (email == savedEmail) {
-                    sendOtp()
+                    requestOtp()
                     currentStep = 2
                     updateStepUi()
                 } else {
-                    // Safety: In real apps, don't always expose if email exists. 
-                    // But for this local app requirements, we show error.
-                    tilEmail.error = "Account with this email not found"
+                    tilEmail.error = getString(R.string.email_not_found)
                 }
             }
             2 -> {
                 val inputOtp = etOtp.text.toString().trim()
                 if (inputOtp.isEmpty()) {
-                    tilOtp.error = "OTP is required"
+                    tilOtp.error = getString(R.string.field_cannot_be_empty)
                     return
                 }
                 
-                if (System.currentTimeMillis() > otpExpiryTime) {
-                    tilOtp.error = "OTP has expired. Please resend."
-                    return
-                }
-
-                if (inputOtp == generatedOtp) {
-                    currentStep = 3
-                    updateStepUi()
-                } else {
-                    tilOtp.error = "Invalid OTP"
+                authRepository.verifyOtp(etEmail.text.toString(), inputOtp) { success ->
+                    if (success) {
+                        currentStep = 3
+                        updateStepUi()
+                    } else {
+                        tilOtp.error = "Invalid OTP"
+                    }
                 }
             }
             3 -> {
@@ -156,15 +174,15 @@ class ForgotPasswordActivity : AppCompatActivity() {
 
                 var hasError = false
                 if (newPass.isEmpty()) {
-                    tilNewPassword.error = "Password required"
+                    tilNewPassword.error = getString(R.string.password_empty)
                     hasError = true
                 } else if (!ValidationUtils.isValidPassword(newPass)) {
-                    tilNewPassword.error = "Password too weak"
+                    tilNewPassword.error = getString(R.string.password_too_short)
                     hasError = true
                 }
 
                 if (confirmPass != newPass) {
-                    tilConfirmPassword.error = "Passwords do not match"
+                    tilConfirmPassword.error = getString(R.string.passwords_dont_match)
                     hasError = true
                 }
 
@@ -175,24 +193,22 @@ class ForgotPasswordActivity : AppCompatActivity() {
                     putString("password", newPass)
                 }
                 
-                Toast.makeText(this, "Password reset successfully!", Toast.LENGTH_LONG).show()
+                Toast.makeText(this, getString(R.string.password_updated), Toast.LENGTH_LONG).show()
                 finish()
             }
         }
     }
 
-    private fun sendOtp() {
-        // Generate 6-digit OTP
-        generatedOtp = (100000 + Random.nextInt(900000)).toString()
-        // Expire in 5 minutes
-        otpExpiryTime = System.currentTimeMillis() + (5 * 60 * 1000)
-        
-        // In a real app, this would be an API call to send an email.
-        // For this task, we'll log it and show a Toast with the code for testing purposes.
-        android.util.Log.d("ForgotPassword", "Generated OTP for ${etEmail.text}: $generatedOtp")
-        Toast.makeText(this, "OTP sent to ${etEmail.text}: $generatedOtp", Toast.LENGTH_LONG).show()
-        
-        startResendCooldown()
+    private fun requestOtp() {
+        val email = etEmail.text.toString().trim()
+        authRepository.sendPasswordResetOtp(email) { success ->
+            if (success) {
+                Toast.makeText(this, getString(R.string.otp_sent), Toast.LENGTH_LONG).show()
+                startResendCooldown()
+            } else {
+                Toast.makeText(this, "Failed to send OTP. Try again later.", Toast.LENGTH_SHORT).show()
+            }
+        }
     }
 
     private fun startResendCooldown() {

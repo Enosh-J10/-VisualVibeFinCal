@@ -82,12 +82,25 @@ fun SettingsScreen(
     var confirmPinInput by remember { mutableStateOf("") }
     var pinError by remember { mutableStateOf<String?>(null) }
 
+    val pinLengthError = stringResource(R.string.pin_length_error)
+    val incorrectPinMsg = stringResource(R.string.incorrect_current_pin)
+    val pinMismatchMsg = stringResource(R.string.pin_mismatch)
+
     val hasExistingPin = remember { SecurityUtils.getAppPin(context) != null }
 
     val biometricManager = remember { BiometricManager.from(context) }
     val canUseBiometric = remember {
         biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
     }
+
+    val profileUpdatedMsg = stringResource(R.string.profile_updated)
+    val sendingFeedbackMsg = stringResource(R.string.sending_feedback)
+    val feedbackReadyMsg = stringResource(R.string.feedback_ready)
+    val pinSetSuccessMsg = stringResource(R.string.pin_set_success)
+    val backupSuccessMsg = stringResource(R.string.backup_successful)
+    val backupFailedMsg = stringResource(R.string.backup_failed)
+    val restoreSuccessMsg = stringResource(R.string.restore_successful)
+    val restoreFailedMsg = stringResource(R.string.restore_failed)
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
@@ -331,8 +344,8 @@ fun SettingsScreen(
                     uri?.let {
                         coroutineScope.launch {
                             val success = com.example.visualvibefincal.utils.BackupUtils.exportData(context, it)
-                            if (success) Toast.makeText(context, context.getString(R.string.backup_successful), Toast.LENGTH_SHORT).show()
-                            else Toast.makeText(context, context.getString(R.string.backup_failed), Toast.LENGTH_SHORT).show()
+                            if (success) Toast.makeText(context, backupSuccessMsg, Toast.LENGTH_SHORT).show()
+                            else Toast.makeText(context, backupFailedMsg, Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -343,8 +356,8 @@ fun SettingsScreen(
                     uri?.let {
                         coroutineScope.launch {
                             val success = com.example.visualvibefincal.utils.BackupUtils.importData(context, it)
-                            if (success) Toast.makeText(context, context.getString(R.string.restore_successful), Toast.LENGTH_SHORT).show()
-                            else Toast.makeText(context, context.getString(R.string.restore_failed), Toast.LENGTH_SHORT).show()
+                            if (success) Toast.makeText(context, restoreSuccessMsg, Toast.LENGTH_SHORT).show()
+                            else Toast.makeText(context, restoreFailedMsg, Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -442,17 +455,23 @@ fun SettingsScreen(
                         trailing = {
                             Switch(
                                 checked = biometricEnabled,
+                                enabled = canUseBiometric,
                                 onCheckedChange = { 
-                                    if (canUseBiometric) {
-                                        biometricEnabled = it
-                                        SecurityUtils.setBiometricEnabled(context, it)
-                                    } else {
-                                        Toast.makeText(context, "Biometric hardware not available or not enrolled.", Toast.LENGTH_LONG).show()
-                                    }
+                                    biometricEnabled = it
+                                    SecurityUtils.setBiometricEnabled(context, it)
                                 }
                             )
                         }
                     )
+                    
+                    if (!canUseBiometric) {
+                        Text(
+                            text = stringResource(R.string.biometric_not_available),
+                            fontSize = 12.sp,
+                            color = Color.Red.copy(alpha = 0.7f),
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                    }
                     
                     SettingsItem(
                         title = stringResource(R.string.change_pin),
@@ -516,7 +535,7 @@ fun SettingsScreen(
                         putString("email", userEmail)
                     }
                     showEditDialog = false
-                    Toast.makeText(context, context.getString(R.string.profile_updated), Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, profileUpdatedMsg, Toast.LENGTH_SHORT).show()
                 }) { Text(stringResource(R.string.save), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
@@ -554,10 +573,10 @@ fun SettingsScreen(
                     onClick = {
                         coroutineScope.launch {
                             isSendingFeedback = true
-                            assistantViewModel.showMessage(context.getString(R.string.sending_feedback), AssistantState.THINKING)
+                            assistantViewModel.showMessage(sendingFeedbackMsg, AssistantState.THINKING)
                             delay(1500)
                             sendEmail("Feedback - Visual Vibe FinCal", feedbackText)
-                            assistantViewModel.showMessage(context.getString(R.string.feedback_ready), AssistantState.HAPPY)
+                            assistantViewModel.showMessage(feedbackReadyMsg, AssistantState.HAPPY)
                             isSendingFeedback = false
                             showFeedbackDialog = false
                             feedbackText = ""
@@ -594,9 +613,9 @@ fun SettingsScreen(
             title = { 
                 Text(
                     text = when(pinStep) {
-                        1 -> "Verify Current PIN"
-                        2 -> "Set New 4-Digit PIN"
-                        3 -> "Confirm New PIN"
+                        1 -> stringResource(R.string.enter_current_pin)
+                        2 -> if (hasExistingPin) stringResource(R.string.create_new_pin) else stringResource(R.string.set_pin)
+                        3 -> if (hasExistingPin) stringResource(R.string.confirm_new_pin) else stringResource(R.string.confirm_pin)
                         else -> "PIN Setup"
                     }, 
                     fontWeight = FontWeight.Bold
@@ -618,13 +637,13 @@ fun SettingsScreen(
                                     2 -> newPinInput = input
                                     3 -> confirmPinInput = input
                                 }
-                                pinError = null
+                                pinError = if (input.length > 0 && input.length < 4) pinLengthError else null
                             }
                         },
                         label = when(pinStep) {
-                            1 -> "Current PIN"
-                            2 -> "New PIN"
-                            3 -> "Confirm PIN"
+                            1 -> stringResource(R.string.enter_current_pin)
+                            2 -> stringResource(R.string.enter_pin)
+                            3 -> if (hasExistingPin) stringResource(R.string.confirm_new_pin) else stringResource(R.string.confirm_pin)
                             else -> "PIN"
                         },
                         keyboardType = KeyboardType.NumberPassword,
@@ -648,7 +667,7 @@ fun SettingsScreen(
                                     pinStep = 2
                                     pinError = null
                                 } else {
-                                    pinError = "Incorrect current PIN"
+                                    pinError = incorrectPinMsg
                                     currentPinInput = ""
                                 }
                             }
@@ -664,9 +683,9 @@ fun SettingsScreen(
                                     currentPinInput = ""
                                     newPinInput = ""
                                     confirmPinInput = ""
-                                    Toast.makeText(context, "PIN updated successfully", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, pinSetSuccessMsg, Toast.LENGTH_SHORT).show()
                                 } else {
-                                    pinError = "PINs do not match"
+                                    pinError = pinMismatchMsg
                                     confirmPinInput = ""
                                 }
                             }
@@ -674,7 +693,7 @@ fun SettingsScreen(
                     }
                 ) { 
                     Text(
-                        if (pinStep == 3) "Save" else "Next", 
+                        if (pinStep == 3) stringResource(R.string.save) else "Next",
                         fontWeight = FontWeight.Bold
                     ) 
                 }

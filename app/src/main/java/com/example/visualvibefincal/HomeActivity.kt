@@ -50,6 +50,16 @@ class HomeActivity : ComponentActivity() {
         lifecycle.addObserver(LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_START) {
                 if (SecurityUtils.isAppLockEnabled(this) && !isLocked) {
+                    if (SecurityUtils.skipNextLock) {
+                        SecurityUtils.skipNextLock = false
+                        SecurityUtils.hasAuthenticatedThisSession = true
+                        return@LifecycleEventObserver
+                    }
+                    
+                    if (SecurityUtils.hasAuthenticatedThisSession) {
+                        return@LifecycleEventObserver
+                    }
+
                     val intent = Intent(this, LockActivity::class.java).apply {
                         putExtra("is_return_to_app", true)
                     }
@@ -93,6 +103,8 @@ class HomeActivity : ComponentActivity() {
                             sharedPref.edit { putBoolean("is_dark_mode", it) }
                         },
                         onLogout = {
+                            SecurityUtils.hasAuthenticatedThisSession = false
+                            SecurityUtils.skipNextLock = false
                             startActivity(Intent(this@HomeActivity, LoginActivity::class.java))
                             finish()
                         },

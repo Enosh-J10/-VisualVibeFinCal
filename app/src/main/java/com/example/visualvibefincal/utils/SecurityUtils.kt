@@ -9,6 +9,10 @@ object SecurityUtils {
     private const val ENCRYPTED_PREFS_NAME = "secure_user_prefs"
     private var sharedPrefs: SharedPreferences? = null
 
+    // Session-based flags
+    var hasAuthenticatedThisSession = false
+    var skipNextLock = false
+
     @Synchronized
     fun getEncryptedPrefs(context: Context): SharedPreferences {
         if (sharedPrefs == null) {
@@ -56,6 +60,12 @@ object SecurityUtils {
 
     fun verifyPin(context: Context, inputPin: String): Boolean {
         val savedPin = getAppPin(context) ?: return false
+        // Migration: If saved PIN is exactly 4 chars, it might be an old unhashed PIN.
+        // SHA-256 hashes are always 64 characters long.
+        if (savedPin.length == 4 && savedPin == inputPin) {
+            setAppPin(context, inputPin) // Upgrade to hash
+            return true
+        }
         return savedPin == hashPin(inputPin)
     }
 
