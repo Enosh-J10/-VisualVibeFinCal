@@ -2,6 +2,7 @@ package com.example.visualvibefincal.ui.screens
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -73,6 +74,8 @@ fun SettingsScreen(
     var profilePicUri by remember { mutableStateOf(initialProfilePic?.toUri()) }
     var showEditDialog by remember { mutableStateOf(false) }
     var showFeedbackDialog by remember { mutableStateOf(false) }
+    var showRestoreConfirmDialog by remember { mutableStateOf(false) }
+    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var feedbackText by remember { mutableStateOf("") }
     var isSendingFeedback by remember { mutableStateOf(false) }
 
@@ -382,11 +385,8 @@ fun SettingsScreen(
                     contract = ActivityResultContracts.OpenDocument()
                 ) { uri ->
                     uri?.let {
-                        coroutineScope.launch {
-                            val success = com.example.visualvibefincal.utils.BackupUtils.importData(context, it)
-                            if (success) Toast.makeText(context, restoreSuccessMsg, Toast.LENGTH_SHORT).show()
-                            else Toast.makeText(context, restoreFailedMsg, Toast.LENGTH_SHORT).show()
-                        }
+                        pendingRestoreUri = it
+                        showRestoreConfirmDialog = true
                     }
                 }
 
@@ -734,6 +734,36 @@ fun SettingsScreen(
                     confirmPinInput = ""
                     pinError = null
                 }) { Text(stringResource(R.string.cancel), color = Color.Gray) }
+            }
+        )
+    }
+
+    if (showRestoreConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showRestoreConfirmDialog = false },
+            title = { Text("Restore Data") },
+            text = { Text("This will overwrite your current expenses, goals, and budgets. This cannot be undone. Proceed?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showRestoreConfirmDialog = false
+                        pendingRestoreUri?.let { uri ->
+                            coroutineScope.launch {
+                                val success = com.example.visualvibefincal.utils.BackupUtils.importData(context, uri, overwrite = true)
+                                if (success) Toast.makeText(context, restoreSuccessMsg, Toast.LENGTH_SHORT).show()
+                                else Toast.makeText(context, restoreFailedMsg, Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Overwrite & Restore")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showRestoreConfirmDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
         )
     }

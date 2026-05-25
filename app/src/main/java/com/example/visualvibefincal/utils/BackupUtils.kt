@@ -43,13 +43,20 @@ object BackupUtils {
         }
     }
 
-    suspend fun importData(context: Context, uri: Uri) = withContext(Dispatchers.IO) {
+    suspend fun importData(context: Context, uri: Uri, overwrite: Boolean = false) = withContext(Dispatchers.IO) {
         try {
             val inputStream = context.contentResolver.openInputStream(uri)
             val json = inputStream?.bufferedReader()?.use { it.readText() }
             val data = Gson().fromJson(json, BackupData::class.java) ?: return@withContext false
             
             val db = AppDatabase.getDatabase(context)
+            
+            if (overwrite) {
+                db.expenseDao().deleteAllExpenses()
+                db.goalDao().deleteAllGoals()
+                db.budgetDao().deleteAllBudgets()
+            }
+
             data.expenses.forEach { db.expenseDao().insertExpense(it.copy(id = 0)) }
             data.goals.forEach { db.goalDao().insertGoal(it.copy(id = 0)) }
             data.budgets.forEach { db.budgetDao().insertBudget(it.copy(id = 0)) }

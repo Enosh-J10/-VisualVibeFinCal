@@ -266,9 +266,7 @@ fun AssistantRobot(
                     if (!isPreview) {
                         detectTapGestures(
                             onTap = {
-                                android.util.Log.d("AssistantRobot", "Robot clicked! Current state: $robotState")
                                 if (message == null && !isTyping) {
-                                    android.util.Log.d("AssistantRobot", "Triggering wave and tip")
                                     viewModel.triggerWave()
                                     viewModel.triggerRandomTip()
                                 }

@@ -138,6 +138,20 @@
                 app:layout_constraintTop_toBottomOf="@+id/tv_forgot_password" />
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/btn_google"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="@dimen/button_height"
+                android:layout_marginTop="@dimen/margin_standard"
+                android:text="@string/continue_with_google"
+                android:textColor="@color/white"
+                app:strokeColor="@color/white"
+                app:icon="@drawable/ic_google"
+                app:iconTint="@null"
+                app:iconGravity="textStart"
+                app:layout_constraintTop_toBottomOf="@+id/btn_login" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_guest"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="match_parent"
@@ -145,7 +159,7 @@
                 android:layout_marginTop="@dimen/margin_small"
                 android:text="@string/continue_as_guest"
                 android:textColor="@color/white"
-                app:layout_constraintTop_toBottomOf="@+id/btn_login" />
+                app:layout_constraintTop_toBottomOf="@+id/btn_google" />
 
             <TextView
                 android:id="@+id/tv_signup"

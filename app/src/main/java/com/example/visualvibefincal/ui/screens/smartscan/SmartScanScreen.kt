@@ -686,7 +686,7 @@ suspend fun processUri(context: Context, uri: Uri): ScanResult? = withContext(Di
             val fullText = visionText.text
             val lines = visionText.textBlocks.flatMap { block -> block.lines }
             
-            Log.d(TAG, "Raw OCR Text: $fullText")
+            // Log.d(TAG, "Raw OCR Text: $fullText") // Removed for security
 
             val amountData = detectTotal(lines)
             val merchant = extractMerchant(lines)

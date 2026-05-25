@@ -17,4 +17,7 @@ interface GoalDao {
 
     @Delete
     suspend fun deleteGoal(goal: Goal)
+
+    @Query("DELETE FROM goals")
+    suspend fun deleteAllGoals()
 }

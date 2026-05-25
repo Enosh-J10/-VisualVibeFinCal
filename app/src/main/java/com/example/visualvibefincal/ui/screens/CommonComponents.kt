@@ -241,6 +241,23 @@ fun CalculatorScreenScaffold(
                 .imePadding()
         ) {
             content(innerPadding)
+            
+            // Financial Disclaimer
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(bottom = 16.dp),
+                contentAlignment = Alignment.BottomCenter
+            ) {
+                Text(
+                    "Calculations are estimates and do not constitute financial advice.",
+                    fontSize = 10.sp,
+                    color = (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.3f),
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 24.dp)
+                )
+            }
         }
     }
 }

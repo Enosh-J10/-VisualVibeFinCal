@@ -15,9 +15,8 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 
 /**
- * FORGOT PASSWORD FLOW UPDATE:
- * Now uses Firebase Authentication password reset email.
- * NO MORE FAKE OTPs.
+ * FORGOT PASSWORD FLOW:
+ * Uses Firebase Authentication password reset email.
  * 
  * DEVELOPER NOTE:
  * Ensure you have Email/Password auth enabled in Firebase Console.
@@ -53,10 +52,6 @@ class ForgotPasswordActivity : AppCompatActivity() {
         tvStepTitle = findViewById(R.id.tv_step_title)
         tvStepDesc = findViewById(R.id.tv_step_desc)
 
-        // Reset the UI to just Step 1
-        findViewById<LinearLayout>(R.id.layout_step_2).visibility = View.GONE
-        findViewById<LinearLayout>(R.id.layout_step_3).visibility = View.GONE
-
         tvStepTitle.text = getString(R.string.reset_password)
         tvStepDesc.text = getString(R.string.enter_email_reset)
         btnAction.text = getString(R.string.send_reset_email)
@@ -87,8 +82,15 @@ class ForgotPasswordActivity : AppCompatActivity() {
                 btnAction.text = getString(R.string.send_reset_email)
                 
                 if (task.isSuccessful) {
-                    Toast.makeText(this, getString(R.string.reset_email_sent), Toast.LENGTH_LONG).show()
-                    android.util.Log.d("ForgotPassword", "Reset email sent to: $email")
+                    // Use Dialog for password reset message
+                    androidx.appcompat.app.AlertDialog.Builder(this)
+                        .setTitle("Check Your Email")
+                        .setMessage(getString(R.string.reset_email_sent))
+                        .setPositiveButton("OK") { _, _ -> finish() }
+                        .setCancelable(false)
+                        .show()
+
+                    android.util.Log.d("ForgotPassword", "Reset email sent")
                     
                     tvStepDesc.text = getString(R.string.reset_link_sent_to, email)
                     layoutStep1.visibility = View.GONE

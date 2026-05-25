@@ -17,4 +17,7 @@ interface BudgetDao {
 
     @Update
     suspend fun updateBudget(budget: Budget)
+
+    @Query("DELETE FROM budgets")
+    suspend fun deleteAllBudgets()
 }
