@@ -37,6 +37,7 @@ import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.google.firebase.auth.FirebaseAuth
 import com.example.visualvibefincal.R
 import com.example.visualvibefincal.ui.components.AssistantRobot
 import com.example.visualvibefincal.ui.components.ValidatedTextField
@@ -58,6 +59,10 @@ fun SettingsScreen(
     val sharedPref = remember { context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE) }
     val coroutineScope = rememberCoroutineScope()
     val assistantPrefs by assistantViewModel.prefs.collectAsState()
+    
+    val auth = remember { FirebaseAuth.getInstance() }
+    val firebaseUser = auth.currentUser
+    val isVerified = firebaseUser?.isEmailVerified ?: false
 
     val email = securePrefs.getString("email", "No Email") ?: "No Email"
     val initialName = securePrefs.getString("name", email.split("@").firstOrNull()?.replaceFirstChar { it.uppercase() } ?: "User") ?: "User"
@@ -178,7 +183,30 @@ fun SettingsScreen(
             Spacer(Modifier.height(16.dp))
 
             Text(userName, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text(userEmail, fontSize = 14.sp, color = Color.Gray)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(userEmail, fontSize = 14.sp, color = Color.Gray)
+                if (isVerified) {
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Icon(
+                        painter = painterResource(id = android.R.drawable.checkbox_on_background),
+                        contentDescription = stringResource(R.string.verified_badge),
+                        tint = Color(0xFF00D1B2),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+
+            if (!isVerified && firebaseUser != null) {
+                TextButton(onClick = {
+                    firebaseUser.sendEmailVerification().addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            Toast.makeText(context, context.getString(R.string.verification_email_sent), Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }) {
+                    Text(stringResource(R.string.resend_verification), color = Color(0xFF00D1B2), fontSize = 12.sp)
+                }
+            }
             
             TextButton(onClick = { showEditDialog = true }) {
                 Text(stringResource(R.string.edit_profile), color = Color(0xFF00D1B2), fontWeight = FontWeight.Bold)

@@ -45,9 +45,11 @@ class SignupActivity : AppCompatActivity() {
         
         try {
             auth = FirebaseAuth.getInstance()
+            android.util.Log.d("FirebaseInit", "Firebase initialized successfully in SignupActivity")
         } catch (e: Exception) {
-            // This might happen if google-services.json is missing or Firebase is not initialized
-            Toast.makeText(this, "Firebase not initialized. Check google-services.json", Toast.LENGTH_LONG).show()
+            // This happens if google-services.json is missing or Firebase is not initialized
+            Toast.makeText(this, "Firebase configuration error. Please check app setup.", Toast.LENGTH_LONG).show()
+            android.util.Log.e("FirebaseInit", "Firebase initialization failed in SignupActivity", e)
         }
 
         enableEdgeToEdge()
@@ -159,9 +161,22 @@ class SignupActivity : AppCompatActivity() {
                         }
                         
                         android.util.Log.d("SignupActivity", "Firebase user created successfully: $email")
-                        Toast.makeText(this, getString(R.string.signup_successful), Toast.LENGTH_SHORT).show()
-                        startActivity(Intent(this, LoginActivity::class.java))
-                        finish()
+                        
+                        // Send verification email
+                        val user = auth.currentUser
+                        user?.sendEmailVerification()
+                            ?.addOnCompleteListener { verifyTask ->
+                                if (verifyTask.isSuccessful) {
+                                    Toast.makeText(this, getString(R.string.verification_email_sent), Toast.LENGTH_LONG).show()
+                                    startActivity(Intent(this, LoginActivity::class.java))
+                                    finish()
+                                } else {
+                                    Toast.makeText(this, "Failed to send verification email: ${verifyTask.exception?.message}", Toast.LENGTH_LONG).show()
+                                    // Still go to login, they can resend from there
+                                    startActivity(Intent(this, LoginActivity::class.java))
+                                    finish()
+                                }
+                            }
                     } else {
                         // Failure: Show user-friendly error
                         val exception = task.exception

@@ -37,8 +37,10 @@ class ForgotPasswordActivity : AppCompatActivity() {
         
         try {
             auth = FirebaseAuth.getInstance()
+            android.util.Log.d("FirebaseInit", "Firebase initialized successfully in ForgotPasswordActivity")
         } catch (e: Exception) {
-            Toast.makeText(this, "Firebase not configured.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Firebase configuration error. Please check app setup.", Toast.LENGTH_LONG).show()
+            android.util.Log.e("FirebaseInit", "Firebase initialization failed in ForgotPasswordActivity", e)
         }
 
         enableEdgeToEdge()

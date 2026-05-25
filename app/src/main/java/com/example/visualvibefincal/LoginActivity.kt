@@ -31,8 +31,10 @@ class LoginActivity : AppCompatActivity() {
         
         try {
             auth = FirebaseAuth.getInstance()
+            android.util.Log.d("FirebaseInit", "Firebase initialized successfully in LoginActivity")
         } catch (e: Exception) {
-            Toast.makeText(this, "Firebase initialization failed.", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Firebase configuration error. Please check app setup.", Toast.LENGTH_LONG).show()
+            android.util.Log.e("FirebaseInit", "Firebase initialization failed in LoginActivity", e)
         }
 
         enableEdgeToEdge()
@@ -99,6 +101,16 @@ class LoginActivity : AppCompatActivity() {
                 .addOnCompleteListener(this) { task ->
                     btnLogin.isEnabled = true
                     if (task.isSuccessful) {
+                        val user = auth.currentUser
+                        if (user != null && !user.isEmailVerified) {
+                            btnLogin.isEnabled = true
+                            Toast.makeText(this, getString(R.string.verify_email_warning), Toast.LENGTH_LONG).show()
+                            
+                            // Show resend button or dialog
+                            showResendVerificationDialog()
+                            return@addOnCompleteListener
+                        }
+
                         android.util.Log.d("LoginActivity", "Firebase login successful: $email")
                         SecurityUtils.skipNextLock = true
                         SecurityUtils.hasAuthenticatedThisSession = true
@@ -162,5 +174,23 @@ class LoginActivity : AppCompatActivity() {
         tvSignup.setOnClickListener {
             startActivity(Intent(this, SignupActivity::class.java))
         }
+    }
+
+    private fun showResendVerificationDialog() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle("Email Not Verified")
+            .setMessage(getString(R.string.verify_email_warning))
+            .setPositiveButton(getString(R.string.resend_verification)) { _, _ ->
+                auth.currentUser?.sendEmailVerification()
+                    ?.addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            Toast.makeText(this, getString(R.string.verification_email_sent), Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(this, "Failed to send: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+            }
+            .setNegativeButton("OK", null)
+            .show()
     }
 }
