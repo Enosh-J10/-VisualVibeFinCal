@@ -9,11 +9,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.visualvibefincal"
+    namespace = "com.enosh.fincalc"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.visualvibefincal"
+        applicationId = "com.enosh.fincalc"
         minSdk = 24
         //noinspection OldTargetApi
         targetSdk = 35
@@ -25,7 +25,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

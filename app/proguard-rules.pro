@@ -13,11 +13,11 @@
 
 # Room
 -keep class androidx.room.** { *; }
--keep class com.example.visualvibefincal.data.local.entity.** { *; }
+-keep class com.enosh.fincalc.data.local.entity.** { *; }
 
 # Gson
 -keep class com.google.gson.** { *; }
--keep class com.example.visualvibefincal.utils.BackupUtils$BackupData { *; }
+-keep class com.enosh.fincalc.utils.BackupUtils$BackupData { *; }
 
 # Retrofit
 -keep class retrofit2.** { *; }
@@ -27,3 +27,11 @@
 
 # Credentials Manager
 -keep class androidx.credentials.** { *; }
+
+# Remove Log statements in Release build
+-assumenosideeffects class android.util.Log {
+    public static *** d(...);
+    public static *** v(...);
+    public static *** i(...);
+    public static *** w(...);
+}
