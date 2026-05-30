@@ -27,6 +27,7 @@ import com.enosh.fincalc.utils.ValidationUtils
 import com.enosh.fincalc.viewmodel.AssistantMessageType
 import com.enosh.fincalc.viewmodel.AssistantState
 import com.enosh.fincalc.viewmodel.AssistantViewModel
+import com.enosh.fincalc.utils.CurrencyUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -37,6 +38,7 @@ fun TipCalculatorScreen(
     assistantViewModel: AssistantViewModel,
     historyViewModel: HistoryViewModel = viewModel()
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var billAmount by remember { mutableStateOf("") }
     var tipPercentage by remember { mutableStateOf("15") }
     var numberOfPeople by remember { mutableStateOf("1") }
@@ -137,9 +139,9 @@ fun TipCalculatorScreen(
                             historyViewModel.addToHistory(
                                 "tip",
                                 HistoryItem(
-                                    title = "Bill: $${String.format(Locale.getDefault(), "%.2f", bill)}",
-                                    result = "Total per Person: $${String.format(Locale.getDefault(), "%.2f", calculatedTotalPerPerson)}",
-                                    details = "Tip: $${String.format(Locale.getDefault(), "%.2f", calculatedTip)} ($tipPercentage%) | People: $people"
+                                    title = "Bill: ${CurrencyUtils.formatCurrency(context, bill)}",
+                                    result = "Total per Person: ${CurrencyUtils.formatCurrency(context, calculatedTotalPerPerson)}",
+                                    details = "Tip: ${CurrencyUtils.formatCurrency(context, calculatedTip)} ($tipPercentage%) | People: $people"
                                 )
                             )
                         } else {
@@ -156,9 +158,9 @@ fun TipCalculatorScreen(
 
                 if (totalTip != null && totalPerPerson != null) {
                     Spacer(Modifier.height(32.dp))
-                    ResultDisplay(label = "Total Tip", value = "${String.format(Locale.getDefault(), "%.2f", totalTip)}", isDarkMode = isDarkMode)
+                    ResultDisplay(label = "Total Tip", value = CurrencyUtils.formatCurrency(context, totalTip!!), isDarkMode = isDarkMode)
                     Spacer(Modifier.height(16.dp))
-                    ResultDisplay(label = "Total Per Person", value = "${String.format(Locale.getDefault(), "%.2f", totalPerPerson)}", isDarkMode = isDarkMode)
+                    ResultDisplay(label = "Total Per Person", value = CurrencyUtils.formatCurrency(context, totalPerPerson!!), isDarkMode = isDarkMode)
                 }
             }
             

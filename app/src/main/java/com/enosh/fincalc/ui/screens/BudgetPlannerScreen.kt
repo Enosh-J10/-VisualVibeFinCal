@@ -20,6 +20,7 @@ import com.enosh.fincalc.viewmodel.AssistantMessageType
 import com.enosh.fincalc.viewmodel.AssistantState
 import com.enosh.fincalc.viewmodel.AssistantViewModel
 import com.enosh.fincalc.viewmodel.FinancialViewModel
+import com.enosh.fincalc.utils.CurrencyUtils
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,10 +54,11 @@ fun BudgetPlannerScreen(
                 .padding(innerPadding)
                 .padding(16.dp)
         ) {
+            val context = androidx.compose.ui.platform.LocalContext.current
             CalculatorCard(isDarkMode = isDarkMode) {
                 Text("Monthly Budget ($currentMonth)", fontSize = 14.sp, color = Color.Gray)
                 val budgetAmount = budget?.amount ?: 0.0
-                Text("$${String.format("%.2f", budgetAmount)}", fontSize = 32.sp, fontWeight = FontWeight.Bold)
+                Text(CurrencyUtils.formatCurrency(context, budgetAmount), fontSize = 32.sp, fontWeight = FontWeight.Bold)
                 
                 Spacer(Modifier.height(24.dp))
                 
@@ -71,9 +73,9 @@ fun BudgetPlannerScreen(
                 
                 Spacer(Modifier.height(8.dp))
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Spent: $${String.format("%.2f", totalSpent)}", fontSize = 12.sp)
+                    Text("Spent: ${CurrencyUtils.formatCurrency(context, totalSpent)}", fontSize = 12.sp)
                     Text("${(progress * 100).toInt()}%", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                    Text("Remaining: $${String.format("%.2f", (budgetAmount - totalSpent).coerceAtLeast(0.0))}", fontSize = 12.sp)
+                    Text("Remaining: ${CurrencyUtils.formatCurrency(context, (budgetAmount - totalSpent).coerceAtLeast(0.0))}", fontSize = 12.sp)
                 }
 
                 if (totalSpent > budgetAmount && budgetAmount > 0) {

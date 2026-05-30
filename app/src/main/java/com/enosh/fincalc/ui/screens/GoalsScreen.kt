@@ -23,6 +23,7 @@ import com.enosh.fincalc.ui.components.ValidatedTextField
 import com.enosh.fincalc.utils.ValidationUtils
 import com.enosh.fincalc.viewmodel.AssistantViewModel
 import com.enosh.fincalc.viewmodel.FinancialViewModel
+import com.enosh.fincalc.utils.CurrencyUtils
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -117,7 +118,8 @@ fun GoalItem(goal: Goal, isDarkMode: Boolean, onDelete: () -> Unit, onEdit: () -
             }
             
             Spacer(Modifier.height(8.dp))
-            Text("$${String.format("%.2f", goal.savedAmount)} of $${String.format("%.2f", goal.targetAmount)}", fontSize = 14.sp, color = Color.Gray)
+            val context = androidx.compose.ui.platform.LocalContext.current
+            Text("${CurrencyUtils.formatCurrency(context, goal.savedAmount)} of ${CurrencyUtils.formatCurrency(context, goal.targetAmount)}", fontSize = 14.sp, color = Color.Gray)
             
             Spacer(Modifier.height(12.dp))
             LinearProgressIndicator(
@@ -139,22 +141,55 @@ fun GoalDialog(goal: Goal?, onDismiss: () -> Unit, onSave: (String, Double, Doub
     var name by remember { mutableStateOf(goal?.name ?: "") }
     var targetStr by remember { mutableStateOf(goal?.targetAmount?.toString() ?: "") }
     var savedStr by remember { mutableStateOf(goal?.savedAmount?.toString() ?: "") }
+    
+    var nameError by remember { mutableStateOf<String?>(null) }
+    var targetError by remember { mutableStateOf<String?>(null) }
+    var savedError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (goal == null) "New Savings Goal" else "Edit Goal") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                ValidatedTextField(value = name, onValueChange = { name = it }, label = "Goal Name")
-                ValidatedTextField(value = targetStr, onValueChange = { targetStr = ValidationUtils.formatNumericInput(it) }, label = "Target Amount")
-                ValidatedTextField(value = savedStr, onValueChange = { savedStr = ValidationUtils.formatNumericInput(it) }, label = "Currently Saved")
+                ValidatedTextField(
+                    value = name, 
+                    onValueChange = { 
+                        name = it 
+                        nameError = if (it.isBlank()) "Goal name cannot be empty" else null
+                    }, 
+                    label = "Goal Name",
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                    error = nameError
+                )
+                ValidatedTextField(
+                    value = targetStr, 
+                    onValueChange = { 
+                        targetStr = ValidationUtils.formatNumericInput(it) 
+                        targetError = if (targetStr.isEmpty()) "Enter target amount" else null
+                    }, 
+                    label = "Target Amount",
+                    error = targetError
+                )
+                ValidatedTextField(
+                    value = savedStr, 
+                    onValueChange = { 
+                        savedStr = ValidationUtils.formatNumericInput(it)
+                        savedError = null
+                    }, 
+                    label = "Currently Saved",
+                    error = savedError
+                )
             }
         },
         confirmButton = {
             Button(onClick = {
                 val target = targetStr.toDoubleOrNull() ?: 0.0
                 val saved = savedStr.toDoubleOrNull() ?: 0.0
-                if (name.isNotBlank() && target > 0) {
+                
+                nameError = if (name.isBlank()) "Goal name cannot be empty" else null
+                targetError = if (targetStr.isEmpty() || target <= 0) "Invalid target amount" else null
+                
+                if (nameError == null && targetError == null) {
                     onSave(name, target, saved)
                 }
             }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))) {

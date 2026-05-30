@@ -27,6 +27,7 @@ import com.enosh.fincalc.utils.ValidationUtils
 import com.enosh.fincalc.viewmodel.AssistantViewModel
 import com.enosh.fincalc.viewmodel.AssistantState
 import com.enosh.fincalc.viewmodel.AssistantMessageType
+import com.enosh.fincalc.utils.CurrencyUtils
 
 @Composable
 fun TaxDiscountScreen(
@@ -35,6 +36,7 @@ fun TaxDiscountScreen(
     assistantViewModel: AssistantViewModel,
     historyViewModel: HistoryViewModel = viewModel()
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var originalPrice by remember { mutableStateOf("") }
     var discountPercent by remember { mutableStateOf("0") }
     var taxPercent by remember { mutableStateOf("0") }
@@ -142,14 +144,14 @@ fun TaxDiscountScreen(
                             taxAmount = calculatedTax
                             finalPrice = calculatedFinal
 
-                            assistantViewModel.showMessage("Calculated! You saved ${String.format(Locale.getDefault(), "%.2f", calculatedDiscount)}", AssistantState.HAPPY)
+                            assistantViewModel.showMessage("Calculated! You saved ${CurrencyUtils.formatCurrency(context, calculatedDiscount)}", AssistantState.HAPPY)
 
                             historyViewModel.addToHistory(
                                 "tax",
                                 HistoryItem(
-                                    title = "Price: ${String.format(Locale.getDefault(), "%.2f", original)}",
-                                    result = "Final: ${String.format(Locale.getDefault(), "%.2f", calculatedFinal)}",
-                                    details = "Discount: $dPercent% (${String.format(Locale.getDefault(), "%.2f", calculatedDiscount)}) | Tax: $tPercent% (${String.format(Locale.getDefault(), "%.2f", calculatedTax)})"
+                                    title = "Price: ${CurrencyUtils.formatCurrency(context, original)}",
+                                    result = "Final: ${CurrencyUtils.formatCurrency(context, calculatedFinal)}",
+                                    details = "Discount: $dPercent% (${CurrencyUtils.formatCurrency(context, calculatedDiscount)}) | Tax: $tPercent% (${CurrencyUtils.formatCurrency(context, calculatedTax)})"
                                 )
                             )
                         }
@@ -164,11 +166,11 @@ fun TaxDiscountScreen(
 
                 if (finalPrice != null) {
                     Spacer(Modifier.height(32.dp))
-                    ResultDisplay(label = "Final Price", value = "${String.format(Locale.getDefault(), "%.2f", finalPrice)}", isDarkMode = isDarkMode)
+                    ResultDisplay(label = "Final Price", value = CurrencyUtils.formatCurrency(context, finalPrice!!), isDarkMode = isDarkMode)
                     Spacer(Modifier.height(16.dp))
-                    ResultDisplay(label = "Savings", value = "${String.format(Locale.getDefault(), "%.2f", discountAmount)}", isDarkMode = isDarkMode)
+                    ResultDisplay(label = "Savings", value = CurrencyUtils.formatCurrency(context, discountAmount!!), isDarkMode = isDarkMode)
                     Spacer(Modifier.height(16.dp))
-                    ResultDisplay(label = "Tax", value = "${String.format(Locale.getDefault(), "%.2f", taxAmount)}", isDarkMode = isDarkMode)
+                    ResultDisplay(label = "Tax", value = CurrencyUtils.formatCurrency(context, taxAmount!!), isDarkMode = isDarkMode)
                 }
             }
 

@@ -21,6 +21,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.enosh.fincalc.viewmodel.AssistantViewModel
 import com.enosh.fincalc.viewmodel.FinancialViewModel
+import com.enosh.fincalc.utils.CurrencyUtils
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -62,8 +63,9 @@ fun InsightsDashboardScreen(
                     )
                 ) {
                     Column(Modifier.padding(24.dp)) {
+                        val context = androidx.compose.ui.platform.LocalContext.current
                         Text("Total Spending", fontSize = 14.sp, color = Color.Gray)
-                        Text("$${String.format("%.2f", totalSpending)}", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
+                        Text(CurrencyUtils.formatCurrency(context, totalSpending), fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
                         Spacer(Modifier.height(8.dp))
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(Icons.Default.TrendingUp, null, tint = Color(0xFF00D1B2), modifier = Modifier.size(16.dp))
@@ -131,12 +133,13 @@ fun InsightsDashboardScreen(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(containerColor = if (isDarkMode) Color.White.copy(alpha = 0.05f) else Color.White)
                 ) {
+                    val context = androidx.compose.ui.platform.LocalContext.current
                     Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column {
                             Text(expense.merchant, fontWeight = FontWeight.Bold)
                             Text(expense.category, fontSize = 12.sp, color = Color.Gray)
                         }
-                        Text("$${String.format("%.2f", expense.amount)}", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
+                        Text(CurrencyUtils.formatCurrency(context, expense.amount), fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
                     }
                 }
             }

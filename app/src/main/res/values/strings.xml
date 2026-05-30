@@ -131,6 +131,8 @@
     <string name="biometric_login">Biometric Login</string>
     <string name="change_pin">Change PIN</string>
     <string name="made_by">Made by</string>
+    <string name="default_currency">Default Country / Currency</string>
+    <string name="select_currency">Select your primary currency for all financial tools.</string>
     <string name="profile_updated">Profile updated</string>
     <string name="feedback_help">Your feedback helps me improve!</string>
     <string name="describe_experience">Describe your experience…</string>

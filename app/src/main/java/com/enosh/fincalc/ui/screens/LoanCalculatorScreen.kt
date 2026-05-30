@@ -29,8 +29,18 @@ import com.enosh.fincalc.viewmodel.AssistantMessageType
 import com.enosh.fincalc.viewmodel.AssistantState
 import com.enosh.fincalc.utils.NotificationHelper
 import com.enosh.fincalc.viewmodel.AssistantViewModel
+import com.enosh.fincalc.utils.CurrencyUtils
 import kotlinx.coroutines.delay
+
 import kotlinx.coroutines.launch
+
+data class LoanSummary(
+    val principal: Double,
+    val downPayment: Double,
+    val loanAmount: Double,
+    val monthlyPayment: Double,
+    val totalInterest: Double
+)
 
 @Composable
 fun LoanCalculatorScreen(
@@ -41,16 +51,17 @@ fun LoanCalculatorScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var principal by remember { mutableStateOf("") }
+    var downPayment by remember { mutableStateOf("") }
     var interestRate by remember { mutableStateOf("") }
     var loanTerm by remember { mutableStateOf("") }
     var principalError by remember { mutableStateOf<String?>(null) }
+    var downPaymentError by remember { mutableStateOf<String?>(null) }
     var interestRateError by remember { mutableStateOf<String?>(null) }
     var loanTermError by remember { mutableStateOf<String?>(null) }
-    var monthlyPayment by remember { mutableStateOf<Double?>(null) }
-    var totalInterest by remember { mutableStateOf<Double?>(null) }
+    var loanSummary by remember { mutableStateOf<LoanSummary?>(null) }
 
     val isValid = principal.isNotEmpty() && interestRate.isNotEmpty() && loanTerm.isNotEmpty() &&
-            principalError == null && interestRateError == null && loanTermError == null &&
+            principalError == null && downPaymentError == null && interestRateError == null && loanTermError == null &&
             ValidationUtils.isValidPositiveNumeric(principal) && ValidationUtils.isValidPositiveNumeric(interestRate)
 
     val history by historyViewModel.histories.collectAsState()
@@ -85,11 +96,37 @@ fun LoanCalculatorScreen(
                             principalError = if (principal.isEmpty()) "Enter principal" 
                                              else if (!ValidationUtils.isValidPositiveNumeric(principal)) "Invalid amount"
                                              else null
+                            
+                            // Validate down payment against new principal
+                            val p = principal.toDoubleOrNull() ?: 0.0
+                            val dp = downPayment.toDoubleOrNull() ?: 0.0
+                            downPaymentError = if (dp > p) "Down payment cannot exceed principal" else null
                         },
                         label = "Principal Amount",
                         error = principalError,
                         modifier = Modifier.semantics {
                             contentDescription = "Enter principal amount. Currently: $principal"
+                        }
+                    )
+
+                    Spacer(Modifier.height(16.dp))
+
+                    ValidatedTextField(
+                        value = downPayment,
+                        onValueChange = {
+                            downPayment = ValidationUtils.formatNumericInput(it, allowNegative = false)
+                            val p = principal.toDoubleOrNull() ?: 0.0
+                            val dp = downPayment.toDoubleOrNull() ?: 0.0
+                            downPaymentError = when {
+                                dp > p -> "Down payment cannot exceed principal"
+                                it.isNotEmpty() && !ValidationUtils.isValidPositiveNumeric(it) -> "Invalid amount"
+                                else -> null
+                            }
+                        },
+                        label = "Down Payment (Optional)",
+                        error = downPaymentError,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Enter down payment amount. Currently: $downPayment"
                         }
                     )
 
@@ -135,36 +172,44 @@ fun LoanCalculatorScreen(
 
                 BouncyButton(
                     onClick = {
-                        val p = principal.toDoubleOrNull() ?: 0.0
+                        val pOrig = principal.toDoubleOrNull() ?: 0.0
+                        val dp = downPayment.toDoubleOrNull() ?: 0.0
+                        val p = pOrig - dp
                         val rPercent = interestRate.toDoubleOrNull() ?: 0.0
                         val r = rPercent / 100 / 12
                         val nYears = loanTerm.toIntOrNull() ?: 0
                         val n = nYears * 12
 
-                        if (p > 0 && n > 0) {
+                        if (p >= 0 && n > 0 && pOrig > 0) {
                             val emi = if (r > 0) {
                                 (p * r * (1 + r).pow(n)) / ((1 + r).pow(n) - 1)
                             } else {
-                                p / n
+                                if (n > 0) p / n else 0.0
                             }
                             val interest = (emi * n) - p
-                            monthlyPayment = emi
-                            totalInterest = interest
+                            
+                            loanSummary = LoanSummary(
+                                principal = pOrig,
+                                downPayment = dp,
+                                loanAmount = p,
+                                monthlyPayment = emi,
+                                totalInterest = interest
+                            )
 
                             assistantViewModel.showMessage("Calculating loan details...", AssistantState.THINKING, AssistantMessageType.THOUGHT, durationMs = 2000)
                             
                             coroutineScope.launch {
                                 delay(2000)
                                 assistantViewModel.showMessage("All set! Here's your plan 📝", AssistantState.HAPPY)
-                                NotificationHelper.showNotification(context, "Loan Calculated", "Monthly Payment: ${String.format(Locale.getDefault(), "%.2f", emi)}")
+                                NotificationHelper.showNotification(context, "Loan Calculated", "Monthly Payment: ${CurrencyUtils.formatCurrency(context, emi)}")
                             }
                             
                             historyViewModel.addToHistory(
                                 "loan",
                                 HistoryItem(
-                                    title = "Principal: ${String.format(Locale.getDefault(), "%.2f", p)}",
-                                    result = "Monthly: ${String.format(Locale.getDefault(), "%.2f", emi)}",
-                                    details = "Interest: $rPercent% | Term: ${loanTerm} yrs | Total Interest: ${String.format(Locale.getDefault(), "%.2f", interest)}"
+                                    title = "Loan: ${CurrencyUtils.formatCurrency(context, p)}",
+                                    result = "Monthly: ${CurrencyUtils.formatCurrency(context, emi)}",
+                                    details = "Int: $rPercent% | Term: ${loanTerm} yrs | Total Int: ${CurrencyUtils.formatCurrency(context, interest)}"
                                 )
                             )
                         } else {
@@ -179,28 +224,51 @@ fun LoanCalculatorScreen(
                     Text("Calculate", fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
 
-                if (monthlyPayment != null) {
+                if (loanSummary != null) {
                     Spacer(Modifier.height(32.dp))
-                    ResultDisplay(label = "Monthly Payment", value = "${String.format(Locale.getDefault(), "%.2f", monthlyPayment)}", isDarkMode = isDarkMode)
-                    Spacer(Modifier.height(16.dp))
-                    ResultDisplay(label = "Total Interest", value = "${String.format(Locale.getDefault(), "%.2f", totalInterest)}", isDarkMode = isDarkMode)
+                    CalculatorCard(isDarkMode = isDarkMode) {
+                        Text("Loan Summary", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF00D1B2))
+                        Spacer(Modifier.height(16.dp))
+                        SummaryItem("Principal Amount", CurrencyUtils.formatCurrency(context, loanSummary!!.principal), isDarkMode)
+                        SummaryItem("Down Payment", CurrencyUtils.formatCurrency(context, loanSummary!!.downPayment), isDarkMode)
+                        SummaryItem("Loan Amount After Down Payment", CurrencyUtils.formatCurrency(context, loanSummary!!.loanAmount), isDarkMode)
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Gray.copy(alpha = 0.2f))
+                        SummaryItem("Monthly Payment", CurrencyUtils.formatCurrency(context, loanSummary!!.monthlyPayment), isDarkMode, highlight = true)
+                        SummaryItem("Total Interest", CurrencyUtils.formatCurrency(context, loanSummary!!.totalInterest), isDarkMode)
+                    }
                 }
-            }
 
-            HistorySection(
-                screenKey = "loan",
-                history = screenHistory,
-                isDarkMode = isDarkMode,
-                isLoading = isLoadingHistory,
-                onClearHistory = { historyViewModel.clearHistory("loan") }
-            )
-            
-            Spacer(Modifier.height(24.dp))
+                HistorySection(
+                    screenKey = "loan",
+                    history = screenHistory,
+                    isDarkMode = isDarkMode,
+                    isLoading = isLoadingHistory,
+                    onClearHistory = { historyViewModel.clearHistory("loan") }
+                )
+                
+                Spacer(Modifier.height(32.dp))
+            }
 
             VerticalScrollbar(
                 scrollState = scrollState,
                 modifier = Modifier.align(androidx.compose.ui.Alignment.CenterEnd).padding(end = 2.dp)
             )
         }
+    }
+}
+
+@Composable
+fun SummaryItem(label: String, value: String, isDarkMode: Boolean, highlight: Boolean = false) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, fontSize = 14.sp, color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray)
+        Text(
+            value, 
+            fontSize = if (highlight) 18.sp else 16.sp, 
+            fontWeight = if (highlight) FontWeight.Bold else FontWeight.Medium,
+            color = if (highlight) Color(0xFF00D1B2) else (if (isDarkMode) Color.White else Color.Black)
+        )
     }
 }

@@ -2,6 +2,7 @@ package com.enosh.fincalc.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -100,8 +101,33 @@ fun CalculatorScreen(
                         .padding(vertical = 16.dp),
                     horizontalAlignment = Alignment.End
                 ) {
-                    Text(expression, fontSize = 24.sp, color = if (isDarkMode) Color.Gray else Color.DarkGray)
-                    Text(display, fontSize = 56.sp, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black, maxLines = 1)
+                    val expressionScrollState = rememberScrollState()
+                    val displayScrollState = rememberScrollState()
+                    
+                    LaunchedEffect(expression) {
+                        expressionScrollState.animateScrollTo(expressionScrollState.maxValue)
+                    }
+                    LaunchedEffect(display) {
+                        displayScrollState.animateScrollTo(displayScrollState.maxValue)
+                    }
+
+                    Text(
+                        expression, 
+                        fontSize = 24.sp, 
+                        color = if (isDarkMode) Color.Gray else Color.DarkGray,
+                        modifier = Modifier.horizontalScroll(expressionScrollState),
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Text(
+                        display, 
+                        fontSize = 56.sp, 
+                        fontWeight = FontWeight.Bold, 
+                        color = if (isDarkMode) Color.White else Color.Black, 
+                        modifier = Modifier.horizontalScroll(displayScrollState),
+                        maxLines = 1,
+                        softWrap = false
+                    )
                 }
 
                 // Buttons
@@ -182,6 +208,11 @@ fun CalculatorScreen(
                                             shouldResetDisplay = false
                                         }
                                         else -> {
+                                            if (display.length >= 50 && char !in listOf("+", "-", "*", "/", "^", "(", ")")) {
+                                                assistantViewModel.showMessage("Expression too long!", AssistantState.ERROR)
+                                                return@CalcButton
+                                            }
+
                                             val isOperator = char in listOf("+", "-", "*", "/", "^")
                                             val lastChar = if (display.isNotEmpty()) display.last() else ' '
                                             val isLastCharOperator = lastChar in listOf('+', '-', '*', '/', '^')

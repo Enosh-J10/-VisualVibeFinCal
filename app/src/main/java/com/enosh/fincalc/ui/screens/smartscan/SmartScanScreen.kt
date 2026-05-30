@@ -57,6 +57,7 @@ import com.enosh.fincalc.utils.NotificationHelper
 import com.enosh.fincalc.viewmodel.AssistantViewModel
 import com.enosh.fincalc.viewmodel.AssistantState
 import com.enosh.fincalc.viewmodel.AssistantMessageType
+import com.enosh.fincalc.utils.CurrencyUtils
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.Text.Line
@@ -291,7 +292,7 @@ fun SmartScanScreen(
                     NotificationHelper.showNotification(
                         context, 
                         expenseAddedTitle, 
-                        String.format(expenseAddedDesc, String.format("%.2f", updatedExpense.amount), updatedExpense.merchant)
+                        String.format(expenseAddedDesc, CurrencyUtils.formatCurrency(context, updatedExpense.amount), updatedExpense.merchant)
                     )
                 }
             }
@@ -337,6 +338,7 @@ fun ScanButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVect
 
 @Composable
 fun ChartsSection(expenses: List<Expense>, isDarkMode: Boolean) {
+    val context = LocalContext.current
     val total = expenses.sumOf { it.amount }
     val categories = expenses.groupBy { it.category }.mapValues { it.value.sumOf { exp -> exp.amount } }
     
@@ -344,7 +346,7 @@ fun ChartsSection(expenses: List<Expense>, isDarkMode: Boolean) {
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Column {
                 Text(stringResource(R.string.total_spending), fontSize = 12.sp, color = Color.Gray)
-                Text("$${String.format("%.2f", total)}", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
+                Text(CurrencyUtils.formatCurrency(context, total), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
             }
             Icon(Icons.Default.PieChart, contentDescription = null, tint = Color(0xFF00D1B2))
         }
@@ -371,13 +373,14 @@ fun ChartsSection(expenses: List<Expense>, isDarkMode: Boolean) {
 
 @Composable
 fun ExpenseItem(expense: Expense, isDarkMode: Boolean, onDelete: () -> Unit, onEdit: () -> Unit) {
+    val context = LocalContext.current
     val date = SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(Date(expense.date))
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onEdit)
             .semantics {
-                contentDescription = "Expense from ${expense.merchant} on $date for $${String.format("%.2f", expense.amount)}. Tap to edit."
+                contentDescription = "Expense from ${expense.merchant} on $date for ${CurrencyUtils.formatCurrency(context, expense.amount)}. Tap to edit."
             },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
@@ -402,7 +405,7 @@ fun ExpenseItem(expense: Expense, isDarkMode: Boolean, onDelete: () -> Unit, onE
                 Text(date, fontSize = 12.sp, color = Color.Gray)
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text("$${String.format("%.2f", expense.amount)}", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
+                Text(CurrencyUtils.formatCurrency(context, expense.amount), fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
                 IconButton(onClick = onDelete, modifier = Modifier.size(24.dp)) {
                     Icon(Icons.Default.Delete, contentDescription = null, tint = Color.Red.copy(alpha = 0.4f), modifier = Modifier.size(16.dp))
                 }

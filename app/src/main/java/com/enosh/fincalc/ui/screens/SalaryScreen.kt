@@ -29,6 +29,7 @@ import com.enosh.fincalc.R
 import com.enosh.fincalc.viewmodel.AssistantViewModel
 import com.enosh.fincalc.viewmodel.AssistantState
 import com.enosh.fincalc.viewmodel.AssistantMessageType
+import com.enosh.fincalc.utils.CurrencyUtils
 
 @Composable
 fun SalaryScreen(
@@ -37,6 +38,7 @@ fun SalaryScreen(
     assistantViewModel: AssistantViewModel,
     historyViewModel: HistoryViewModel = viewModel()
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var annualSalary by remember { mutableStateOf("") }
     var annualError by remember { mutableStateOf<String?>(null) }
     var monthlyResult by remember { mutableStateOf<Double?>(null) }
@@ -101,14 +103,14 @@ fun SalaryScreen(
                             weeklyResult = weekly
                             dailyResult = daily
 
-                            assistantViewModel.showMessage("Wow, ${String.format(Locale.getDefault(), "%.2f", monthly)} per month!", AssistantState.HAPPY)
+                            assistantViewModel.showMessage("Wow, ${CurrencyUtils.formatCurrency(context, monthly)} per month!", AssistantState.HAPPY)
 
                             historyViewModel.addToHistory(
                                 "salary",
                                 HistoryItem(
-                                    title = "Annual: ${String.format(Locale.getDefault(), "%.2f", gross)}",
-                                    result = "Monthly: ${String.format(Locale.getDefault(), "%.2f", monthly)}",
-                                    details = "Weekly: ${String.format(Locale.getDefault(), "%.2f", weekly)} | Daily: ${String.format(Locale.getDefault(), "%.2f", daily)}"
+                                    title = "Annual: ${CurrencyUtils.formatCurrency(context, gross)}",
+                                    result = "Monthly: ${CurrencyUtils.formatCurrency(context, monthly)}",
+                                    details = "Weekly: ${CurrencyUtils.formatCurrency(context, weekly)} | Daily: ${CurrencyUtils.formatCurrency(context, daily)}"
                                 )
                             )
                         }
@@ -123,11 +125,11 @@ fun SalaryScreen(
 
                 if (monthlyResult != null) {
                     Spacer(Modifier.height(32.dp))
-                    ResultDisplay(label = "Monthly", value = "${String.format(Locale.getDefault(), "%.2f", monthlyResult)}", isDarkMode = isDarkMode)
+                    ResultDisplay(label = "Monthly", value = CurrencyUtils.formatCurrency(context, monthlyResult!!), isDarkMode = isDarkMode)
                     Spacer(Modifier.height(16.dp))
-                    ResultDisplay(label = "Weekly", value = "${String.format(Locale.getDefault(), "%.2f", weeklyResult)}", isDarkMode = isDarkMode)
+                    ResultDisplay(label = "Weekly", value = CurrencyUtils.formatCurrency(context, weeklyResult!!), isDarkMode = isDarkMode)
                     Spacer(Modifier.height(16.dp))
-                    ResultDisplay(label = "Daily (approx)", value = "${String.format(Locale.getDefault(), "%.2f", dailyResult)}", isDarkMode = isDarkMode)
+                    ResultDisplay(label = "Daily (approx)", value = CurrencyUtils.formatCurrency(context, dailyResult!!), isDarkMode = isDarkMode)
                 }
             }
 

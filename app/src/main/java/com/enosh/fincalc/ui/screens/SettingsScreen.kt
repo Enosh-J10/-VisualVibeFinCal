@@ -45,6 +45,7 @@ import com.enosh.fincalc.ui.components.ValidatedTextField
 import com.enosh.fincalc.viewmodel.*
 import com.enosh.fincalc.utils.SecurityUtils
 import com.enosh.fincalc.utils.BackupUtils
+import com.enosh.fincalc.utils.CurrencyUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -432,6 +433,60 @@ fun SettingsScreen(
                     context.startActivity(Intent(context, com.enosh.fincalc.TermsActivity::class.java))
                 }) {
                     Text(stringResource(R.string.privacy_terms), color = Color(0xFF00D1B2), fontSize = 12.sp)
+                }
+            }
+
+            Spacer(Modifier.height(24.dp))
+
+            // Default Country / Currency
+            CalculatorCard(isDarkMode = isDarkMode) {
+                Text(
+                    text = stringResource(R.string.default_currency),
+                    modifier = Modifier.fillMaxWidth(),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF00D1B2)
+                )
+
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.select_currency),
+                    fontSize = 12.sp,
+                    color = Color.Gray,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+
+                val selectedCurrency = remember { mutableStateOf(CurrencyUtils.getSelectedCurrency(context)) }
+
+                Column {
+                    CurrencyUtils.SUPPORTED_CURRENCIES.forEach { currency ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    CurrencyUtils.setSelectedCurrency(context, currency.code)
+                                    selectedCurrency.value = currency
+                                    Toast.makeText(context, "Currency updated to ${currency.code}", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = selectedCurrency.value.code == currency.code,
+                                onClick = {
+                                    CurrencyUtils.setSelectedCurrency(context, currency.code)
+                                    selectedCurrency.value = currency
+                                    Toast.makeText(context, "Currency updated to ${currency.code}", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text = "${currency.country} / ${currency.code} / ${currency.symbol}",
+                                fontSize = 16.sp,
+                                color = if (isDarkMode) Color.White else Color.Black
+                            )
+                        }
+                    }
                 }
             }
 
