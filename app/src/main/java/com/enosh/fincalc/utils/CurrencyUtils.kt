@@ -7,6 +7,7 @@ import java.util.Locale
 
 data class CurrencyInfo(
     val country: String,
+    val flag: String,
     val code: String,
     val symbol: String,
     val locale: Locale
@@ -14,13 +15,22 @@ data class CurrencyInfo(
 
 object CurrencyUtils {
     val SUPPORTED_CURRENCIES = listOf(
-        CurrencyInfo("UK", "GBP", "£", Locale.UK),
-        CurrencyInfo("US", "USD", "$", Locale.US),
-        CurrencyInfo("Europe", "EUR", "€", Locale.GERMANY),
-        CurrencyInfo("India", "INR", "₹", Locale("en", "IN")),
-        CurrencyInfo("Sri Lanka", "LKR", "Rs", Locale("en", "LK")),
-        CurrencyInfo("Japan", "JPY", "¥", Locale.JAPAN)
-    )
+        CurrencyInfo("United Kingdom", "🇬🇧", "GBP", "£", Locale.UK),
+        CurrencyInfo("United States", "🇺🇸", "USD", "$", Locale.US),
+        CurrencyInfo("Europe", "🇪🇺", "EUR", "€", Locale.GERMANY),
+        CurrencyInfo("India", "🇮🇳", "INR", "₹", Locale("en", "IN")),
+        CurrencyInfo("Sri Lanka", "🇱🇰", "LKR", "Rs", Locale("en", "LK")),
+        CurrencyInfo("Japan", "🇯🇵", "JPY", "¥", Locale.JAPAN),
+        CurrencyInfo("Canada", "🇨🇦", "CAD", "$", Locale.CANADA),
+        CurrencyInfo("Australia", "🇦🇺", "AUD", "$", Locale("en", "AU")),
+        CurrencyInfo("China", "🇨🇳", "CNY", "¥", Locale.CHINA),
+        CurrencyInfo("Brazil", "🇧🇷", "BRL", "R$", Locale("pt", "BR")),
+        CurrencyInfo("South Africa", "🇿🇦", "ZAR", "R", Locale("en", "ZA")),
+        CurrencyInfo("United Arab Emirates", "🇦🇪", "AED", "د.إ", Locale("ar", "AE")),
+        CurrencyInfo("Switzerland", "🇨🇭", "CHF", "CHf", Locale("de", "CH")),
+        CurrencyInfo("Singapore", "🇸🇬", "SGD", "$", Locale("en", "SG")),
+        CurrencyInfo("Mexico", "🇲🇽", "MXN", "$", Locale("es", "MX"))
+    ).sortedBy { it.country }
 
     private const val PREFS_NAME = "UserPrefs"
     private const val KEY_CURRENCY_CODE = "default_currency_code"

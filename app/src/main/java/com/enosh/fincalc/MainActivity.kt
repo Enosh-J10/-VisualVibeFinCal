@@ -37,16 +37,24 @@ class MainActivity : AppCompatActivity() {
         }
         handler.post(updateTipRunnable)
 
-        // Wait 6 seconds then go to login or lock screen (enough to see 2 tips)
+        // Wait 3 seconds then go to login or home
         handler.postDelayed({
             handler.removeCallbacks(updateTipRunnable)
-            if (SecurityUtils.isAppLockEnabled(this)) {
-                val intent = Intent(this, LockActivity::class.java)
-                intent.putExtra("DESTINATION", "LOGIN")
-                startActivity(intent)
+            
+            val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+            val isGuest = getSharedPreferences("UserPrefs", MODE_PRIVATE).getBoolean("is_guest", false)
+            val keepMeSignedIn = getSharedPreferences("UserPrefs", MODE_PRIVATE).getBoolean("keep_me_signed_in", true)
+
+            if ((auth.currentUser != null || isGuest) && keepMeSignedIn) {
+                if (SecurityUtils.isAppLockEnabled(this)) {
+                    val intent = Intent(this, LockActivity::class.java)
+                    intent.putExtra("DESTINATION", "HOME")
+                    startActivity(intent)
+                } else {
+                    startActivity(Intent(this, HomeActivity::class.java))
+                }
             } else {
-                val intent = Intent(this, LoginActivity::class.java)
-                startActivity(intent)
+                startActivity(Intent(this, LoginActivity::class.java))
             }
             finish()
         }, 3000)

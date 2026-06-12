@@ -89,7 +89,7 @@ class LockActivity : FragmentActivity() {
             })
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Unlock FinCal")
+            .setTitle("Unlock FinCalc")
             .setSubtitle("Log in using your biometric credential")
             .setNegativeButtonText("Use PIN")
             .setAllowedAuthenticators(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG)
@@ -127,7 +127,7 @@ fun LockScreen(onSuccess: () -> Unit) {
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                "Visual Vibe FinCal", 
+                "FinCalc",
                 fontSize = 32.sp, 
                 fontWeight = FontWeight.ExtraBold, 
                 color = Color(0xFF00D1B2)
@@ -197,8 +197,20 @@ fun LockScreen(onSuccess: () -> Unit) {
                     modifier = Modifier.padding(top = 12.dp)
                 )
             }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            TextButton(onClick = {
+                // Navigate to LoginActivity to re-authenticate
+                val intent = Intent(context, LoginActivity::class.java).apply {
+                    putExtra("is_pin_recovery", true)
+                }
+                context.startActivity(intent)
+            }) {
+                Text("Forgot PIN?", color = Color(0xFF00D1B2), fontSize = 14.sp)
+            }
             
-            Spacer(modifier = Modifier.height(64.dp))
+            Spacer(modifier = Modifier.height(32.dp))
             
             if (SecurityUtils.isBiometricEnabled(context)) {
                 TextButton(onClick = { 

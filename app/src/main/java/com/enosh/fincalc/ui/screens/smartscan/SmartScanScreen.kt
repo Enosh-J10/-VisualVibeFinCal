@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.Context
 import android.graphics.*
 import android.graphics.pdf.PdfRenderer
-import android.media.ThumbnailUtils
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
@@ -18,6 +17,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.ui.draw.scale
@@ -33,6 +35,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
@@ -41,6 +44,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -149,7 +153,7 @@ fun SmartScanScreen(
                                             merchant = result.merchant,
                                             category = result.category,
                                             source = "upload",
-                                            notes = ""
+                                            notes = "VAT: ${CurrencyUtils.formatCurrency(context, result.vat)}"
                                         )
                                     } else {
                                         assistantViewModel.showMessage(couldNotReadMsg, AssistantState.ERROR)
@@ -263,7 +267,7 @@ fun SmartScanScreen(
                             merchant = result.merchant,
                             category = result.category,
                             source = "scan",
-                            notes = ""
+                            notes = "VAT: ${CurrencyUtils.formatCurrency(context, result.vat)}"
                         )
                     } else {
                         assistantViewModel.showMessage(scanFailedMsg, AssistantState.ERROR)
@@ -305,33 +309,6 @@ fun SmartScanScreen(
             contentAlignment = Alignment.Center
         ) {
             CircularProgressIndicator(color = Color(0xFF00D1B2))
-        }
-    }
-}
-
-@Composable
-fun ScanButton(text: String, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit, modifier: Modifier = Modifier, outline: Boolean = false) {
-    val contentColor = if (outline) Color(0xFF00D1B2) else Color.White
-    val containerColor = if (outline) Color.Transparent else Color(0xFF00D1B2)
-    val border = if (outline) androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF00D1B2)) else null
-
-    Surface(
-        modifier = modifier
-            .height(56.dp)
-            .clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp),
-        color = containerColor,
-        border = border,
-        contentColor = contentColor
-    ) {
-        Row(
-            modifier = Modifier.fillMaxSize(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(icon, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text(text, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -450,6 +427,8 @@ fun EditExpenseDialog(expense: Expense, isDarkMode: Boolean, onDismiss: () -> Un
                         merchantError = if (it.isBlank()) merchantRequiredError else null
                     },
                     label = stringResource(R.string.merchant),
+                    keyboardType = KeyboardType.Text,
+                    capitalization = KeyboardCapitalization.Words,
                     error = merchantError
                 )
                 com.enosh.fincalc.ui.components.ValidatedTextField(
@@ -503,6 +482,7 @@ fun EditExpenseDialog(expense: Expense, isDarkMode: Boolean, onDismiss: () -> Un
                     value = notes,
                     onValueChange = { notes = it },
                     label = stringResource(R.string.notes_optional),
+                    capitalization = KeyboardCapitalization.Sentences,
                     error = null
                 )
             }
@@ -558,11 +538,16 @@ fun CameraScannerDialog(onDismiss: () -> Unit, onImageCaptured: (Uri) -> Unit) {
         }
     }
 
-    Dialog(onDismissRequest = onDismiss) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
         Surface(
             modifier = Modifier.fillMaxSize(),
-            color = Color.Black,
-            shape = RoundedCornerShape(16.dp)
+            color = Color.Black
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (hasCameraPermission) {
@@ -572,60 +557,92 @@ fun CameraScannerDialog(onDismiss: () -> Unit, onImageCaptured: (Uri) -> Unit) {
                     )
                 }
 
+                // Crop Guide Overlay
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val strokeWidth = 2.dp.toPx()
+                    val cornerLength = 40.dp.toPx()
+                    val padding = 40.dp.toPx()
+                    val rectWidth = size.width - (padding * 2)
+                    val rectHeight = size.height * 0.4f
+                    val top = (size.height - rectHeight) / 2
+                    val left = padding
+                    val right = size.width - padding
+                    val bottom = top + rectHeight
+
+                    // Semi-transparent background outside the guide
+                    val path = Path().apply {
+                        addRect(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
+                        addRect(androidx.compose.ui.geometry.Rect(left, top, right, bottom))
+                        fillType = PathFillType.EvenOdd
+                    }
+                    drawPath(path, Color.Black.copy(alpha = 0.5f))
+
+                    // Corner guides
+                    val paint = androidx.compose.ui.graphics.drawscope.Stroke(strokeWidth)
+                    val guideColor = Color(0xFF00D1B2)
+                    
+                    // Top Left
+                    drawLine(guideColor, Offset(left, top), Offset(left + cornerLength, top), strokeWidth)
+                    drawLine(guideColor, Offset(left, top), Offset(left, top + cornerLength), strokeWidth)
+                    // Top Right
+                    drawLine(guideColor, Offset(right, top), Offset(right - cornerLength, top), strokeWidth)
+                    drawLine(guideColor, Offset(right, top), Offset(right, top + cornerLength), strokeWidth)
+                    // Bottom Left
+                    drawLine(guideColor, Offset(left, bottom), Offset(left + cornerLength, bottom), strokeWidth)
+                    drawLine(guideColor, Offset(left, bottom), Offset(left, bottom - cornerLength), strokeWidth)
+                    // Bottom Right
+                    drawLine(guideColor, Offset(right, bottom), Offset(right - cornerLength, bottom), strokeWidth)
+                    drawLine(guideColor, Offset(right, bottom), Offset(right, bottom - cornerLength), strokeWidth)
+                }
+
                 // Overlay UI
-                Column(
-                    modifier = Modifier.fillMaxSize()
+                Box(
+                    modifier = Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        horizontalArrangement = Arrangement.End
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(16.dp)
+                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
                     ) {
-                        IconButton(
-                            onClick = onDismiss,
-                            modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), CircleShape)
-                        ) {
-                            Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
-                        }
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
                     }
 
-                    Spacer(modifier = Modifier.weight(1f))
-
                     // Capture Button
-                    Box(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 48.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Surface(
-                            onClick = {
-                                val file = File(context.cacheDir, "receipt_${System.currentTimeMillis()}.jpg")
-                                val outputOptions = ImageCapture.OutputFileOptions.Builder(file).build()
-                                imageCapture.takePicture(
-                                    outputOptions,
-                                    cameraExecutor,
-                                    object : ImageCapture.OnImageSavedCallback {
-                                        override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                                            val savedUri = Uri.fromFile(file)
-                                            onImageCaptured(savedUri)
-                                        }
-                                        override fun onError(exception: ImageCaptureException) {
-                                            exception.printStackTrace()
-                                        }
+                    Surface(
+                        onClick = {
+                            val file = File(context.cacheDir, "receipt_${System.currentTimeMillis()}.jpg")
+                            val outputOptions = ImageCapture.OutputFileOptions.Builder(file).build()
+                            imageCapture.takePicture(
+                                outputOptions,
+                                cameraExecutor,
+                                object : ImageCapture.OnImageSavedCallback {
+                                    override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                                        val savedUri = Uri.fromFile(file)
+                                        onImageCaptured(savedUri)
                                     }
-                                )
-                            },
-                            shape = CircleShape,
-                            color = Color.White,
-                            modifier = Modifier.size(72.dp),
-                            border = androidx.compose.foundation.BorderStroke(4.dp, Color(0xFF00D1B2))
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.Default.CameraAlt,
-                                    contentDescription = "Capture",
-                                    tint = Color(0xFF00D1B2),
-                                    modifier = Modifier.size(32.dp)
-                                )
-                            }
+                                    override fun onError(exception: ImageCaptureException) {
+                                        exception.printStackTrace()
+                                    }
+                                }
+                            )
+                        },
+                        shape = CircleShape,
+                        color = Color.White,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 48.dp)
+                            .size(72.dp),
+                        border = androidx.compose.foundation.BorderStroke(4.dp, Color(0xFF00D1B2))
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                Icons.Default.CameraAlt,
+                                contentDescription = "Capture",
+                                tint = Color(0xFF00D1B2),
+                                modifier = Modifier.size(32.dp)
+                            )
                         }
                     }
                 }
@@ -664,6 +681,8 @@ private const val TAG = "SmartScan"
 
 data class ScanResult(
     val amount: Double,
+    val vat: Double,
+    val beforeVat: Double,
     val merchant: String,
     val date: Long,
     val category: String,
@@ -689,19 +708,21 @@ suspend fun processUri(context: Context, uri: Uri): ScanResult? = withContext(Di
             val fullText = visionText.text
             val lines = visionText.textBlocks.flatMap { block -> block.lines }
             
-            // Log.d(TAG, "Raw OCR Text: $fullText") // Removed for security
-
-            val amountData = detectTotal(lines)
+            val totalData = detectTotal(lines)
             val merchant = extractMerchant(lines)
             val date = extractDate(fullText)
             val category = detectCategory(fullText)
+            
+            val vat = detectVAT(lines)
 
             return@withContext ScanResult(
-                amount = amountData.first,
+                amount = totalData.first,
+                vat = vat,
+                beforeVat = totalData.first - vat,
                 merchant = merchant,
                 date = date,
                 category = category,
-                confidenceLow = amountData.second
+                confidenceLow = totalData.second
             )
         }
     } catch (e: Exception) {
@@ -714,7 +735,7 @@ private fun preprocessImage(bitmap: Bitmap): Bitmap {
     val width = bitmap.width
     val height = bitmap.height
     val bmp = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    val canvas = Canvas(bmp)
+    val canvas = android.graphics.Canvas(bmp)
     val paint = Paint()
     
     // Grayscale + Contrast
@@ -737,9 +758,9 @@ private fun preprocessImage(bitmap: Bitmap): Bitmap {
 }
 
 private fun detectTotal(lines: List<Line>): Pair<Double, Boolean> {
-    val candidates = mutableListOf<Triple<Double, Int, Int>>() // amount, priority, index
+    val candidates = mutableListOf<Triple<Double, Int, Int>>() 
     
-    val totalKeywords = listOf("TOTAL", "GRAND TOTAL", "AMOUNT", "BALANCE DUE", "NET", "SUM", "TOTAL DUE", "PAYABLE")
+    val totalKeywords = listOf("TOTAL", "GRAND TOTAL", "AMOUNT", "BALANCE DUE", "NET", "SUM", "TOTAL DUE", "PAYABLE", "TOTAL TO PAY")
     val ignoreKeywords = listOf("TAX", "VAT", "CASH", "CHANGE", "SAVED", "DISCOUNT", "SUBTOTAL", "ITEMS", "QTY")
 
     lines.forEachIndexed { index, line ->
@@ -747,10 +768,7 @@ private fun detectTotal(lines: List<Line>): Pair<Double, Boolean> {
         val amount = extractAmount(text)
 
         if (amount != null) {
-            // Skip obvious non-totals like dates or phone numbers
             if (text.contains("/") || (text.contains("-") && text.length > 10)) return@forEachIndexed
-            
-            // Filter out phone numbers or long codes
             val digitsOnly = text.replace(Regex("[^0-9]"), "")
             if (digitsOnly.length >= 10 && !text.contains(".") && !text.contains(",")) return@forEachIndexed
 
@@ -763,7 +781,6 @@ private fun detectTotal(lines: List<Line>): Pair<Double, Boolean> {
             }
             candidates.add(Triple(amount, priority, index))
         } else {
-            // If no amount on this line, check if it's a keyword and amount is on next lines
             if (totalKeywords.any { text.contains(it) } && !ignoreKeywords.any { text.contains(it) }) {
                 for (i in 1..2) {
                     if (index + i < lines.size) {
@@ -779,10 +796,7 @@ private fun detectTotal(lines: List<Line>): Pair<Double, Boolean> {
         }
     }
 
-    // Rank candidates: Priority first, then largest value
     val sorted = candidates.sortedWith(compareByDescending<Triple<Double, Int, Int>> { it.second }.thenByDescending { it.first })
-
-    Log.d(TAG, "Detected amount candidates: $sorted")
 
     return if (sorted.isNotEmpty()) {
         val best = sorted.first()
@@ -792,41 +806,50 @@ private fun detectTotal(lines: List<Line>): Pair<Double, Boolean> {
     }
 }
 
+private fun detectVAT(lines: List<Line>): Double {
+    val vatKeywords = listOf("VAT", "TAX", "TAXABLE", "GST")
+    lines.forEachIndexed { index, line ->
+        val text = line.text.uppercase()
+        if (vatKeywords.any { text.contains(it) }) {
+            val amount = extractAmount(text)
+            if (amount != null) return amount
+            
+            // Check next lines
+            for (i in 1..2) {
+                if (index + i < lines.size) {
+                    val nextAmount = extractAmount(lines[index + i].text)
+                    if (nextAmount != null) return nextAmount
+                }
+            }
+        }
+    }
+    return 0.0
+}
+
 private fun extractAmount(text: String): Double? {
-    // Regex for different currencies and formats
-    val regex = Regex("""(?i)(?:[$£€¥]|USD|EUR|GBP)?\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})(?:\s*(?:USD|EUR|GBP))?""")
+    val regex = Regex("""(?i)(?:[$£€₹¥]|USD|EUR|GBP|INR|LKR)?\s*(\d{1,3}(?:[.,]\d{3})*[.,]\d{2})(?:\s*(?:USD|EUR|GBP|INR|LKR))?""")
     val match = regex.find(text)
     if (match != null) {
         var valueStr = match.groupValues[1]
-        
-        // Normalize: detect separator style
         val lastDot = valueStr.lastIndexOf('.')
         val lastComma = valueStr.lastIndexOf(',')
         
         valueStr = if (lastComma > lastDot) {
-            // EU Style: 1.234,56 -> 1234.56
             valueStr.replace(".", "").replace(",", ".")
         } else if (lastDot > lastComma) {
-            // US Style: 1,234.56 -> 1234.56
             valueStr.replace(",", "")
         } else {
-            // No separators or simple decimal
             valueStr.replace(",", ".")
         }
-        
         return valueStr.toDoubleOrNull()
     }
-    
-    // Fallback: look for any number followed by decimal (priority to 2-decimal digits)
     val fallbackRegex = Regex("""\b\d+[.,]\d{2}\b""")
     val fallbackMatch = fallbackRegex.find(text)
     return fallbackMatch?.value?.replace(",", ".")?.toDoubleOrNull()
 }
 
 private fun extractMerchant(lines: List<Line>): String {
-    val ignore = listOf("RECEIPT", "INVOICE", "THANK YOU", "TAX", "WELCOME", "ORDER", "CASHIER", "DATE", "TIME", "TEL", "PHONE", "ADDRESS")
-    
-    // Look at first 8 lines for something that looks like a name
+    val ignore = listOf("RECEIPT", "INVOICE", "THANK YOU", "TAX", "WELCOME", "ORDER", "CASHIER", "DATE", "TIME", "TEL", "PHONE", "ADDRESS", "VAT")
     for (line in lines.take(8)) {
         val text = line.text.trim()
         if (text.length > 2 && 
@@ -836,15 +859,12 @@ private fun extractMerchant(lines: List<Line>): String {
             return text
         }
     }
-    
-    // Fallback: search for first non-ignored line even if it has digits
     for (line in lines.take(5)) {
         val text = line.text.trim()
         if (text.length > 2 && !ignore.any { text.uppercase().contains(it) }) {
             return text
         }
     }
-    
     return lines.firstOrNull()?.text ?: "Unknown Merchant"
 }
 
@@ -854,13 +874,11 @@ private fun extractDate(text: String): Long {
         "dd/MM/yy", "dd-MM-yy", "MM/dd/yy",
         "MMM dd, yyyy", "dd MMM yyyy"
     )
-    
     val datePatterns = listOf(
         Regex("""(\d{1,2}[/-]\d{1,2}[/-]\d{2,4})"""),
         Regex("""(\d{4}-\d{2}-\d{2})"""),
         Regex("""([a-zA-Z]{3} \d{1,2}, \d{4})""")
     )
-
     for (pattern in datePatterns) {
         val match = pattern.find(text)
         if (match != null) {
@@ -874,7 +892,6 @@ private fun extractDate(text: String): Long {
             }
         }
     }
-    
     return System.currentTimeMillis()
 }
 
@@ -888,7 +905,6 @@ private fun detectCategory(text: String): String {
         "Health" to listOf("pharmacy", "medical", "clinic", "boots", "hospital", "doctor", "dentist", "health", "gym", "fitness"),
         "Travel" to listOf("hotel", "flight", "airline", "booking", "holiday", "resort")
     )
-
     for ((cat, keywords) in categories) {
         if (keywords.any { lower.contains(it) }) return cat
     }
@@ -901,19 +917,14 @@ private fun renderPdfToBitmap(context: Context, uri: Uri): Bitmap? {
         val renderer = PdfRenderer(fd)
         if (renderer.pageCount == 0) return null
         val page = renderer.openPage(0)
-        
-        // Scale up for better OCR (3x scaling)
         val scale = 3f
         val width = (page.width * scale).toInt()
         val height = (page.height * scale).toInt()
-        
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
+        val canvas = android.graphics.Canvas(bitmap)
         canvas.drawColor(android.graphics.Color.WHITE)
-        
         val matrix = Matrix()
         matrix.setScale(scale, scale)
-        
         page.render(bitmap, null, matrix, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
         page.close()
         renderer.close()

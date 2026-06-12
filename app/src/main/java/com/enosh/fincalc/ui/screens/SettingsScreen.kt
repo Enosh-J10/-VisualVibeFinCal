@@ -19,6 +19,9 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ArrowDropUp
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -55,7 +58,8 @@ fun SettingsScreen(
     navController: NavController,
     isDarkMode: Boolean,
     onDarkModeChange: (Boolean) -> Unit,
-    assistantViewModel: AssistantViewModel
+    assistantViewModel: AssistantViewModel,
+    initialResetPin: Boolean = false
 ) {
     val context = LocalContext.current
     val securePrefs = remember { SecurityUtils.getEncryptedPrefs(context) }
@@ -67,8 +71,8 @@ fun SettingsScreen(
     val firebaseUser = auth.currentUser
     val isVerified = firebaseUser?.isEmailVerified ?: false
 
-    val email = securePrefs.getString("email", "No Email") ?: "No Email"
-    val initialName = securePrefs.getString("name", email.split("@").firstOrNull()?.replaceFirstChar { it.uppercase() } ?: "User") ?: "User"
+    val email = securePrefs.getString("email", firebaseUser?.email ?: "No Email") ?: "No Email"
+    val initialName = securePrefs.getString("name", firebaseUser?.displayName ?: "User") ?: "User"
     val initialProfilePic = sharedPref.getString("profile_pic", null)
 
     var userName by remember { mutableStateOf(initialName) }
@@ -86,7 +90,7 @@ fun SettingsScreen(
     var showPinDialog by remember { mutableStateOf(false) }
     
     // PIN Setup/Reset State
-    var pinStep by remember { mutableStateOf(1) } // 1: Old PIN (if exists), 2: New PIN, 3: Confirm PIN
+    var pinStep by remember { mutableStateOf(if (initialResetPin) 2 else 1) } // 1: Old PIN, 2: New PIN, 3: Confirm PIN
     var currentPinInput by remember { mutableStateOf("") }
     var newPinInput by remember { mutableStateOf("") }
     var confirmPinInput by remember { mutableStateOf("") }
@@ -98,9 +102,17 @@ fun SettingsScreen(
 
     val hasExistingPin = remember { SecurityUtils.getAppPin(context) != null }
 
+    var keepMeSignedIn by remember { mutableStateOf(sharedPref.getBoolean("keep_me_signed_in", true)) }
+
     val biometricManager = remember { BiometricManager.from(context) }
     val canUseBiometric = remember {
         biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
+    }
+
+    LaunchedEffect(initialResetPin) {
+        if (initialResetPin) {
+            showPinDialog = true
+        }
     }
 
     val profileUpdatedMsg = stringResource(R.string.profile_updated)
@@ -201,17 +213,19 @@ fun SettingsScreen(
                 }
             }
 
-            if (!isVerified && firebaseUser != null) {
-                TextButton(onClick = {
-                    firebaseUser.sendEmailVerification().addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            Toast.makeText(context, context.getString(R.string.verification_email_sent), Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }) {
-                    Text(stringResource(R.string.resend_verification), color = Color(0xFF00D1B2), fontSize = 12.sp)
+    val verificationEmailSentMsg = stringResource(R.string.verification_email_sent)
+
+    if (!isVerified && firebaseUser != null) {
+        TextButton(onClick = {
+            firebaseUser.sendEmailVerification().addOnCompleteListener { task ->
+                if (task.isSuccessful) {
+                    Toast.makeText(context, verificationEmailSentMsg, Toast.LENGTH_SHORT).show()
                 }
             }
+        }) {
+            Text(stringResource(R.string.resend_verification), color = Color(0xFF00D1B2), fontSize = 12.sp)
+        }
+    }
             
             TextButton(onClick = { showEditDialog = true }) {
                 Text(stringResource(R.string.edit_profile), color = Color(0xFF00D1B2), fontWeight = FontWeight.Bold)
@@ -226,134 +240,189 @@ fun SettingsScreen(
                 }
             )
 
+            SettingsItem(
+                title = "Keep Me Signed In",
+                trailing = {
+                    Switch(
+                        checked = keepMeSignedIn, 
+                        onCheckedChange = { 
+                            keepMeSignedIn = it
+                            sharedPref.edit { putBoolean("keep_me_signed_in", it) }
+                        }
+                    )
+                }
+            )
+
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
             // Assistant Settings
             CalculatorCard(isDarkMode = isDarkMode) {
-                Text(
-                    text = stringResource(R.string.assistant),
-                    modifier = Modifier.fillMaxWidth(),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00D1B2)
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Text(
+                        text = stringResource(R.string.assistant),
+                        modifier = Modifier.fillMaxWidth(),
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF00D1B2)
+                    )
 
-                Spacer(Modifier.height(16.dp))
+                    SettingsItem(
+                        title = stringResource(R.string.show_assistant),
+                        trailing = {
+                            Switch(
+                                checked = assistantPrefs.isEnabled,
+                                onCheckedChange = { assistantViewModel.setEnabled(it, context) }
+                            )
+                        }
+                    )
 
-                SettingsItem(
-                    title = stringResource(R.string.show_assistant),
-                    trailing = {
-                        Switch(
-                            checked = assistantPrefs.isEnabled,
-                            onCheckedChange = { assistantViewModel.setEnabled(it, context) }
+                    if (assistantPrefs.isEnabled) {
+                        SettingsItem(
+                            title = stringResource(R.string.mute_assistant),
+                            trailing = {
+                                Switch(
+                                    checked = assistantPrefs.isMuted,
+                                    onCheckedChange = { assistantViewModel.setMuted(it, context) }
+                                )
+                            }
+                        )
+
+                        Column {
+                            Text("Assistant Type", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FilterChip(
+                                    selected = assistantPrefs.gender == AssistantGender.FEMALE,
+                                    onClick = { assistantViewModel.setGender(AssistantGender.FEMALE, context) },
+                                    label = { Text("Female") }
+                                )
+                                FilterChip(
+                                    selected = assistantPrefs.gender == AssistantGender.MALE,
+                                    onClick = { assistantViewModel.setGender(AssistantGender.MALE, context) },
+                                    label = { Text("Male") }
+                                )
+                            }
+                        }
+
+                        Column {
+                            Text("Assistant State", fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            FlowRow(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                FilterChip(
+                                    selected = assistantPrefs.isAnimated,
+                                    onClick = { assistantViewModel.setAnimated(true, context) },
+                                    label = { Text("Animated") }
+                                )
+                                FilterChip(
+                                    selected = !assistantPrefs.isAnimated,
+                                    onClick = { assistantViewModel.setAnimated(false, context) },
+                                    label = { Text("Static") }
+                                )
+                            }
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(140.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(if (isDarkMode) Color.Black.copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.05f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(modifier = Modifier.size(100.dp)) {
+                                AssistantRobot(viewModel = assistantViewModel, isDarkMode = isDarkMode, isPreview = true)
+                            }
+                            Text(stringResource(R.string.style_preview), modifier = Modifier.align(Alignment.TopStart).padding(8.dp), fontSize = 10.sp, color = Color.Gray)
+                        }
+
+                        Column {
+                            Text(stringResource(R.string.appearance_theme), modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            FlowRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                maxItemsInEachRow = 3
+                            ) {
+                                AssistantTheme.entries.forEach { theme ->
+                                    FilterChip(
+                                        selected = assistantPrefs.theme == theme && !assistantPrefs.isCustomMode,
+                                        onClick = { assistantViewModel.setTheme(theme, context) },
+                                        label = { Text(theme.label) },
+                                        leadingIcon = if (theme != AssistantTheme.CUSTOM) {
+                                            {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(16.dp)
+                                                        .clip(CircleShape)
+                                                        .background(Color(theme.accentColor.hex))
+                                                )
+                                            }
+                                        } else null,
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = Color(theme.accentColor.hex).copy(alpha = 0.2f),
+                                            selectedLabelColor = if (isDarkMode) Color.White else Color.Black
+                                        )
+                                    )
+                                }
+                            }
+                        }
+
+                        SettingsItem(
+                            title = stringResource(R.string.custom_mode),
+                            trailing = {
+                                Switch(
+                                    checked = assistantPrefs.isCustomMode,
+                                    onCheckedChange = { assistantViewModel.setCustomMode(it, context) }
+                                )
+                            }
+                        )
+
+                        if (assistantPrefs.isCustomMode) {
+                            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                                CustomColorPicker(stringResource(R.string.head_color), assistantPrefs.customHeadColor) {
+                                    assistantViewModel.setCustomColors(it, assistantPrefs.customBodyColor, assistantPrefs.customAccentColor, context)
+                                }
+                                CustomColorPicker(stringResource(R.string.body_color), assistantPrefs.customBodyColor) {
+                                    assistantViewModel.setCustomColors(assistantPrefs.customHeadColor, it, assistantPrefs.customAccentColor, context)
+                                }
+                                CustomColorPicker(stringResource(R.string.accent_color_label), assistantPrefs.customAccentColor) {
+                                    assistantViewModel.setCustomColors(assistantPrefs.customHeadColor, assistantPrefs.customBodyColor, it, context)
+                                }
+                            }
+                        }
+
+                        Column {
+                            Text(stringResource(R.string.interaction_frequency), modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                            FlowRow(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                AssistantFrequency.entries.forEach { freq ->
+                                    FilterChip(
+                                        selected = assistantPrefs.frequency == freq,
+                                        onClick = { assistantViewModel.setFrequency(freq, context) },
+                                        label = { Text(freq.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                                    )
+                                }
+                            }
+                        }
+
+                        SettingsItem(
+                            title = stringResource(R.string.reset_position),
+                            trailing = {
+                                IconButton(onClick = { assistantViewModel.resetPosition(context) }) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Reset Position", tint = Color(0xFF00D1B2))
+                                }
+                            }
                         )
                     }
-                )
-
-                if (assistantPrefs.isEnabled) {
-                    SettingsItem(
-                        title = stringResource(R.string.mute_assistant),
-                        trailing = {
-                            Switch(
-                                checked = assistantPrefs.isMuted,
-                                onCheckedChange = { assistantViewModel.setMuted(it, context) }
-                            )
-                        }
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(140.dp)
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(if (isDarkMode) Color.Black.copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.05f)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(modifier = Modifier.size(100.dp)) {
-                            AssistantRobot(viewModel = assistantViewModel, isDarkMode = isDarkMode, isPreview = true)
-                        }
-                        Text(stringResource(R.string.style_preview), modifier = Modifier.align(Alignment.TopStart).padding(8.dp), fontSize = 10.sp, color = Color.Gray)
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Text(stringResource(R.string.appearance_theme), modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    FlowRow(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        maxItemsInEachRow = 3
-                    ) {
-                        AssistantTheme.entries.forEach { theme ->
-                            FilterChip(
-                                selected = assistantPrefs.theme == theme && !assistantPrefs.isCustomMode,
-                                onClick = { assistantViewModel.setTheme(theme, context) },
-                                label = { Text(theme.label) },
-                                leadingIcon = if (theme != AssistantTheme.CUSTOM) {
-                                    {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(16.dp)
-                                                .clip(CircleShape)
-                                                .background(Color(theme.accentColor.hex))
-                                        )
-                                    }
-                                } else null
-                            )
-                        }
-                    }
-
-                    SettingsItem(
-                        title = stringResource(R.string.custom_mode),
-                        trailing = {
-                            Switch(
-                                checked = assistantPrefs.isCustomMode,
-                                onCheckedChange = { assistantViewModel.setCustomMode(it, context) }
-                            )
-                        }
-                    )
-
-                    if (assistantPrefs.isCustomMode) {
-                        Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                            CustomColorPicker(stringResource(R.string.head_color), assistantPrefs.customHeadColor) {
-                                assistantViewModel.setCustomColors(it, assistantPrefs.customBodyColor, assistantPrefs.customAccentColor, context)
-                            }
-                            CustomColorPicker(stringResource(R.string.body_color), assistantPrefs.customBodyColor) {
-                                assistantViewModel.setCustomColors(assistantPrefs.customHeadColor, it, assistantPrefs.customAccentColor, context)
-                            }
-                            CustomColorPicker(stringResource(R.string.accent_color_label), assistantPrefs.customAccentColor) {
-                                assistantViewModel.setCustomColors(assistantPrefs.customHeadColor, assistantPrefs.customBodyColor, it, context)
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(8.dp))
-
-                    Text(stringResource(R.string.interaction_frequency), modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        AssistantFrequency.entries.forEach { freq ->
-                            FilterChip(
-                                selected = assistantPrefs.frequency == freq,
-                                onClick = { assistantViewModel.setFrequency(freq, context) },
-                                label = { Text(freq.name.lowercase().replaceFirstChar { it.uppercase() }) }
-                            )
-                        }
-                    }
-
-                    SettingsItem(
-                        title = stringResource(R.string.reset_position),
-                        trailing = {
-                            IconButton(onClick = { assistantViewModel.resetPosition(context) }) {
-                                Icon(Icons.Default.Refresh, contentDescription = "Reset Position", tint = Color(0xFF00D1B2))
-                            }
-                        }
-                    )
                 }
             }
 
@@ -453,37 +522,98 @@ fun SettingsScreen(
                     text = stringResource(R.string.select_currency),
                     fontSize = 12.sp,
                     color = Color.Gray,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.padding(bottom = 16.dp)
                 )
 
                 val selectedCurrency = remember { mutableStateOf(CurrencyUtils.getSelectedCurrency(context)) }
+                var expanded by remember { mutableStateOf(false) }
+                var searchQuery by remember { mutableStateOf("") }
 
-                Column {
-                    CurrencyUtils.SUPPORTED_CURRENCIES.forEach { currency ->
-                        Row(
+                val filteredCurrencies = remember(searchQuery) {
+                    if (searchQuery.isBlank()) {
+                        CurrencyUtils.SUPPORTED_CURRENCIES
+                    } else {
+                        CurrencyUtils.SUPPORTED_CURRENCIES.filter {
+                            it.country.contains(searchQuery, ignoreCase = true) ||
+                            it.code.contains(searchQuery, ignoreCase = true)
+                        }
+                    }
+                }
+
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = "${selectedCurrency.value.flag} ${selectedCurrency.value.country} — ${selectedCurrency.value.code} — ${selectedCurrency.value.symbol}",
+                        onValueChange = {},
+                        readOnly = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { expanded = true },
+                        trailingIcon = {
+                            IconButton(onClick = { expanded = true }) {
+                                Icon(
+                                    imageVector = if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF00D1B2),
+                            unfocusedBorderColor = if (isDarkMode) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    DropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { 
+                            expanded = false
+                            searchQuery = ""
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth(0.85f)
+                            .heightIn(max = 300.dp)
+                    ) {
+                        // Search field inside dropdown
+                        OutlinedTextField(
+                            value = searchQuery,
+                            onValueChange = { searchQuery = it },
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .clickable {
-                                    CurrencyUtils.setSelectedCurrency(context, currency.code)
-                                    selectedCurrency.value = currency
-                                    Toast.makeText(context, "Currency updated to ${currency.code}", Toast.LENGTH_SHORT).show()
-                                }
-                                .padding(vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = selectedCurrency.value.code == currency.code,
+                                .padding(8.dp),
+                            placeholder = { Text("Search country or code...") },
+                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = Color(0xFF00D1B2)
+                            )
+                        )
+
+                        filteredCurrencies.forEach { currency ->
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(currency.flag, fontSize = 20.sp)
+                                        Spacer(Modifier.width(12.dp))
+                                        Column {
+                                            Text(currency.country, fontWeight = FontWeight.Medium)
+                                            Text("${currency.code} — ${currency.symbol}", fontSize = 12.sp, color = Color.Gray)
+                                        }
+                                    }
+                                },
                                 onClick = {
                                     CurrencyUtils.setSelectedCurrency(context, currency.code)
                                     selectedCurrency.value = currency
+                                    expanded = false
+                                    searchQuery = ""
                                     Toast.makeText(context, "Currency updated to ${currency.code}", Toast.LENGTH_SHORT).show()
                                 }
                             )
-                            Spacer(Modifier.width(8.dp))
-                            Text(
-                                text = "${currency.country} / ${currency.code} / ${currency.symbol}",
-                                fontSize = 16.sp,
-                                color = if (isDarkMode) Color.White else Color.Black
+                        }
+                        
+                        if (filteredCurrencies.isEmpty()) {
+                            DropdownMenuItem(
+                                text = { Text("No results found", color = Color.Gray) },
+                                onClick = {}
                             )
                         }
                     }
@@ -698,8 +828,8 @@ fun SettingsScreen(
                 Text(
                     text = when(pinStep) {
                         1 -> stringResource(R.string.enter_current_pin)
-                        2 -> if (hasExistingPin) stringResource(R.string.create_new_pin) else stringResource(R.string.set_pin)
-                        3 -> if (hasExistingPin) stringResource(R.string.confirm_new_pin) else stringResource(R.string.confirm_pin)
+                        2 -> if (hasExistingPin && !initialResetPin) stringResource(R.string.create_new_pin) else stringResource(R.string.set_pin)
+                        3 -> if (hasExistingPin && !initialResetPin) stringResource(R.string.confirm_new_pin) else stringResource(R.string.confirm_pin)
                         else -> "PIN Setup"
                     }, 
                     fontWeight = FontWeight.Bold
@@ -727,7 +857,7 @@ fun SettingsScreen(
                         label = when(pinStep) {
                             1 -> stringResource(R.string.enter_current_pin)
                             2 -> stringResource(R.string.enter_pin)
-                            3 -> if (hasExistingPin) stringResource(R.string.confirm_new_pin) else stringResource(R.string.confirm_pin)
+                            3 -> if (hasExistingPin && !initialResetPin) stringResource(R.string.confirm_new_pin) else stringResource(R.string.confirm_pin)
                             else -> "PIN"
                         },
                         keyboardType = KeyboardType.NumberPassword,

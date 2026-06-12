@@ -9,6 +9,7 @@ import android.text.style.ClickableSpan
 import android.view.View
 import android.widget.CheckBox
 import android.widget.ImageButton
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
@@ -31,7 +32,6 @@ import com.enosh.fincalc.utils.SecurityUtils
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -45,21 +45,18 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * SIGNUP FLOW UPDATE:
- * Now uses Firebase Authentication to create users.
- * 
- * DEVELOPER SETUP:
- * 1. Create a Firebase project at console.firebase.google.com
- * 2. Add this Android app (com.enosh.fincalc) to the project.
- * 3. Download google-services.json and place it in the app/ folder.
- * 4. Enable Email/Password provider in Firebase Console -> Authentication -> Sign-in method.
+ * Optimized for stability and performance. Prevents main thread blocking.
  */
 class SignupActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
+    private var accentTeal: Int = 0
 
     private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         android.util.Log.d("SignupActivity", "Legacy Google Sign-In Result Received")
@@ -70,6 +67,7 @@ class SignupActivity : AppCompatActivity() {
             val firebaseCredential = GoogleAuthProvider.getCredential(account.idToken, null)
             
             lifecycleScope.launch {
+                setLoading(true)
                 try {
                     auth.signInWithCredential(firebaseCredential).await()
                     android.util.Log.d("SignupActivity", "Firebase Google Auth Success (Legacy)")
@@ -78,7 +76,7 @@ class SignupActivity : AppCompatActivity() {
                     android.util.Log.e("SignupActivity", "Firebase Google Auth Failed (Legacy)", e)
                     Toast.makeText(this@SignupActivity, "Firebase Auth Failed: ${e.message}", Toast.LENGTH_LONG).show()
                 } finally {
-                    findViewById<MaterialButton>(R.id.btn_google).isEnabled = true
+                    setLoading(false)
                 }
             }
         } catch (e: ApiException) {
@@ -91,16 +89,17 @@ class SignupActivity : AppCompatActivity() {
                 else -> "Google Sign-In Failed (${e.statusCode})"
             }
             Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-            findViewById<MaterialButton>(R.id.btn_google).isEnabled = true
+            setLoading(false)
         }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
+        accentTeal = try { "#00D1B2".toColorInt() } catch (_: Exception) { 0xFF00D1B2.toInt() }
+
         try {
             auth = FirebaseAuth.getInstance()
-            android.util.Log.d("FirebaseInit", "Firebase initialized successfully in SignupActivity")
             
             // Initialize Legacy Google Sign-In
             val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
@@ -109,13 +108,17 @@ class SignupActivity : AppCompatActivity() {
                 .build()
             googleSignInClient = GoogleSignIn.getClient(this, gso)
         } catch (e: Exception) {
-            // This happens if google-services.json is missing or Firebase is not initialized
-            Toast.makeText(this, "Firebase configuration error. Please check app setup.", Toast.LENGTH_LONG).show()
-            android.util.Log.e("FirebaseInit", "Firebase initialization failed in SignupActivity", e)
+            Toast.makeText(this, "Firebase configuration error.", Toast.LENGTH_LONG).show()
+            android.util.Log.e("FirebaseInit", "Firebase initialization failed", e)
         }
 
         enableEdgeToEdge()
         setContentView(R.layout.activity_signup)
+
+        // Pre-initialize EncryptedSharedPreferences off the main thread to avoid later hitches
+        lifecycleScope.launch(Dispatchers.IO) {
+            SecurityUtils.getEncryptedPrefs(applicationContext)
+        }
 
         val tilName = findViewById<TextInputLayout>(R.id.til_name)
         val etName = findViewById<TextInputEditText>(R.id.et_name)
@@ -136,7 +139,7 @@ class SignupActivity : AppCompatActivity() {
                 data = "mailto:".toUri()
                 putExtra(Intent.EXTRA_EMAIL, arrayOf("enoshjaques@gmail.com"))
                 putExtra(Intent.EXTRA_SUBJECT, "Help & Troubleshoot - Visual Vibe FinCal")
-                putExtra(Intent.EXTRA_TEXT, "Hi Enosh,\n\nI need help with...")
+                putExtra(Intent.EXTRA_TEXT, "Hi Enosh,\n\nI need help with signup...")
             }
             try {
                 startActivity(Intent.createChooser(intent, "Send Email"))
@@ -147,123 +150,17 @@ class SignupActivity : AppCompatActivity() {
 
         setupTermsClickable()
 
+        // Lightweight listeners to clear errors only
         etName.addTextChangedListener { tilName.error = null }
         etEmail.addTextChangedListener { tilEmail.error = null }
         etPassword.addTextChangedListener { tilPassword.error = null }
         etConfirmPassword.addTextChangedListener { tilConfirmPassword.error = null }
 
         btnSignup.setOnClickListener {
-            val name = etName.text.toString().trim()
-            val email = etEmail.text.toString().trim()
-            val password = etPassword.text.toString()
-            val confirmPassword = etConfirmPassword.text.toString()
-
-            var hasError = false
-            var firstErrorView: View? = null
-
-            if (name.isEmpty()) {
-                tilName.error = getString(R.string.name_empty)
-                hasError = true
-                if (firstErrorView == null) firstErrorView = etName
-            }
-            
-            if (email.isEmpty()) {
-                tilEmail.error = getString(R.string.field_cannot_be_empty)
-                hasError = true
-                if (firstErrorView == null) firstErrorView = etEmail
-            } else if (!ValidationUtils.isValidEmail(email)) {
-                tilEmail.error = getString(R.string.invalid_email_format)
-                hasError = true
-                if (firstErrorView == null) firstErrorView = etEmail
-            }
-            
-            if (password.isEmpty()) {
-                tilPassword.error = getString(R.string.password_empty)
-                hasError = true
-                if (firstErrorView == null) firstErrorView = etPassword
-            } else if (!ValidationUtils.isValidPassword(password)) {
-                tilPassword.error = getString(R.string.password_too_short)
-                hasError = true
-                if (firstErrorView == null) firstErrorView = etPassword
-            }
-            
-            if (confirmPassword.isEmpty()) {
-                tilConfirmPassword.error = getString(R.string.field_cannot_be_empty)
-                hasError = true
-                if (firstErrorView == null) firstErrorView = etConfirmPassword
-            } else if (password != confirmPassword) {
-                tilConfirmPassword.error = getString(R.string.passwords_dont_match)
-                hasError = true
-                if (firstErrorView == null) firstErrorView = etConfirmPassword
-            }
-
-            if (hasError) {
-                firstErrorView?.requestFocus()
-                return@setOnClickListener
-            }
-
-            if (!cbTerms.isChecked) {
-                Toast.makeText(this, getString(R.string.signup_error), Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
-            // FIREBASE SIGNUP
-            btnSignup.isEnabled = false
-            auth.createUserWithEmailAndPassword(email, password)
-                .addOnCompleteListener(this) { task ->
-                    btnSignup.isEnabled = true
-                    if (task.isSuccessful) {
-                        // Success: Save non-sensitive data locally
-                        val securePref = SecurityUtils.getEncryptedPrefs(this)
-                        securePref.edit {
-                            putString("name", name)
-                            putString("email", email)
-                            putBoolean("has_account", true)
-                            // Remove any old local password if it exists
-                            remove("password")
-                        }
-                        
-                        android.util.Log.d("SignupActivity", "Firebase user created successfully")
-                        
-                        // Send verification email
-                        val user = auth.currentUser
-                        user?.sendEmailVerification()
-                            ?.addOnCompleteListener { verifyTask ->
-                                if (verifyTask.isSuccessful) {
-                                    // Use Dialog or long Snackbar for verification message
-                                    androidx.appcompat.app.AlertDialog.Builder(this)
-                                        .setTitle("Verification Sent")
-                                        .setMessage(getString(R.string.verification_email_sent))
-                                        .setPositiveButton("OK") { _, _ ->
-                                            startActivity(Intent(this, LoginActivity::class.java))
-                                            finish()
-                                        }
-                                        .setCancelable(false)
-                                        .show()
-                                } else {
-                                    Toast.makeText(this, "Failed to send verification email: ${verifyTask.exception?.message}", Toast.LENGTH_LONG).show()
-                                    // Still go to login, they can resend from there
-                                    startActivity(Intent(this, LoginActivity::class.java))
-                                    finish()
-                                }
-                            }
-                    } else {
-                        // Failure: Show user-friendly error
-                        val exception = task.exception
-                        val message = when (exception) {
-                            is FirebaseAuthWeakPasswordException -> getString(R.string.password_too_short)
-                            is FirebaseAuthInvalidCredentialsException -> getString(R.string.invalid_email_format)
-                            is FirebaseAuthUserCollisionException -> "This email is already registered."
-                            else -> exception?.localizedMessage ?: "Signup failed. Please try again."
-                        }
-                        Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-                        android.util.Log.e("SignupActivity", "Firebase signup error", exception)
-                    }
-                }
+            performSignup()
         }
 
         btnGoogle.setOnClickListener {
-            android.util.Log.d("SignupActivity", "Google sign-in button clicked")
             signInWithGoogle()
         }
 
@@ -273,21 +170,103 @@ class SignupActivity : AppCompatActivity() {
         }
     }
 
-    private fun startLegacyGoogleSignIn() {
-        android.util.Log.d("SignupActivity", "Starting legacy Google Sign-In fallback")
-        getSharedPreferences("GooglePrefs", MODE_PRIVATE).edit { putBoolean("PREFER_LEGACY", true) }
-        googleSignInLauncher.launch(googleSignInClient.signInIntent)
+    private fun setLoading(isLoading: Boolean) {
+        val btnSignup = findViewById<MaterialButton>(R.id.btn_signup)
+        val btnGoogle = findViewById<MaterialButton>(R.id.btn_google)
+        val progressBar = findViewById<ProgressBar>(R.id.progress_signup)
+
+        btnSignup.isEnabled = !isLoading
+        btnGoogle.isEnabled = !isLoading
+        progressBar.visibility = if (isLoading) View.VISIBLE else View.GONE
+    }
+
+    private fun performSignup() {
+        val etName = findViewById<TextInputEditText>(R.id.et_name)
+        val etEmail = findViewById<TextInputEditText>(R.id.et_email)
+        val etPassword = findViewById<TextInputEditText>(R.id.et_password)
+        val etConfirmPassword = findViewById<TextInputEditText>(R.id.et_confirm_password)
+        val cbTerms = findViewById<CheckBox>(R.id.cb_terms)
+
+        val name = etName.text.toString().trim()
+        val email = etEmail.text.toString().trim()
+        val password = etPassword.text.toString()
+        val confirmPassword = etConfirmPassword.text.toString()
+
+        // Local Validation
+        if (name.isEmpty()) {
+            findViewById<TextInputLayout>(R.id.til_name).error = getString(R.string.name_empty)
+            etName.requestFocus()
+            return
+        }
+        if (!ValidationUtils.isValidEmail(email)) {
+            findViewById<TextInputLayout>(R.id.til_email).error = getString(R.string.invalid_email_format)
+            etEmail.requestFocus()
+            return
+        }
+        if (!ValidationUtils.isValidPassword(password)) {
+            findViewById<TextInputLayout>(R.id.til_password).error = getString(R.string.password_too_short)
+            etPassword.requestFocus()
+            return
+        }
+        if (password != confirmPassword) {
+            findViewById<TextInputLayout>(R.id.til_confirm_password).error = getString(R.string.passwords_dont_match)
+            etConfirmPassword.requestFocus()
+            return
+        }
+        if (!cbTerms.isChecked) {
+            Toast.makeText(this, getString(R.string.signup_error), Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        setLoading(true)
+        lifecycleScope.launch {
+            try {
+                // Perform Firebase Signup
+                auth.createUserWithEmailAndPassword(email, password).await()
+                
+                // Save profile data (Off main thread)
+                withContext(Dispatchers.IO) {
+                    val securePref = SecurityUtils.getEncryptedPrefs(applicationContext)
+                    securePref.edit {
+                        putString("name", name)
+                        putString("email", email)
+                        putBoolean("has_account", true)
+                        remove("password")
+                    }
+                }
+
+                // Send verification email
+                val user = auth.currentUser
+                val verificationTask = user?.sendEmailVerification()?.await()
+                
+                withContext(Dispatchers.Main) {
+                    androidx.appcompat.app.AlertDialog.Builder(this@SignupActivity)
+                        .setTitle("Verification Sent")
+                        .setMessage(getString(R.string.verification_email_sent))
+                        .setPositiveButton("OK") { _, _ ->
+                            startActivity(Intent(this@SignupActivity, LoginActivity::class.java))
+                            finish()
+                        }
+                        .setCancelable(false)
+                        .show()
+                }
+            } catch (e: Exception) {
+                val message = when (e) {
+                    is FirebaseAuthWeakPasswordException -> getString(R.string.password_too_short)
+                    is FirebaseAuthInvalidCredentialsException -> getString(R.string.invalid_email_format)
+                    is FirebaseAuthUserCollisionException -> "This email is already registered."
+                    else -> e.localizedMessage ?: "Signup failed. Please try again."
+                }
+                Toast.makeText(this@SignupActivity, message, Toast.LENGTH_LONG).show()
+                setLoading(false)
+            }
+        }
     }
 
     private fun signInWithGoogle() {
-        android.util.Log.d("SignupActivity", "signInWithGoogle() starting")
-        val btnGoogle = findViewById<MaterialButton>(R.id.btn_google)
-        btnGoogle.isEnabled = false
-        Toast.makeText(this, "Opening Google Sign-In...", Toast.LENGTH_SHORT).show()
-
+        setLoading(true)
         val preferLegacy = getSharedPreferences("GooglePrefs", MODE_PRIVATE).getBoolean("PREFER_LEGACY", false)
         if (preferLegacy) {
-            android.util.Log.d("SignupActivity", "Prioritizing legacy Google Sign-In due to previous timeout/failure")
             startLegacyGoogleSignIn()
             return
         }
@@ -295,22 +274,16 @@ class SignupActivity : AppCompatActivity() {
         val credentialManager = try {
             CredentialManager.create(this)
         } catch (e: Exception) {
-            android.util.Log.e("SignupActivity", "Failed to create CredentialManager", e)
-            Toast.makeText(this, "Credential Manager Error: ${e.message}", Toast.LENGTH_LONG).show()
-            btnGoogle.isEnabled = true
+            Toast.makeText(this, "Credential Manager Error", Toast.LENGTH_LONG).show()
+            setLoading(false)
             return
         }
         
-        val webClientId = try {
-            getString(R.string.default_web_client_id)
-        } catch (e: Exception) {
-            android.util.Log.e("SignupActivity", "default_web_client_id NOT FOUND", e)
-            ""
-        }
+        val webClientId = try { getString(R.string.default_web_client_id) } catch (_: Exception) { "" }
 
         if (webClientId.isEmpty()) {
             Toast.makeText(this, "Configuration Error: Web Client ID missing.", Toast.LENGTH_LONG).show()
-            btnGoogle.isEnabled = true
+            setLoading(false)
             return
         }
 
@@ -326,56 +299,33 @@ class SignupActivity : AppCompatActivity() {
 
         lifecycleScope.launch {
             try {
-                android.util.Log.d("SignupActivity", "Calling getCredential with 3s timeout...")
-                
                 val result = withTimeoutOrNull(3000) {
                     credentialManager.getCredential(this@SignupActivity, request)
                 }
 
                 if (result == null) {
-                    android.util.Log.e("SignupActivity", "Credential Manager timed out (3s)")
                     startLegacyGoogleSignIn()
                     return@launch
                 }
 
                 val credential = result.credential
-                android.util.Log.d("SignupActivity", "Credential received: ${credential.type}")
-
                 if (credential is GoogleIdTokenCredential) {
-                    // Reset preference if CredentialManager succeeds
                     getSharedPreferences("GooglePrefs", MODE_PRIVATE).edit { putBoolean("PREFER_LEGACY", false) }
                     val firebaseCredential = GoogleAuthProvider.getCredential(credential.idToken, null)
-                    android.util.Log.d("SignupActivity", "Signing into Firebase...")
-                    
                     auth.signInWithCredential(firebaseCredential).await()
-                    
-                    android.util.Log.d("SignupActivity", "Firebase Google Auth Success")
                     onAuthSuccess()
                 } else {
-                    android.util.Log.e("SignupActivity", "Unexpected credential type: ${credential.type}")
                     Toast.makeText(this@SignupActivity, "Unexpected credential type", Toast.LENGTH_LONG).show()
                 }
             } catch (_: GetCredentialCancellationException) {
-                android.util.Log.w("SignupActivity", "User cancelled Google Sign-In")
                 Toast.makeText(this@SignupActivity, "Sign-in cancelled", Toast.LENGTH_SHORT).show()
             } catch (e: NoCredentialException) {
-                android.util.Log.e("SignupActivity", "No Google accounts found on device")
-                Toast.makeText(this@SignupActivity, "No Google accounts found. Please add one in device settings.", Toast.LENGTH_LONG).show()
-            } catch (e: GetCredentialProviderConfigurationException) {
-                android.util.Log.e("SignupActivity", "Provider configuration error: ${e.message}")
-                startLegacyGoogleSignIn()
-            } catch (e: GetCredentialUnsupportedException) {
-                android.util.Log.e("SignupActivity", "Credential Manager unsupported: ${e.message}")
-                startLegacyGoogleSignIn()
-            } catch (e: GetCredentialException) {
-                android.util.Log.e("SignupActivity", "Credential Manager error (${e.type}): ${e.message}")
-                Toast.makeText(this@SignupActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(this@SignupActivity, "No Google accounts found.", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
-                android.util.Log.e("SignupActivity", "Unexpected error during Google Sign-In", e)
-                Toast.makeText(this@SignupActivity, "An unexpected error occurred: ${e.message}", Toast.LENGTH_LONG).show()
+                android.util.Log.e("SignupActivity", "Google Sign-In error", e)
+                startLegacyGoogleSignIn()
             } finally {
-                btnGoogle.isEnabled = true
-                android.util.Log.d("SignupActivity", "Google Sign-In flow finished (btn re-enabled)")
+                setLoading(false)
             }
         }
     }
@@ -385,23 +335,33 @@ class SignupActivity : AppCompatActivity() {
         SecurityUtils.skipNextLock = true
         SecurityUtils.hasAuthenticatedThisSession = true
         
-        getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
-            putBoolean("is_guest", false)
-            putString("email", user?.email)
-            putString("name", user?.displayName)
-            putString("profile_pic", user?.photoUrl?.toString())
+        lifecycleScope.launch(Dispatchers.IO) {
+            getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
+                putBoolean("is_guest", false)
+                putString("email", user?.email)
+                putString("name", user?.displayName)
+                putString("profile_pic", user?.photoUrl?.toString())
+            }
+            
+            val isLockEnabled = SecurityUtils.isAppLockEnabled(applicationContext)
+            
+            withContext(Dispatchers.Main) {
+                Toast.makeText(this@SignupActivity, getString(R.string.login_successful), Toast.LENGTH_SHORT).show()
+                if (isLockEnabled) {
+                    val intent = Intent(this@SignupActivity, LockActivity::class.java)
+                    intent.putExtra("DESTINATION", "HOME")
+                    startActivity(intent)
+                } else {
+                    startActivity(Intent(this@SignupActivity, HomeActivity::class.java))
+                }
+                finish()
+            }
         }
-        
-        Toast.makeText(this, getString(R.string.login_successful), Toast.LENGTH_SHORT).show()
-        
-        if (SecurityUtils.isAppLockEnabled(this)) {
-            val intent = Intent(this, LockActivity::class.java)
-            intent.putExtra("DESTINATION", "HOME")
-            startActivity(intent)
-        } else {
-            startActivity(Intent(this, HomeActivity::class.java))
-        }
-        finish()
+    }
+
+    private fun startLegacyGoogleSignIn() {
+        getSharedPreferences("GooglePrefs", MODE_PRIVATE).edit { putBoolean("PREFER_LEGACY", true) }
+        googleSignInLauncher.launch(googleSignInClient.signInIntent)
     }
 
     private fun setupTermsClickable() {
@@ -419,7 +379,7 @@ class SignupActivity : AppCompatActivity() {
                 }
                 override fun updateDrawState(ds: TextPaint) {
                     super.updateDrawState(ds)
-                    ds.color = "#00D1B2".toColorInt()
+                    ds.color = accentTeal
                     ds.isUnderlineText = true
                 }
             }

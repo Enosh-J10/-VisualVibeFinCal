@@ -2,7 +2,9 @@ package com.enosh.fincalc
 
 import android.content.Intent
 import android.os.Bundle
+import android.view.View
 import android.widget.ImageButton
+import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
@@ -15,10 +17,6 @@ import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.NoCredentialException
-import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
-import androidx.credentials.exceptions.GetCredentialUnsupportedException
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.tasks.await
 import androidx.lifecycle.lifecycleScope
 import com.enosh.fincalc.utils.ValidationUtils
 import com.enosh.fincalc.utils.SecurityUtils
@@ -37,74 +35,73 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * LOGIN FLOW UPDATE:
- * Now uses Firebase Authentication to sign in users.
+ * Optimized for stability and performance.
  */
 class LoginActivity : AppCompatActivity() {
     private lateinit var auth: FirebaseAuth
     private lateinit var googleSignInClient: GoogleSignInClient
 
     private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        android.util.Log.d("LoginActivity", "Legacy Google Sign-In Result Received")
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
             val account = task.getResult(ApiException::class.java)
-            android.util.Log.d("LoginActivity", "Legacy Google Sign-In Success")
             val firebaseCredential = GoogleAuthProvider.getCredential(account.idToken, null)
             
             lifecycleScope.launch {
+                setLoading(true)
                 try {
                     auth.signInWithCredential(firebaseCredential).await()
-                    android.util.Log.d("LoginActivity", "Firebase Google Auth Success (Legacy)")
                     onAuthSuccess(account.email)
                 } catch (e: Exception) {
-                    android.util.Log.e("LoginActivity", "Firebase Google Auth Failed (Legacy)", e)
                     Toast.makeText(this@LoginActivity, "Firebase Auth Failed: ${e.message}", Toast.LENGTH_LONG).show()
                 } finally {
-                    findViewById<MaterialButton>(R.id.btn_google).isEnabled = true
+                    setLoading(false)
                 }
             }
         } catch (e: ApiException) {
-            android.util.Log.e("LoginActivity", "Legacy Google Sign-In Failed (Code: ${e.statusCode})", e)
             val msg = when (e.statusCode) {
-                7 -> "Network Error. Please check your connection."
-                10 -> "Developer Error: Ensure SHA-1 and package name match in Firebase."
-                12500 -> "Sign-in failed. Please update Play Services."
-                12501 -> "Sign-in cancelled."
+                7 -> "Network Error."
                 else -> "Google Sign-In Failed (${e.statusCode})"
             }
             Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-            findViewById<MaterialButton>(R.id.btn_google).isEnabled = true
+            setLoading(false)
         }
     }
 
+    private var isPinRecovery = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        isPinRecovery = intent.getBooleanExtra("is_pin_recovery", false)
         
         try {
             auth = FirebaseAuth.getInstance()
-            android.util.Log.d("FirebaseInit", "Firebase initialized successfully in LoginActivity")
-            
-            // Initialize Legacy Google Sign-In
             val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.default_web_client_id))
                 .requestEmail()
                 .build()
             googleSignInClient = GoogleSignIn.getClient(this, gso)
         } catch (e: Exception) {
-            Toast.makeText(this, "Firebase configuration error. Please check app setup.", Toast.LENGTH_LONG).show()
-            android.util.Log.e("FirebaseInit", "Firebase initialization failed in LoginActivity", e)
+            Toast.makeText(this, "Firebase setup error.", Toast.LENGTH_LONG).show()
         }
 
         enableEdgeToEdge()
         setContentView(R.layout.activity_login)
 
-        val tilEmail = findViewById<TextInputLayout>(R.id.til_email)
+        // Pre-initialize off the main thread
+        lifecycleScope.launch(Dispatchers.IO) {
+            SecurityUtils.getEncryptedPrefs(applicationContext)
+        }
+
         val etEmail = findViewById<TextInputEditText>(R.id.et_email)
-        val tilPassword = findViewById<TextInputLayout>(R.id.til_password)
         val etPassword = findViewById<TextInputEditText>(R.id.et_password)
         val btnLogin = findViewById<MaterialButton>(R.id.btn_login)
         val btnGoogle = findViewById<MaterialButton>(R.id.btn_google)
@@ -117,141 +114,105 @@ class LoginActivity : AppCompatActivity() {
             val intent = Intent(Intent.ACTION_SENDTO).apply {
                 data = "mailto:".toUri()
                 putExtra(Intent.EXTRA_EMAIL, arrayOf("enoshjaques@gmail.com"))
-                putExtra(Intent.EXTRA_SUBJECT, "Help & Troubleshoot - Visual Vibe FinCal")
-                putExtra(Intent.EXTRA_TEXT, "Hi Enosh,\n\nI need help with...")
+                putExtra(Intent.EXTRA_SUBJECT, "Help - Visual Vibe FinCal")
             }
-            try {
-                startActivity(Intent.createChooser(intent, "Send Email"))
-            } catch (_: Exception) {
-                Toast.makeText(this, getString(R.string.no_email_app), Toast.LENGTH_SHORT).show()
-            }
+            try { startActivity(Intent.createChooser(intent, "Send Email")) } catch (_: Exception) {}
         }
 
-        fun validateInputs() {
-            val email = etEmail.text.toString().trim()
-            val password = etPassword.text.toString()
-            btnLogin.isEnabled = ValidationUtils.isValidEmail(email) && password.isNotEmpty()
-        }
+        etEmail.addTextChangedListener { findViewById<TextInputLayout>(R.id.til_email).error = null }
+        etPassword.addTextChangedListener { findViewById<TextInputLayout>(R.id.til_password).error = null }
 
-        etEmail.addTextChangedListener {
-            tilEmail.error = null
-            validateInputs()
-        }
-        etPassword.addTextChangedListener {
-            tilPassword.error = null
-            validateInputs()
-        }
-
-        btnLogin.setOnClickListener {
-            val email = etEmail.text.toString().trim()
-            val password = etPassword.text.toString()
-
-            var hasError = false
-            if (!ValidationUtils.isValidEmail(email)) {
-                tilEmail.error = getString(R.string.invalid_email_format)
-                hasError = true
-            }
-            if (password.isEmpty()) {
-                tilPassword.error = getString(R.string.password_empty)
-                hasError = true
-            }
-
-            if (hasError) return@setOnClickListener
-
-            // FIREBASE LOGIN
-            btnLogin.isEnabled = false
-            auth.signInWithEmailAndPassword(email, password)
-                .addOnCompleteListener(this) { task ->
-                    btnLogin.isEnabled = true
-                    if (task.isSuccessful) {
-                        val user = auth.currentUser
-                        if (user != null && !user.isEmailVerified) {
-                            btnLogin.isEnabled = true
-                            // Use a long-duration snackbar or dialog for verification warning
-                            Snackbar.make(findViewById(android.R.id.content), 
-                                getString(R.string.verify_email_warning), 
-                                Snackbar.LENGTH_LONG)
-                                .setAction(getString(R.string.resend_verification)) {
-                                    user.sendEmailVerification().addOnCompleteListener { resendTask ->
-                                        if (resendTask.isSuccessful) {
-                                            Toast.makeText(this, getString(R.string.verification_email_sent), Toast.LENGTH_LONG).show()
-                                        }
-                                    }
-                                }
-                                .show()
-                            
-                            showResendVerificationDialog()
-                            return@addOnCompleteListener
-                        }
-
-                        onAuthSuccess(email)
-                    } else {
-                        val exception = task.exception
-                        val message = when (exception) {
-                            is FirebaseAuthInvalidUserException -> "No account found with this email."
-                            is FirebaseAuthInvalidCredentialsException -> getString(R.string.invalid_credentials)
-                            else -> exception?.localizedMessage ?: "Login failed."
-                        }
-                        
-                        // Check if it's an old local account
-                        val securePref = SecurityUtils.getEncryptedPrefs(this)
-                        val savedEmail = securePref.getString("email", null)
-                        val savedPassword = securePref.getString("password", null)
-                        
-                        if (email == savedEmail && password == savedPassword && !savedPassword.isNullOrEmpty()) {
-                            Toast.makeText(this, "Please sign up again using our new secure system.", Toast.LENGTH_LONG).show()
-                        } else {
-                            Toast.makeText(this, message, Toast.LENGTH_LONG).show()
-                        }
-                        android.util.Log.e("LoginActivity", "Firebase login error", exception)
-                    }
-                }
-        }
-
-        btnGoogle.setOnClickListener {
-            android.util.Log.d("LoginActivity", "Google sign-in button clicked")
-            signInWithGoogle()
-        }
-
-        tvForgotPassword.setOnClickListener {
-            startActivity(Intent(this, ForgotPasswordActivity::class.java))
-        }
+        btnLogin.setOnClickListener { performLogin() }
+        btnGoogle.setOnClickListener { signInWithGoogle() }
+        tvForgotPassword.setOnClickListener { startActivity(Intent(this, ForgotPasswordActivity::class.java)) }
+        tvSignup.setOnClickListener { startActivity(Intent(this, SignupActivity::class.java)) }
 
         btnGuest.setOnClickListener {
-            getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
-                putBoolean("is_guest", true)
+            lifecycleScope.launch {
+                withContext(Dispatchers.IO) {
+                    getSharedPreferences("UserPrefs", MODE_PRIVATE).edit { putBoolean("is_guest", true) }
+                }
+                navigateAfterAuth(true)
             }
-            if (SecurityUtils.isAppLockEnabled(this)) {
-                val intent = Intent(this, LockActivity::class.java)
-                intent.putExtra("DESTINATION", "HOME")
-                startActivity(intent)
-            } else {
-                startActivity(Intent(this, HomeActivity::class.java))
-            }
-            finish()
+        }
+    }
+
+    private fun setLoading(isLoading: Boolean) {
+        findViewById<MaterialButton>(R.id.btn_login).isEnabled = !isLoading
+        findViewById<MaterialButton>(R.id.btn_google).isEnabled = !isLoading
+        findViewById<ProgressBar>(R.id.progress_login)?.visibility = if (isLoading) View.VISIBLE else View.GONE
+    }
+
+    private fun performLogin() {
+        val email = findViewById<TextInputEditText>(R.id.et_email).text.toString().trim()
+        val password = findViewById<TextInputEditText>(R.id.et_password).text.toString()
+
+        if (!ValidationUtils.isValidEmail(email)) {
+            findViewById<TextInputLayout>(R.id.til_email).error = getString(R.string.invalid_email_format)
+            return
+        }
+        if (password.isEmpty()) {
+            findViewById<TextInputLayout>(R.id.til_password).error = getString(R.string.password_empty)
+            return
         }
 
-        tvSignup.setOnClickListener {
-            startActivity(Intent(this, SignupActivity::class.java))
+        setLoading(true)
+        lifecycleScope.launch {
+            try {
+                auth.signInWithEmailAndPassword(email, password).await()
+                val user = auth.currentUser
+                if (user != null && !user.isEmailVerified) {
+                    setLoading(false)
+                    showResendVerificationDialog()
+                    return@launch
+                }
+                onAuthSuccess(email)
+            } catch (e: Exception) {
+                val message = when (e) {
+                    is FirebaseAuthInvalidUserException -> "No account found."
+                    is FirebaseAuthInvalidCredentialsException -> getString(R.string.invalid_credentials)
+                    else -> e.localizedMessage ?: "Login failed."
+                }
+                Toast.makeText(this@LoginActivity, message, Toast.LENGTH_LONG).show()
+                setLoading(false)
+            }
         }
     }
 
     private fun onAuthSuccess(email: String?) {
-        android.util.Log.d("LoginActivity", "Authentication successful")
-        SecurityUtils.skipNextLock = true
-        SecurityUtils.hasAuthenticatedThisSession = true
-        
-        getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
-            putBoolean("is_guest", false)
-            putString("email", email)
-            val user = FirebaseAuth.getInstance().currentUser
-            putString("name", user?.displayName)
-            putString("profile_pic", user?.photoUrl?.toString())
+        lifecycleScope.launch {
+            withContext(Dispatchers.IO) {
+                SecurityUtils.skipNextLock = true
+                SecurityUtils.hasAuthenticatedThisSession = true
+                getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
+                    putBoolean("is_guest", false)
+                    putString("email", email)
+                    val user = FirebaseAuth.getInstance().currentUser
+                    putString("name", user?.displayName)
+                    putString("profile_pic", user?.photoUrl?.toString())
+                }
+            }
+            
+            if (isPinRecovery) {
+                Toast.makeText(this@LoginActivity, "Authentication successful. Please reset your PIN in Settings.", Toast.LENGTH_LONG).show()
+                val intent = Intent(this@LoginActivity, HomeActivity::class.java).apply {
+                    putExtra("OPEN_SETTINGS", true)
+                    putExtra("RESET_PIN", true)
+                }
+                startActivity(intent)
+                finish()
+            } else {
+                Toast.makeText(this@LoginActivity, getString(R.string.login_successful), Toast.LENGTH_SHORT).show()
+                navigateAfterAuth(false)
+            }
         }
-        
-        Toast.makeText(this, getString(R.string.login_successful), Toast.LENGTH_SHORT).show()
-        
-        if (SecurityUtils.isAppLockEnabled(this)) {
+    }
+
+    private suspend fun navigateAfterAuth(isGuest: Boolean) {
+        val isLockEnabled = withContext(Dispatchers.IO) {
+            SecurityUtils.isAppLockEnabled(applicationContext)
+        }
+        if (isLockEnabled && !isGuest) {
             val intent = Intent(this, LockActivity::class.java)
             intent.putExtra("DESTINATION", "HOME")
             startActivity(intent)
@@ -261,112 +222,47 @@ class LoginActivity : AppCompatActivity() {
         finish()
     }
 
-    private fun startLegacyGoogleSignIn() {
-        android.util.Log.d("LoginActivity", "Starting legacy Google Sign-In fallback")
-        getSharedPreferences("GooglePrefs", MODE_PRIVATE).edit { putBoolean("PREFER_LEGACY", true) }
-        googleSignInLauncher.launch(googleSignInClient.signInIntent)
-    }
-
     private fun signInWithGoogle() {
-        android.util.Log.d("LoginActivity", "signInWithGoogle() starting")
-        val btnGoogle = findViewById<MaterialButton>(R.id.btn_google)
-        btnGoogle.isEnabled = false
-        Toast.makeText(this, "Opening Google Sign-In...", Toast.LENGTH_SHORT).show()
-
+        setLoading(true)
         val preferLegacy = getSharedPreferences("GooglePrefs", MODE_PRIVATE).getBoolean("PREFER_LEGACY", false)
         if (preferLegacy) {
-            android.util.Log.d("LoginActivity", "Prioritizing legacy Google Sign-In due to previous timeout/failure")
             startLegacyGoogleSignIn()
             return
         }
 
-        val credentialManager = try {
-            CredentialManager.create(this)
-        } catch (e: Exception) {
-            android.util.Log.e("LoginActivity", "Failed to create CredentialManager", e)
-            Toast.makeText(this, "Credential Manager Error: ${e.message}", Toast.LENGTH_LONG).show()
-            btnGoogle.isEnabled = true
-            return
-        }
-        
-        val webClientId = try {
-            getString(R.string.default_web_client_id)
-        } catch (e: Exception) {
-            android.util.Log.e("LoginActivity", "default_web_client_id NOT FOUND", e)
-            ""
-        }
-
-        if (webClientId.isEmpty()) {
-            Toast.makeText(this, "Configuration Error: Web Client ID missing.", Toast.LENGTH_LONG).show()
-            btnGoogle.isEnabled = true
-            return
-        }
-
-        val googleIdOption = GetGoogleIdOption.Builder()
-            .setFilterByAuthorizedAccounts(false)
-            .setServerClientId(webClientId)
-            .setAutoSelectEnabled(false)
-            .build()
-
-        val request = GetCredentialRequest.Builder()
-            .addCredentialOption(googleIdOption)
-            .build()
-
         lifecycleScope.launch {
             try {
-                android.util.Log.d("LoginActivity", "Calling getCredential with 3s timeout...")
-                
-                val result = withTimeoutOrNull(3000) {
-                    credentialManager.getCredential(this@LoginActivity, request)
-                }
+                val credentialManager = CredentialManager.create(this@LoginActivity)
+                val webClientId = getString(R.string.default_web_client_id)
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(webClientId)
+                    .build()
+                val request = GetCredentialRequest.Builder().addCredentialOption(googleIdOption).build()
 
+                val result = withTimeoutOrNull(3000) { credentialManager.getCredential(this@LoginActivity, request) }
                 if (result == null) {
-                    android.util.Log.e("LoginActivity", "Credential Manager timed out (3s)")
                     startLegacyGoogleSignIn()
                     return@launch
                 }
 
                 val credential = result.credential
-                android.util.Log.d("LoginActivity", "Credential received: ${credential.type}")
-
                 if (credential is GoogleIdTokenCredential) {
-                    // Reset preference if CredentialManager succeeds
-                    getSharedPreferences("GooglePrefs", MODE_PRIVATE).edit { putBoolean("PREFER_LEGACY", false) }
                     val firebaseCredential = GoogleAuthProvider.getCredential(credential.idToken, null)
-                    android.util.Log.d("LoginActivity", "Signing into Firebase...")
-                    
                     auth.signInWithCredential(firebaseCredential).await()
-                    
-                    val user = auth.currentUser
-                    android.util.Log.d("LoginActivity", "Firebase Google Auth Success")
-                    onAuthSuccess(user?.email)
-                } else {
-                    android.util.Log.e("LoginActivity", "Unexpected credential type: ${credential.type}")
-                    Toast.makeText(this@LoginActivity, "Unexpected credential type", Toast.LENGTH_LONG).show()
+                    onAuthSuccess(auth.currentUser?.email)
                 }
-            } catch (_: GetCredentialCancellationException) {
-                android.util.Log.w("LoginActivity", "User cancelled Google Sign-In")
-                Toast.makeText(this@LoginActivity, "Sign-in cancelled", Toast.LENGTH_SHORT).show()
-            } catch (e: NoCredentialException) {
-                android.util.Log.e("LoginActivity", "No Google accounts found on device")
-                Toast.makeText(this@LoginActivity, "No Google accounts found. Please add one in device settings.", Toast.LENGTH_LONG).show()
-            } catch (e: GetCredentialProviderConfigurationException) {
-                android.util.Log.e("LoginActivity", "Provider configuration error: ${e.message}")
-                startLegacyGoogleSignIn()
-            } catch (e: GetCredentialUnsupportedException) {
-                android.util.Log.e("LoginActivity", "Credential Manager unsupported: ${e.message}")
-                startLegacyGoogleSignIn()
-            } catch (e: GetCredentialException) {
-                android.util.Log.e("LoginActivity", "Credential Manager error (${e.type}): ${e.message}")
-                Toast.makeText(this@LoginActivity, "Error: ${e.message}", Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
-                android.util.Log.e("LoginActivity", "Unexpected error during Google Sign-In", e)
-                Toast.makeText(this@LoginActivity, "An unexpected error occurred: ${e.message}", Toast.LENGTH_LONG).show()
+                startLegacyGoogleSignIn()
             } finally {
-                btnGoogle.isEnabled = true
-                android.util.Log.d("LoginActivity", "Google Sign-In flow finished (btn re-enabled)")
+                setLoading(false)
             }
         }
+    }
+
+    private fun startLegacyGoogleSignIn() {
+        getSharedPreferences("GooglePrefs", MODE_PRIVATE).edit { putBoolean("PREFER_LEGACY", true) }
+        googleSignInLauncher.launch(googleSignInClient.signInIntent)
     }
 
     private fun showResendVerificationDialog() {
@@ -375,13 +271,6 @@ class LoginActivity : AppCompatActivity() {
             .setMessage(getString(R.string.verify_email_warning))
             .setPositiveButton(getString(R.string.resend_verification)) { _, _ ->
                 auth.currentUser?.sendEmailVerification()
-                    ?.addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            Toast.makeText(this, getString(R.string.verification_email_sent), Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(this, "Failed to send: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
-                        }
-                    }
             }
             .setNegativeButton("OK", null)
             .show()

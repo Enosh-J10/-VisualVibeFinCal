@@ -96,7 +96,8 @@ fun HomeScreen(
             Tool("smart_scan", "Smart Scan", R.drawable.ic_calc),
             Tool("insights", "Insights", R.drawable.ic_calc),
             Tool("budget", "Budget Planner", R.drawable.ic_calc),
-            Tool("goals", "Savings Goals", R.drawable.ic_calc)
+            Tool("goals", "Savings Goals", R.drawable.ic_calc),
+            Tool("saving_planner", "Auto Saving Planner", R.drawable.ic_salary)
         )
     }
 
@@ -150,7 +151,7 @@ fun HomeScreen(
     }
 
     val categories = listOf(
-        Category("Insights & Planning", allTools.filter { it.id in listOf("insights", "budget", "goals") }, if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFE3F2FD)),
+        Category("Insights & Planning", allTools.filter { it.id in listOf("insights", "budget", "goals", "saving_planner") }, if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFE3F2FD)),
         Category("Finance Basics", allTools.filter { it.id in listOf("curr", "loan", "tip") }, if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFF0F4F8)),
         Category("Advanced", allTools.filter { it.id in listOf("tax", "perc", "smart_scan") }, if (isDarkMode) Color(0xFF1E322E) else Color(0xFFE8F5E9)),
         Category("Personal", allTools.filter { it.id in listOf("unit", "date", "bmi", "calc", "salary", "notes") }, if (isDarkMode) Color(0xFF2E1B33) else Color(0xFFF3E5F5))
@@ -158,6 +159,7 @@ fun HomeScreen(
 
     var refreshTrigger by remember { mutableIntStateOf(0) }
     var visible by remember { mutableStateOf(false) }
+    var lastRefreshTime by remember { mutableLongStateOf(0L) }
     
     LaunchedEffect(refreshTrigger) {
         visible = false
@@ -298,9 +300,15 @@ fun HomeScreen(
                 
                 Box(modifier = Modifier.fillMaxSize().padding(bottom = 20.dp), contentAlignment = Alignment.Center) {
                     PremiumFab(visible = visible, onClick = { 
-                        refreshTrigger++ 
-                        assistantViewModel.showMessage("Refreshing the page for you! ⚡", state = AssistantState.HAPPY, type = AssistantMessageType.THOUGHT)
-                        Toast.makeText(context, "Page Refreshed", Toast.LENGTH_SHORT).show()
+                        val currentTime = System.currentTimeMillis()
+                        if (currentTime - lastRefreshTime > 2000) {
+                            lastRefreshTime = currentTime
+                            refreshTrigger++ 
+                            assistantViewModel.showMessage("Refreshing the page for you! ⚡", state = AssistantState.HAPPY, type = AssistantMessageType.THOUGHT)
+                            Toast.makeText(context, "Page Refreshed", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Refreshing too fast! Please wait.", Toast.LENGTH_SHORT).show()
+                        }
                     }, modifier = Modifier.semantics {
                         contentDescription = "Refresh the home screen tools"
                     })

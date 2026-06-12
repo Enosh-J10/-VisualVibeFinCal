@@ -159,6 +159,7 @@ fun GoalDialog(goal: Goal?, onDismiss: () -> Unit, onSave: (String, Double, Doub
                     }, 
                     label = "Goal Name",
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                    capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words,
                     error = nameError
                 )
                 ValidatedTextField(
@@ -167,7 +168,7 @@ fun GoalDialog(goal: Goal?, onDismiss: () -> Unit, onSave: (String, Double, Doub
                         targetStr = ValidationUtils.formatNumericInput(it) 
                         targetError = if (targetStr.isEmpty()) "Enter target amount" else null
                     }, 
-                    label = "Target Amount",
+                    label = "Target Amount (${CurrencyUtils.getSelectedCurrency(androidx.compose.ui.platform.LocalContext.current).symbol})",
                     error = targetError
                 )
                 ValidatedTextField(
@@ -176,7 +177,7 @@ fun GoalDialog(goal: Goal?, onDismiss: () -> Unit, onSave: (String, Double, Doub
                         savedStr = ValidationUtils.formatNumericInput(it)
                         savedError = null
                     }, 
-                    label = "Currently Saved",
+                    label = "Currently Saved (${CurrencyUtils.getSelectedCurrency(androidx.compose.ui.platform.LocalContext.current).symbol})",
                     error = savedError
                 )
             }

@@ -37,9 +37,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.enosh.fincalc.viewmodel.AssistantMessageType
-import com.enosh.fincalc.viewmodel.AssistantState
-import com.enosh.fincalc.viewmodel.AssistantViewModel
+import com.enosh.fincalc.viewmodel.*
 import kotlinx.coroutines.launch
 
 @Composable
@@ -98,40 +96,45 @@ fun AssistantRobot(
 
     // Floating and breathing animations
     val infiniteTransition = rememberInfiniteTransition(label = "robot_idle")
-    val floatAnim by infiniteTransition.animateFloat(
+    
+    val floatAnim by if (prefs.isAnimated) infiniteTransition.animateFloat(
         initialValue = 0f,
         targetValue = 10f,
         animationSpec = infiniteRepeatable(
             animation = tween(2500, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse
         ), label = "float"
-    )
-    val breathingAnim by infiniteTransition.animateFloat(
+    ) else remember { mutableStateOf(0f) }
+
+    val breathingAnim by if (prefs.isAnimated) infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = 1.03f,
         animationSpec = infiniteRepeatable(
             animation = tween(2000, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse
         ), label = "breathing"
-    )
-    val armIdleAnim by infiniteTransition.animateFloat(
+    ) else remember { mutableStateOf(1f) }
+
+    val armIdleAnim by if (prefs.isAnimated) infiniteTransition.animateFloat(
         initialValue = -2f,
         targetValue = 2f,
         animationSpec = infiniteRepeatable(
             animation = tween(1500, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse
         ), label = "arm_idle"
-    )
-    val waveOscillation by infiniteTransition.animateFloat(
+    ) else remember { mutableStateOf(0f) }
+
+    val waveOscillation by if (prefs.isAnimated) infiniteTransition.animateFloat(
         initialValue = -15f,
         targetValue = 15f,
         animationSpec = infiniteRepeatable(
             animation = tween(200, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse
         ), label = "wave_oscillation"
-    )
+    ) else remember { mutableStateOf(0f) }
+
     val waveBounce by animateFloatAsState(
-        targetValue = if (robotState == AssistantState.WAVING) -5f else 0f,
+        targetValue = if (robotState == AssistantState.WAVING && prefs.isAnimated) -5f else 0f,
         animationSpec = if (robotState == AssistantState.WAVING)
             infiniteRepeatable(tween(250, easing = EaseInOutSine), RepeatMode.Reverse)
             else spring(),
@@ -143,7 +146,7 @@ fun AssistantRobot(
     val rotationAnim = remember { Animatable(0f) }
 
     LaunchedEffect(robotState) {
-        if (!isPreview) {
+        if (!isPreview && prefs.isAnimated) {
             when (robotState) {
                 AssistantState.EXCITED, AssistantState.HAPPY -> {
                     jumpAnim.animateTo(-25f, tween(200, easing = EaseOutQuad))
@@ -329,8 +332,8 @@ fun AssistantRobot(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    RobotHead(robotState, headColor, accentColor)
-                    RobotBody(bodyColor, accentColor)
+                    RobotHead(robotState, headColor, accentColor, prefs.gender)
+                    RobotBody(bodyColor, accentColor, prefs.gender)
                 }
             }
         }
@@ -424,7 +427,7 @@ fun RobotHand(modifier: Modifier, color: Color) {
 }
 
 @Composable
-fun RobotHead(state: AssistantState, headColor: Color, accentColor: Color) {
+fun RobotHead(state: AssistantState, headColor: Color, accentColor: Color, gender: AssistantGender) {
     Box(
         modifier = Modifier
             .size(50.dp)
@@ -437,6 +440,18 @@ fun RobotHead(state: AssistantState, headColor: Color, accentColor: Color) {
             .shadow(2.dp, RoundedCornerShape(18.dp)),
         contentAlignment = Alignment.Center
     ) {
+        // Accessory
+        if (gender == AssistantGender.FEMALE) {
+             Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-4).dp, y = 4.dp)
+                    .size(10.dp)
+                    .background(Color(0xFFFF80AB), CircleShape)
+                    .shadow(1.dp, CircleShape)
+            )
+        }
+
         // Face
         Box(
             modifier = Modifier
@@ -451,7 +466,7 @@ fun RobotHead(state: AssistantState, headColor: Color, accentColor: Color) {
 }
 
 @Composable
-fun RobotBody(bodyColor: Color, accentColor: Color) {
+fun RobotBody(bodyColor: Color, accentColor: Color, gender: AssistantGender) {
     Box(
         modifier = Modifier
             .offset(y = (-4).dp)
@@ -464,12 +479,23 @@ fun RobotBody(bodyColor: Color, accentColor: Color) {
             )
     ) {
         // Chest Detail
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .size(width = 15.dp, height = 4.dp)
-                .background(accentColor.copy(alpha = 0.3f), CircleShape)
-        )
+        if (gender == AssistantGender.MALE) {
+             Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .offset(y = 2.dp)
+                    .size(width = 6.dp, height = 12.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .background(Color.DarkGray.copy(alpha = 0.6f))
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(width = 15.dp, height = 4.dp)
+                    .background(accentColor.copy(alpha = 0.3f), CircleShape)
+            )
+        }
     }
 }
 
@@ -571,6 +597,13 @@ fun RobotFace(state: AssistantState, color: Color) {
                 drawLine(eyeColor, Offset(size.width * 0.7f, eyeY), Offset(size.width * 0.6f, eyeY + 8f), strokeWidth = 2f)
                 // O Mouth
                 drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.5f, size.height * 0.75f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+            }
+            AssistantState.SHUSH -> {
+                 // Dot Eyes
+                drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.35f, eyeY + 4f))
+                drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                // Shush Mouth (O)
+                drawCircle(eyeColor, radius = 3f, center = Offset(size.width * 0.5f, size.height * 0.7f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
             }
             else -> {
                 // Default Eyes

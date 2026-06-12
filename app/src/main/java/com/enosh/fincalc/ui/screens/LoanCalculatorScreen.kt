@@ -39,7 +39,8 @@ data class LoanSummary(
     val downPayment: Double,
     val loanAmount: Double,
     val monthlyPayment: Double,
-    val totalInterest: Double
+    val totalInterest: Double,
+    val totalLoanCost: Double
 )
 
 @Composable
@@ -87,25 +88,27 @@ fun LoanCalculatorScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .verticalScroll(scrollState)
+                    .padding(horizontal = 24.dp)
             ) {
+                Spacer(Modifier.height(16.dp))
+                
                 CalculatorCard(isDarkMode = isDarkMode) {
                     ValidatedTextField(
                         value = principal,
                         onValueChange = {
                             principal = ValidationUtils.formatNumericInput(it, allowNegative = false)
-                            principalError = if (principal.isEmpty()) "Enter principal" 
+                            principalError = if (principal.isEmpty()) "Enter total cost" 
                                              else if (!ValidationUtils.isValidPositiveNumeric(principal)) "Invalid amount"
                                              else null
                             
-                            // Validate down payment against new principal
                             val p = principal.toDoubleOrNull() ?: 0.0
                             val dp = downPayment.toDoubleOrNull() ?: 0.0
-                            downPaymentError = if (dp > p) "Down payment cannot exceed principal" else null
+                            downPaymentError = if (dp > p) "Down payment cannot exceed total cost" else null
                         },
-                        label = "Principal Amount",
+                        label = "Total Cost (Price)",
                         error = principalError,
                         modifier = Modifier.semantics {
-                            contentDescription = "Enter principal amount. Currently: $principal"
+                            contentDescription = "Enter total cost. Currently: $principal"
                         }
                     )
 
@@ -118,12 +121,12 @@ fun LoanCalculatorScreen(
                             val p = principal.toDoubleOrNull() ?: 0.0
                             val dp = downPayment.toDoubleOrNull() ?: 0.0
                             downPaymentError = when {
-                                dp > p -> "Down payment cannot exceed principal"
+                                dp > p -> "Down payment cannot exceed total cost"
                                 it.isNotEmpty() && !ValidationUtils.isValidPositiveNumeric(it) -> "Invalid amount"
                                 else -> null
                             }
                         },
-                        label = "Down Payment (Optional)",
+                        label = "Down Payment",
                         error = downPaymentError,
                         modifier = Modifier.semantics {
                             contentDescription = "Enter down payment amount. Currently: $downPayment"
@@ -146,27 +149,27 @@ fun LoanCalculatorScreen(
                             contentDescription = "Enter annual interest rate. Currently: $interestRate percent"
                         }
                     )
-                }
 
-                Spacer(Modifier.height(16.dp))
+                    Spacer(Modifier.height(16.dp))
 
-                ValidatedTextField(
-                    value = loanTerm,
-                    onValueChange = {
-                        loanTerm = it.filter { char -> char.isDigit() }
-                        loanTermError = when {
-                            loanTerm.isEmpty() -> "Enter loan term"
-                            loanTerm.toIntOrNull() == 0 -> "Must be at least 1 year"
-                            else -> null
+                    ValidatedTextField(
+                        value = loanTerm,
+                        onValueChange = {
+                            loanTerm = it.filter { char -> char.isDigit() }
+                            loanTermError = when {
+                                loanTerm.isEmpty() -> "Enter loan term"
+                                loanTerm.toIntOrNull() == 0 -> "Must be at least 1 year"
+                                else -> null
+                            }
+                        },
+                        label = "Loan Term (Years)",
+                        error = loanTermError,
+                        keyboardType = KeyboardType.Number,
+                        modifier = Modifier.semantics {
+                            contentDescription = "Enter loan term in years. Currently: $loanTerm"
                         }
-                    },
-                    label = "Loan Term (Years)",
-                    error = loanTermError,
-                    keyboardType = KeyboardType.Number,
-                    modifier = Modifier.padding(horizontal = 24.dp).semantics {
-                        contentDescription = "Enter loan term in years. Currently: $loanTerm"
-                    }
-                )
+                    )
+                }
 
                 Spacer(Modifier.height(32.dp))
 
@@ -187,13 +190,15 @@ fun LoanCalculatorScreen(
                                 if (n > 0) p / n else 0.0
                             }
                             val interest = (emi * n) - p
+                            val totalLoanCost = emi * n
                             
                             loanSummary = LoanSummary(
                                 principal = pOrig,
                                 downPayment = dp,
                                 loanAmount = p,
                                 monthlyPayment = emi,
-                                totalInterest = interest
+                                totalInterest = interest,
+                                totalLoanCost = totalLoanCost
                             )
 
                             assistantViewModel.showMessage("Calculating loan details...", AssistantState.THINKING, AssistantMessageType.THOUGHT, durationMs = 2000)
@@ -216,7 +221,7 @@ fun LoanCalculatorScreen(
                             assistantViewModel.showMessage("Check your inputs! 😅", AssistantState.ERROR)
                         }
                     },
-                    modifier = Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 24.dp).semantics {
+                    modifier = Modifier.fillMaxWidth().height(56.dp).semantics {
                         contentDescription = "Calculate loan payment"
                     },
                     enabled = isValid
@@ -229,12 +234,13 @@ fun LoanCalculatorScreen(
                     CalculatorCard(isDarkMode = isDarkMode) {
                         Text("Loan Summary", fontWeight = FontWeight.Bold, fontSize = 18.sp, color = Color(0xFF00D1B2))
                         Spacer(Modifier.height(16.dp))
-                        SummaryItem("Principal Amount", CurrencyUtils.formatCurrency(context, loanSummary!!.principal), isDarkMode)
+                        SummaryItem("Total Cost (Price)", CurrencyUtils.formatCurrency(context, loanSummary!!.principal), isDarkMode)
                         SummaryItem("Down Payment", CurrencyUtils.formatCurrency(context, loanSummary!!.downPayment), isDarkMode)
-                        SummaryItem("Loan Amount After Down Payment", CurrencyUtils.formatCurrency(context, loanSummary!!.loanAmount), isDarkMode)
+                        SummaryItem("Loan Amount", CurrencyUtils.formatCurrency(context, loanSummary!!.loanAmount), isDarkMode)
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = Color.Gray.copy(alpha = 0.2f))
                         SummaryItem("Monthly Payment", CurrencyUtils.formatCurrency(context, loanSummary!!.monthlyPayment), isDarkMode, highlight = true)
                         SummaryItem("Total Interest", CurrencyUtils.formatCurrency(context, loanSummary!!.totalInterest), isDarkMode)
+                        SummaryItem("Total Loan Cost", CurrencyUtils.formatCurrency(context, loanSummary!!.totalLoanCost), isDarkMode)
                     }
                 }
 
@@ -254,21 +260,5 @@ fun LoanCalculatorScreen(
                 modifier = Modifier.align(androidx.compose.ui.Alignment.CenterEnd).padding(end = 2.dp)
             )
         }
-    }
-}
-
-@Composable
-fun SummaryItem(label: String, value: String, isDarkMode: Boolean, highlight: Boolean = false) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, fontSize = 14.sp, color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray)
-        Text(
-            value, 
-            fontSize = if (highlight) 18.sp else 16.sp, 
-            fontWeight = if (highlight) FontWeight.Bold else FontWeight.Medium,
-            color = if (highlight) Color(0xFF00D1B2) else (if (isDarkMode) Color.White else Color.Black)
-        )
     }
 }

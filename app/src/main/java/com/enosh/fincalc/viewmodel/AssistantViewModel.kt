@@ -14,11 +14,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
 enum class AssistantState {
-    IDLE, HAPPY, THINKING, ERROR, EXCITED, WAVING
+    IDLE, HAPPY, THINKING, ERROR, EXCITED, WAVING, SHUSH
 }
 
 enum class AssistantMessageType {
     SPEECH, THOUGHT
+}
+
+enum class AssistantGender {
+    MALE, FEMALE
 }
 
 enum class AssistantColor(val hex: Long) {
@@ -31,7 +35,9 @@ enum class AssistantColor(val hex: Long) {
     DARK(0xFF212121),
     NEON(0xFFCCFF00),
     RED(0xFFF44336),
-    WHITE(0xFFFFFFFF)
+    WHITE(0xFFFFFFFF),
+    SOLID_BLUE(0xFF1A237E),
+    SOLID_GREEN(0xFF1B5E20)
 }
 
 enum class AssistantTheme(
@@ -45,6 +51,8 @@ enum class AssistantTheme(
     BERRY(AssistantColor.PURPLE, AssistantColor.PURPLE, AssistantColor.PINK, "Berry"),
     NEON_NIGHT(AssistantColor.DARK, AssistantColor.DARK, AssistantColor.NEON, "Neon"),
     SUNSET(AssistantColor.ORANGE, AssistantColor.ORANGE, AssistantColor.RED, "Sunset"),
+    READABLE_DARK(AssistantColor.SOLID_BLUE, AssistantColor.SOLID_BLUE, AssistantColor.CYAN, "Navy"),
+    READABLE_LIGHT(AssistantColor.SOLID_GREEN, AssistantColor.SOLID_GREEN, AssistantColor.NEON, "Forest"),
     CUSTOM(AssistantColor.DEFAULT, AssistantColor.DEFAULT, AssistantColor.DEFAULT, "Custom")
 }
 
@@ -62,7 +70,9 @@ data class AssistantPrefs(
     val customAccentColor: AssistantColor = AssistantColor.DEFAULT,
     val isCustomMode: Boolean = false,
     val lastPosX: Float = -1f,
-    val lastPosY: Float = -1f
+    val lastPosY: Float = -1f,
+    val gender: AssistantGender = AssistantGender.FEMALE,
+    val isAnimated: Boolean = true
 )
 
 class AssistantViewModel : ViewModel() {
@@ -86,7 +96,7 @@ class AssistantViewModel : ViewModel() {
     private val financialTips = listOf(
         "Try saving 10% of your money each month! 📈",
         "Keep track of your spending so you know where it goes. 💰",
-        "The earlier you save, the more you earn! 🪙",
+        "The earlier you save, the more it earns! 🪙",
         "It's a good idea to have some emergency cash ready. 🏦",
         "Don't put all your money in one place. 🥚",
         "Even a small drop in interest rates can save you a lot! 📉"
@@ -110,18 +120,23 @@ class AssistantViewModel : ViewModel() {
         messageJob?.cancel()
         messageJob = viewModelScope.launch {
             _messageType.value = type
+            
+            val finalState = if (_prefs.value.isMuted) AssistantState.SHUSH else state
+
             // Keep waving if I'm already doing it
             if (_robotState.value != AssistantState.WAVING) {
-                _robotState.value = state
+                _robotState.value = finalState
             }
+            
             _isTyping.value = true
-            delay(1000) // Wait a bit to look like I'm typing
+            delay(if (_prefs.value.isAnimated) 1000 else 0) 
             _isTyping.value = false
             _message.value = text
-            // Show the right face after typing
+            
             if (_robotState.value != AssistantState.WAVING) {
-                _robotState.value = state
+                _robotState.value = finalState
             }
+            
             delay(durationMs)
             _message.value = null
             if (_robotState.value != AssistantState.WAVING) {
@@ -131,14 +146,14 @@ class AssistantViewModel : ViewModel() {
     }
 
     fun triggerWave() {
-        if (!_prefs.value.isEnabled) return
+        if (!_prefs.value.isEnabled || !_prefs.value.isAnimated) return
         viewModelScope.launch {
             _robotState.value = AssistantState.WAVING
-            delay(1500) // How long to wave for
+            delay(1500) 
             if (_message.value == null) {
                 _robotState.value = AssistantState.IDLE
             } else {
-                _robotState.value = AssistantState.HAPPY
+                _robotState.value = if (_prefs.value.isMuted) AssistantState.SHUSH else AssistantState.HAPPY
             }
         }
     }
@@ -166,6 +181,11 @@ class AssistantViewModel : ViewModel() {
     fun setMuted(muted: Boolean, context: Context) {
         _prefs.value = _prefs.value.copy(isMuted = muted)
         savePrefs(context)
+        if (muted) {
+            _robotState.value = AssistantState.SHUSH
+        } else {
+            _robotState.value = AssistantState.IDLE
+        }
     }
 
     fun setTheme(theme: AssistantTheme, context: Context) {
@@ -201,13 +221,24 @@ class AssistantViewModel : ViewModel() {
         savePrefs(context)
     }
 
+    fun setGender(gender: AssistantGender, context: Context) {
+        _prefs.value = _prefs.value.copy(gender = gender)
+        savePrefs(context)
+        showMessage(if (gender == AssistantGender.MALE) "I'm your male assistant now! 👔" else "I'm your female assistant now! 👗", AssistantState.HAPPY)
+    }
+
+    fun setAnimated(animated: Boolean, context: Context) {
+        _prefs.value = _prefs.value.copy(isAnimated = animated)
+        savePrefs(context)
+    }
+
     fun resetPosition(context: Context) {
         _prefs.value = _prefs.value.copy(lastPosX = -1f, lastPosY = -1f)
         savePrefs(context)
     }
 
     fun loadPrefs(context: Context) {
-        val sharedPref = context.getSharedPreferences("AssistantPrefs_v2", Context.MODE_PRIVATE)
+        val sharedPref = context.getSharedPreferences("AssistantPrefs_v3", Context.MODE_PRIVATE)
         _prefs.value = AssistantPrefs(
             isEnabled = sharedPref.getBoolean("enabled", true),
             isMuted = sharedPref.getBoolean("muted", false),
@@ -218,12 +249,14 @@ class AssistantViewModel : ViewModel() {
             customAccentColor = AssistantColor.valueOf(sharedPref.getString("customAccentColor", AssistantColor.DEFAULT.name) ?: AssistantColor.DEFAULT.name),
             isCustomMode = sharedPref.getBoolean("isCustomMode", false),
             lastPosX = sharedPref.getFloat("posX", -1f),
-            lastPosY = sharedPref.getFloat("posY", -1f)
+            lastPosY = sharedPref.getFloat("posY", -1f),
+            gender = AssistantGender.valueOf(sharedPref.getString("gender", AssistantGender.FEMALE.name) ?: AssistantGender.FEMALE.name),
+            isAnimated = sharedPref.getBoolean("isAnimated", true)
         )
     }
 
     private fun savePrefs(context: Context) {
-        val sharedPref = context.getSharedPreferences("AssistantPrefs_v2", Context.MODE_PRIVATE)
+        val sharedPref = context.getSharedPreferences("AssistantPrefs_v3", Context.MODE_PRIVATE)
         sharedPref.edit().apply {
             putBoolean("enabled", _prefs.value.isEnabled)
             putBoolean("muted", _prefs.value.isMuted)
@@ -235,6 +268,8 @@ class AssistantViewModel : ViewModel() {
             putBoolean("isCustomMode", _prefs.value.isCustomMode)
             putFloat("posX", _prefs.value.lastPosX)
             putFloat("posY", _prefs.value.lastPosY)
+            putString("gender", _prefs.value.gender.name)
+            putBoolean("isAnimated", _prefs.value.isAnimated)
             apply()
         }
     }

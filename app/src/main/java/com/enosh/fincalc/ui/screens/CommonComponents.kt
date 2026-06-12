@@ -409,6 +409,22 @@ fun EmptyState(
 }
 
 @Composable
+fun SummaryItem(label: String, value: String, isDarkMode: Boolean, highlight: Boolean = false) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, fontSize = 14.sp, color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray)
+        Text(
+            value, 
+            fontSize = if (highlight) 18.sp else 16.sp, 
+            fontWeight = if (highlight) FontWeight.Bold else FontWeight.Medium,
+            color = if (highlight) Color(0xFF00D1B2) else (if (isDarkMode) Color.White else Color.Black)
+        )
+    }
+}
+
+@Composable
 fun VerticalScrollbar(
     scrollState: ScrollState,
     modifier: Modifier = Modifier

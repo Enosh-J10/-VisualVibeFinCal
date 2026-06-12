@@ -79,20 +79,29 @@ class HomeActivity : ComponentActivity() {
 
         enableEdgeToEdge()
         val sharedPref = getSharedPreferences("UserPrefs", MODE_PRIVATE)
+        val openSettings = intent.getBooleanExtra("OPEN_SETTINGS", false)
+        val resetPin = intent.getBooleanExtra("RESET_PIN", false)
+
         setContent {
             val assistantViewModel: AssistantViewModel = viewModel()
             val context = LocalContext.current
-            LaunchedEffect(Unit) {
-                assistantViewModel.loadPrefs(context)
-                delay(1000)
-                assistantViewModel.showMessage("Hey! Ready to calculate? 😊", AssistantState.HAPPY)
-            }
             
             var isDarkMode by remember { 
                 mutableStateOf(sharedPref.getBoolean("is_dark_mode", true)) 
             }
             FinCalcTheme(darkTheme = isDarkMode) {
                 val navController = rememberNavController()
+
+                LaunchedEffect(Unit) {
+                    assistantViewModel.loadPrefs(context)
+                    delay(1000)
+                    assistantViewModel.showMessage("Hey! Ready to calculate? 😊", AssistantState.HAPPY)
+                    
+                    if (openSettings) {
+                        navController.navigate(Screen.Settings.route + "?resetPin=$resetPin")
+                    }
+                }
+
                 Box {
                     NavGraph(
                         navController = navController,

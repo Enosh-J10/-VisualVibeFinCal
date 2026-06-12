@@ -30,6 +30,9 @@ import androidx.compose.ui.platform.LocalContext
 
 import com.enosh.fincalc.viewmodel.AssistantViewModel
 
+import androidx.navigation.NavType
+import androidx.navigation.navArgument
+
 @Composable
 fun NavGraph(
     navController: NavHostController,
@@ -67,6 +70,7 @@ fun NavGraph(
                         "insights" -> navController.navigate(Screen.Insights.route)
                         "budget" -> navController.navigate(Screen.Budget.route)
                         "goals" -> navController.navigate(Screen.Goals.route)
+                        "saving_planner" -> navController.navigate(Screen.SavingPlanner.route)
                         "settings" -> navController.navigate(Screen.Settings.route)
                     }
                 },
@@ -74,7 +78,7 @@ fun NavGraph(
                 financialViewModel = viewModel()
             )
         }
-        // ... existing routes ...
+        
         composable(Screen.CurrencyConverter.route) { 
             CurrencyConverterScreen(
                 navController = navController, 
@@ -100,6 +104,8 @@ fun NavGraph(
         composable(Screen.Insights.route) { InsightsDashboardScreen(navController, isDarkMode, assistantViewModel) }
         composable(Screen.Budget.route) { BudgetPlannerScreen(navController, isDarkMode, assistantViewModel) }
         composable(Screen.Goals.route) { GoalsScreen(navController, isDarkMode, assistantViewModel) }
+        composable(Screen.SavingPlanner.route) { com.enosh.fincalc.ui.screens.AutoSavingPlannerScreen(navController, isDarkMode, assistantViewModel) }
+        
         composable(Screen.Onboarding.route) { 
             OnboardingScreen(onFinished = {
                 sharedPref.edit().putBoolean("onboarding_complete", true).apply()
@@ -110,15 +116,22 @@ fun NavGraph(
             }) 
         }
 
-        composable(Screen.Settings.route) {
-            // Reusing the Settings content from HomeScreen's Dialog if possible, 
-            // but for a dedicated screen, we might want a slightly different layout.
-            // For now, let's keep it simple or create a new SettingsScreen.
+        composable(
+            route = Screen.Settings.route + "?resetPin={resetPin}",
+            arguments = listOf(
+                navArgument("resetPin") { 
+                    type = NavType.BoolType
+                    defaultValue = false 
+                }
+            )
+        ) { backStackEntry ->
+            val resetPin = backStackEntry.arguments?.getBoolean("resetPin") ?: false
             com.enosh.fincalc.ui.screens.SettingsScreen(
                 navController = navController,
                 isDarkMode = isDarkMode,
                 onDarkModeChange = onDarkModeChange,
-                assistantViewModel = assistantViewModel
+                assistantViewModel = assistantViewModel,
+                initialResetPin = resetPin
             )
         }
     }

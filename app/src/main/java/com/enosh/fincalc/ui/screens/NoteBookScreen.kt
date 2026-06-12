@@ -136,7 +136,8 @@ fun NoteBookScreen(
                         },
                         label = "Title",
                         error = noteTitleError,
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                        capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
                     )
                     Spacer(Modifier.height(12.dp))
                     ValidatedTextField(
@@ -148,6 +149,7 @@ fun NoteBookScreen(
                         label = "Content",
                         error = noteTextError,
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                        capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
                         modifier = Modifier.height(150.dp)
                     )
                 }

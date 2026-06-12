@@ -10,6 +10,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -23,6 +24,7 @@ fun ValidatedTextField(
     modifier: Modifier = Modifier,
     error: String? = null,
     keyboardType: KeyboardType = KeyboardType.Decimal,
+    capitalization: KeyboardCapitalization = KeyboardCapitalization.None,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     singleLine: Boolean = true
 ) {
@@ -37,7 +39,10 @@ fun ValidatedTextField(
                     contentDescription = "Enter $label. Currently: $value" 
                 },
             isError = error != null,
-            keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = keyboardType,
+                capitalization = capitalization
+            ),
             visualTransformation = visualTransformation,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color(0xFF00D1B2),

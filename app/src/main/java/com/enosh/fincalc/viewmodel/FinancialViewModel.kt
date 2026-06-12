@@ -48,6 +48,7 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
         if (expenses.isEmpty()) {
             suggestions.add("Welcome! Start by scanning a receipt to track your spending. 📸")
             suggestions.add("Tip: Setting a monthly budget helps you save more. 💰")
+            suggestions.add("Recommendation: Use the Saving Planner to map out your goals! 🚀")
             return suggestions
         }
 
@@ -57,17 +58,32 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
         }
 
         val totalSpent = currentMonthExpenses.sumOf { it.amount }
-        if (budget != null && totalSpent > budget.amount) {
-            suggestions.add("You went over your budget! Maybe try to spend a bit less for the rest of the month. 📉")
+        if (budget != null) {
+            val budgetAmount = budget.amount
+            if (totalSpent > budgetAmount) {
+                suggestions.add("You went over your budget! Try to cut down on non-essential spending. 📉")
+                suggestions.add("Suggestion: Review your 'Shopping' category for potential savings. 🛍️")
+            } else if (totalSpent > budgetAmount * 0.8) {
+                suggestions.add("You've used 80% of your budget. Time to be careful! ⚠️")
+            } else if (totalSpent < budgetAmount * 0.5 && Calendar.getInstance().get(Calendar.DAY_OF_MONTH) > 20) {
+                suggestions.add("Great job! You're well under budget this late in the month. 🌟")
+            }
+        } else {
+            suggestions.add("Next Action: Set a monthly budget to get better insights! 📊")
         }
 
         val foodExpenses = currentMonthExpenses.filter { it.category == "Food & Dining" }.sumOf { it.amount }
-        if (foodExpenses > totalSpent * 0.4 && totalSpent > 0) {
-            suggestions.add("You're spending a lot on food lately—maybe try some home cooking? 🍕")
+        if (foodExpenses > totalSpent * 0.4 && totalSpent > 50) {
+            suggestions.add("Expense Reduction: You're spending a lot on food—maybe try some home cooking? 🍕")
+        }
+
+        val shoppingExpenses = currentMonthExpenses.filter { it.category == "Shopping" }.sumOf { it.amount }
+        if (shoppingExpenses > totalSpent * 0.3) {
+            suggestions.add("Recommendation: Consider waiting 24 hours before making unplanned purchases. 🛒")
         }
 
         if (currentMonthExpenses.size > 5 && totalSpent < 50) {
-            suggestions.add("Great job keeping your spending low this month! 🌟")
+            suggestions.add("Saving Option: Since your spending is low, maybe put an extra £20 into your goals? 🎯")
         }
 
         return suggestions
