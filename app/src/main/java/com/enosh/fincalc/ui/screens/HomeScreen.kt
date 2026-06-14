@@ -5,15 +5,15 @@ import android.widget.Toast
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Favorite
-import androidx.compose.material.icons.filled.FavoriteBorder
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.getValue
@@ -97,7 +97,8 @@ fun HomeScreen(
             Tool("insights", "Insights", R.drawable.ic_calc),
             Tool("budget", "Budget Planner", R.drawable.ic_calc),
             Tool("goals", "Savings Goals", R.drawable.ic_calc),
-            Tool("saving_planner", "Auto Saving Planner", R.drawable.ic_salary)
+            Tool("saving_planner", "Auto Saving Planner", R.drawable.ic_salary),
+            Tool("smart_travel", "Smart Travel", R.drawable.ic_tip)
         )
     }
 
@@ -150,12 +151,34 @@ fun HomeScreen(
             .mapNotNull { id -> allTools.find { it.id == id } }
     }
 
-    val categories = listOf(
-        Category("Insights & Planning", allTools.filter { it.id in listOf("insights", "budget", "goals", "saving_planner") }, if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFE3F2FD)),
-        Category("Finance Basics", allTools.filter { it.id in listOf("curr", "loan", "tip") }, if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFF0F4F8)),
-        Category("Advanced", allTools.filter { it.id in listOf("tax", "perc", "smart_scan") }, if (isDarkMode) Color(0xFF1E322E) else Color(0xFFE8F5E9)),
-        Category("Personal", allTools.filter { it.id in listOf("unit", "date", "bmi", "calc", "salary", "notes") }, if (isDarkMode) Color(0xFF2E1B33) else Color(0xFFF3E5F5))
-    )
+    val userName = remember { sharedPref.getString("name", if (isGuest) "Guest" else "User") ?: "User" }
+    val greeting = remember {
+        val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+        when (hour) {
+            in 0..11 -> "Good Morning"
+            in 12..16 -> "Good Afternoon"
+            else -> "Good Evening"
+        }
+    }
+
+    var searchQuery by remember { mutableStateOf("") }
+    
+    val filteredTools = remember(searchQuery) {
+        if (searchQuery.isBlank()) allTools
+        else allTools.filter { 
+            it.name.contains(searchQuery, ignoreCase = true) ||
+            (it.id == "smart_travel" && listOf("travel", "trip", "split", "group", "expense", "settlement").any { tag -> tag.contains(searchQuery, ignoreCase = true) })
+        }
+    }
+
+    val categories = remember(searchQuery, isDarkMode) {
+        listOf(
+            Category("Insights & Planning", filteredTools.filter { it.id in listOf("insights", "budget", "goals", "saving_planner") }, if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFE3F2FD)),
+            Category("Finance Basics", filteredTools.filter { it.id in listOf("curr", "loan", "tip") }, if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFF0F4F8)),
+            Category("Advanced", filteredTools.filter { it.id in listOf("tax", "perc", "smart_scan", "smart_travel") }, if (isDarkMode) Color(0xFF1E322E) else Color(0xFFE8F5E9)),
+            Category("Personal", filteredTools.filter { it.id in listOf("unit", "date", "bmi", "calc", "salary", "notes") }, if (isDarkMode) Color(0xFF2E1B33) else Color(0xFFF3E5F5))
+        ).filter { it.tools.isNotEmpty() }
+    }
 
     var refreshTrigger by remember { mutableIntStateOf(0) }
     var visible by remember { mutableStateOf(false) }
@@ -181,33 +204,67 @@ fun HomeScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(stringResource(R.string.fincalc), fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black) },
-                navigationIcon = {
-                    TextButton(onClick = onLogout) {
-                        Text(stringResource(R.string.logout), color = Color(0xFF00D1B2))
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { 
-                        if (isGuest) {
-                            Toast.makeText(context, "Guest users don't have settings", Toast.LENGTH_LONG).show()
-                        } else {
-                            handleNavigateToTool("settings")
+            Column(modifier = Modifier.background(if (isDarkMode) Color(0xFF0F2027) else Color.White)) {
+                CenterAlignedTopAppBar(
+                    title = { Text(stringResource(R.string.fincalc), fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black) },
+                    navigationIcon = {
+                        TextButton(onClick = onLogout) {
+                            Text(stringResource(R.string.logout), color = Color(0xFF00D1B2))
                         }
-                    }) {
-                        Icon(
-                            Icons.Default.Settings,
-                            contentDescription = stringResource(R.string.settings),
-                            tint = if (isDarkMode) Color.White else Color.Black
+                    },
+                    actions = {
+                        IconButton(onClick = { 
+                            if (isGuest) {
+                                Toast.makeText(context, "Guest users don't have settings", Toast.LENGTH_LONG).show()
+                            } else {
+                                handleNavigateToTool("settings")
+                            }
+                        }) {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = stringResource(R.string.settings),
+                                tint = if (isDarkMode) Color.White else Color.Black
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Color.Transparent
+                    ),
+                    windowInsets = WindowInsets.statusBars
+                )
+                
+                // Greeting and Search
+                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                    Text(
+                        "$greeting, $userName",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDarkMode) Color.White else Color.Black
+                    )
+                    Text(
+                        "Let's get on track for today.",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search tools...") },
+                        modifier = Modifier.fillMaxWidth().height(50.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
+                        trailingIcon = if (searchQuery.isNotEmpty()) {
+                            { IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, null, tint = Color.Gray) } }
+                        } else null,
+                        singleLine = true,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF00D1B2),
+                            unfocusedBorderColor = Color.Gray.copy(alpha = 0.5f)
                         )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.Transparent
-                ),
-                windowInsets = WindowInsets.statusBars
-            )
+                    )
+                }
+            }
         },
         bottomBar = {
             Column(
@@ -276,29 +333,35 @@ fun HomeScreen(
                     )
                     .padding(innerPadding)
             ) {
+                val scrollState = androidx.compose.foundation.rememberScrollState()
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
+                        .verticalScroll(scrollState)
                         .padding(8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Row(Modifier.fillMaxWidth().weight(1f)) {
-                            CategoryCard(categories[0], Modifier.weight(1f).fillMaxHeight(), visible, 0, isDarkMode, handleNavigateToTool, favoriteTools, toggleFavorite)
-                            CategoryCard(categories[1], Modifier.weight(1f).fillMaxHeight(), visible, 1, isDarkMode, handleNavigateToTool, favoriteTools, toggleFavorite)
+                    if (categories.isEmpty()) {
+                        Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
+                            Text("No tools found", color = Color.Gray)
                         }
-                        Row(Modifier.fillMaxWidth().weight(1f)) {
-                            CategoryCard(categories[2], Modifier.weight(1f).fillMaxHeight(), visible, 2, isDarkMode, handleNavigateToTool, favoriteTools, toggleFavorite)
-                            CategoryCard(categories[3], Modifier.weight(1f).fillMaxHeight(), visible, 3, isDarkMode, handleNavigateToTool, favoriteTools, toggleFavorite)
+                    } else {
+                        // Grid-like layout but scrollable
+                        categories.chunked(2).forEach { rowCategories ->
+                            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
+                                rowCategories.forEach { cat ->
+                                    CategoryCard(cat, Modifier.weight(1f).fillMaxHeight(), visible, categories.indexOf(cat), isDarkMode, handleNavigateToTool, favoriteTools, toggleFavorite)
+                                }
+                                if (rowCategories.size == 1) {
+                                    Spacer(Modifier.weight(1f))
+                                }
+                            }
                         }
                     }
-                }
-                
-                Box(modifier = Modifier.fillMaxSize().padding(bottom = 20.dp), contentAlignment = Alignment.Center) {
+
+                    Spacer(Modifier.height(16.dp))
+
+                    // Refresh/Up Button - Moved here to move with scroll
                     PremiumFab(visible = visible, onClick = { 
                         val currentTime = System.currentTimeMillis()
                         if (currentTime - lastRefreshTime > 2000) {
@@ -312,6 +375,8 @@ fun HomeScreen(
                     }, modifier = Modifier.semantics {
                         contentDescription = "Refresh the home screen tools"
                     })
+
+                    Spacer(Modifier.height(120.dp)) // Padding for bottom nav chips
                 }
             }
         }

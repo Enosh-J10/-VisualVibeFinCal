@@ -22,11 +22,21 @@ abstract class AppDatabase : RoomDatabase() {
         private var INSTANCE: AppDatabase? = null
 
         fun getDatabase(context: Context): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
+            val prefs = context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
+            val isGuest = prefs.getBoolean("is_guest", false)
+            val userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
+            val dbName = if (isGuest) "fincalc_database_guest" else "fincalc_database_$userId"
+
+            val currentInstance = INSTANCE
+            if (currentInstance != null && currentInstance.openHelper.databaseName == dbName) {
+                return currentInstance
+            }
+
+            return synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    "fincalc_database"
+                    dbName
                 )
                 .fallbackToDestructiveMigration(true)
                 .build()

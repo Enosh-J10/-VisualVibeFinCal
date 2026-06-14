@@ -99,7 +99,9 @@ class AssistantViewModel : ViewModel() {
         "The earlier you save, the more it earns! 🪙",
         "It's a good idea to have some emergency cash ready. 🏦",
         "Don't put all your money in one place. 🥚",
-        "Even a small drop in interest rates can save you a lot! 📉"
+        "Even a small drop in interest rates can save you a lot! 📉",
+        "Planning a trip? Use Smart Travel to split costs! ✈️",
+        "Don't forget to finalize your trip to see the total! 🗺️"
     )
 
     private val funFacts = listOf(

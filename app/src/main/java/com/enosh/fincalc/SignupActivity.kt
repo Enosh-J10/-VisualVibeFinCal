@@ -45,6 +45,7 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -222,8 +223,19 @@ class SignupActivity : AppCompatActivity() {
         lifecycleScope.launch {
             try {
                 // Perform Firebase Signup
-                auth.createUserWithEmailAndPassword(email, password).await()
-                
+                val result = auth.createUserWithEmailAndPassword(email, password).await()
+                val uid = result.user?.uid
+                if (uid != null) {
+                    FirebaseFirestore.getInstance().collection("users").document(uid).set(
+                        mapOf(
+                            "uid" to uid,
+                            "name" to name,
+                            "email" to email,
+                            "searchName" to name.lowercase()
+                        )
+                    )
+                }
+
                 // Save profile data (Off main thread)
                 withContext(Dispatchers.IO) {
                     val securePref = SecurityUtils.getEncryptedPrefs(applicationContext)

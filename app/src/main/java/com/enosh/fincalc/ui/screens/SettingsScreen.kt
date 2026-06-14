@@ -289,38 +289,42 @@ fun SettingsScreen(
 
                         Column {
                             Text("Assistant Type", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            FlowRow(
+                            Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 FilterChip(
                                     selected = assistantPrefs.gender == AssistantGender.FEMALE,
                                     onClick = { assistantViewModel.setGender(AssistantGender.FEMALE, context) },
-                                    label = { Text("Female") }
+                                    label = { Text("Female", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
+                                    modifier = Modifier.weight(1f)
                                 )
                                 FilterChip(
                                     selected = assistantPrefs.gender == AssistantGender.MALE,
                                     onClick = { assistantViewModel.setGender(AssistantGender.MALE, context) },
-                                    label = { Text("Male") }
+                                    label = { Text("Male", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
 
                         Column {
                             Text("Assistant State", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            FlowRow(
+                            Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 FilterChip(
                                     selected = assistantPrefs.isAnimated,
                                     onClick = { assistantViewModel.setAnimated(true, context) },
-                                    label = { Text("Animated") }
+                                    label = { Text("Animated", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
+                                    modifier = Modifier.weight(1f)
                                 )
                                 FilterChip(
                                     selected = !assistantPrefs.isAnimated,
                                     onClick = { assistantViewModel.setAnimated(false, context) },
-                                    label = { Text("Static") }
+                                    label = { Text("Static", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
                         }
@@ -398,17 +402,26 @@ fun SettingsScreen(
 
                         Column {
                             Text(stringResource(R.string.interaction_frequency), modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            FlowRow(
+                            Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
                                 AssistantFrequency.entries.forEach { freq ->
                                     FilterChip(
                                         selected = assistantPrefs.frequency == freq,
                                         onClick = { assistantViewModel.setFrequency(freq, context) },
-                                        label = { Text(freq.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                                        label = { 
+                                            Text(
+                                                freq.name.lowercase().replaceFirstChar { it.uppercase() },
+                                                fontSize = 11.sp,
+                                                maxLines = 1,
+                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) 
+                                        },
+                                        modifier = Modifier.weight(1f)
                                     )
                                 }
                             }

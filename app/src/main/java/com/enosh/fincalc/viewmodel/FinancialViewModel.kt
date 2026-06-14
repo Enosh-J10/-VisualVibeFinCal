@@ -45,10 +45,15 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun getSmartSuggestions(expenses: List<Expense>, budget: Budget?): List<String> {
         val suggestions = mutableListOf<String>()
-        if (expenses.isEmpty()) {
+        if (expenses.isEmpty() && (budget == null || budget.amount == 0.0)) {
             suggestions.add("Welcome! Start by scanning a receipt to track your spending. 📸")
             suggestions.add("Tip: Setting a monthly budget helps you save more. 💰")
             suggestions.add("Recommendation: Use the Saving Planner to map out your goals! 🚀")
+            return suggestions
+        }
+
+        if (budget != null && budget.amount > 0 && expenses.isEmpty()) {
+            suggestions.add("Great! Your budget is set. Now scan a receipt to start tracking! 📸")
             return suggestions
         }
 
@@ -57,16 +62,23 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
             SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date(it.date)) == currentMonth 
         }
 
+        if (currentMonthExpenses.isEmpty() && budget != null && budget.amount > 0) {
+            suggestions.add("New month, new goals! Your budget is ready for your first expense. 🗓️")
+            return suggestions
+        }
+
         val totalSpent = currentMonthExpenses.sumOf { it.amount }
-        if (budget != null) {
+        if (budget != null && budget.amount > 0) {
             val budgetAmount = budget.amount
             if (totalSpent > budgetAmount) {
                 suggestions.add("You went over your budget! Try to cut down on non-essential spending. 📉")
                 suggestions.add("Suggestion: Review your 'Shopping' category for potential savings. 🛍️")
-            } else if (totalSpent > budgetAmount * 0.8) {
-                suggestions.add("You've used 80% of your budget. Time to be careful! ⚠️")
-            } else if (totalSpent < budgetAmount * 0.5 && Calendar.getInstance().get(Calendar.DAY_OF_MONTH) > 20) {
-                suggestions.add("Great job! You're well under budget this late in the month. 🌟")
+            } else if (totalSpent > budgetAmount * 0.9) {
+                suggestions.add("Warning: You've used 90% of your budget. Be careful! ⚠️")
+            } else if (totalSpent > budgetAmount * 0.7) {
+                suggestions.add("You've used 70% of your budget. Keep an eye on your spending. 📊")
+            } else if (totalSpent < budgetAmount * 0.4 && Calendar.getInstance().get(Calendar.DAY_OF_MONTH) > 15) {
+                suggestions.add("Great job! You're well under budget for mid-month. 🌟")
             }
         } else {
             suggestions.add("Next Action: Set a monthly budget to get better insights! 📊")

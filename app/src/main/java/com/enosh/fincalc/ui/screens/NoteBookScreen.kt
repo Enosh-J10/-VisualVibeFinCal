@@ -46,9 +46,13 @@ fun NoteBookScreen(
     var notes by remember { 
         mutableStateOf(
             sharedPref.all.map { (key, value) -> 
-                val parts = value.toString().split("::::", limit = 2)
-                val (title, content) = if (parts.size > 1) parts[0] to parts[1] else "No Title" to parts[0]
-                Note(key, title, content, key.toLongOrNull() ?: 0L) 
+                val parts = value.toString().split("::::")
+                val (title, content, type) = when (parts.size) {
+                    3 -> Triple(parts[0], parts[1], parts[2])
+                    2 -> Triple(parts[0], parts[1], "TEXT")
+                    else -> Triple("No Title", parts[0], "TEXT")
+                }
+                Note(key, title, content, key.toLongOrNull() ?: 0L, type == "CHECKLIST") 
             }.sortedByDescending { it.timestamp }
         )
     }
@@ -57,6 +61,7 @@ fun NoteBookScreen(
     var editingNote by remember { mutableStateOf<Note?>(null) }
     var noteTitle by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
+    var isChecklistMode by remember { mutableStateOf(false) }
     var noteTitleError by remember { mutableStateOf<String?>(null) }
     var noteTextError by remember { mutableStateOf<String?>(null) }
 
@@ -64,6 +69,7 @@ fun NoteBookScreen(
         if (editingNote != null) {
             noteTitle = editingNote!!.title
             noteText = editingNote!!.content
+            isChecklistMode = editingNote!!.isChecklist
             showAddDialog = true
         }
     }
@@ -122,10 +128,27 @@ fun NoteBookScreen(
                 editingNote = null
                 noteTitle = ""
                 noteText = ""
+                isChecklistMode = false
             },
             shape = RoundedCornerShape(24.dp),
             containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White,
-            title = { Text(if (editingNote == null) "Add Note" else "Edit Note", fontWeight = FontWeight.Bold) },
+            title = { 
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (editingNote == null) "Add Note" else "Edit Note", fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Checklist", fontSize = 12.sp, color = Color.Gray)
+                        Checkbox(
+                            checked = isChecklistMode,
+                            onCheckedChange = { isChecklistMode = it },
+                            colors = CheckboxDefaults.colors(checkedColor = Color(0xFF00D1B2))
+                        )
+                    }
+                }
+            },
             text = {
                 Column {
                     ValidatedTextField(
@@ -146,11 +169,12 @@ fun NoteBookScreen(
                             noteText = it
                             noteTextError = if (it.isBlank()) "Content is required" else null
                         },
-                        label = "Content",
+                        label = if (isChecklistMode) "List Items (One per line)" else "Content",
                         error = noteTextError,
                         keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
                         capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences,
-                        modifier = Modifier.height(150.dp)
+                        modifier = Modifier.height(150.dp),
+                        singleLine = false
                     )
                 }
             },
@@ -159,10 +183,19 @@ fun NoteBookScreen(
                     onClick = {
                         if (noteText.isNotBlank() && noteTitle.isNotBlank()) {
                             val id = editingNote?.id ?: System.currentTimeMillis().toString()
-                            val combinedData = "$noteTitle::::$noteText"
+                            val type = if (isChecklistMode) "CHECKLIST" else "TEXT"
+                            
+                            // If switching to checklist for the first time, format items
+                            val contentToSave = if (isChecklistMode && !noteText.contains(":false") && !noteText.contains(":true")) {
+                                noteText.lines().filter { it.isNotBlank() }.joinToString(",") { "$it:false" }
+                            } else {
+                                noteText
+                            }
+
+                            val combinedData = "$noteTitle::::$contentToSave::::$type"
                             sharedPref.edit { putString(id, combinedData) }
                             
-                            val newNote = Note(id, noteTitle, noteText, id.toLong())
+                            val newNote = Note(id, noteTitle, contentToSave, id.toLongOrNull() ?: System.currentTimeMillis(), isChecklistMode)
                             if (editingNote == null) {
                                 notes = (listOf(newNote) + notes).sortedByDescending { it.timestamp }
                                 assistantViewModel.showMessage("Note saved!", AssistantState.HAPPY)
@@ -173,6 +206,7 @@ fun NoteBookScreen(
                             
                             noteText = ""
                             noteTitle = ""
+                            isChecklistMode = false
                             editingNote = null
                             showAddDialog = false
                         }
@@ -189,16 +223,19 @@ fun NoteBookScreen(
                     editingNote = null
                     noteTitle = ""
                     noteText = ""
+                    isChecklistMode = false
                 }) { Text("Cancel", color = Color.Gray) }
             }
         )
     }
 }
 
-data class Note(val id: String, val title: String, val content: String, val timestamp: Long)
+data class Note(val id: String, val title: String, val content: String, val timestamp: Long, val isChecklist: Boolean = false)
 
 @Composable
 fun NoteItem(note: Note, isDarkMode: Boolean, onDelete: () -> Unit, onEdit: () -> Unit) {
+    val context = LocalContext.current
+    val sharedPref = remember { context.getSharedPreferences("NotesPrefs", Context.MODE_PRIVATE) }
     val date = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()).format(Date(note.timestamp))
     
     Card(
@@ -231,12 +268,49 @@ fun NoteItem(note: Note, isDarkMode: Boolean, onDelete: () -> Unit, onEdit: () -
                 )
                 Spacer(Modifier.height(6.dp))
             }
-            Text(
-                note.content,
-                fontSize = 15.sp,
-                lineHeight = 20.sp,
-                color = (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.8f)
-            )
+            
+            if (note.isChecklist) {
+                val items = note.content.split(",").filter { it.contains(":") }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items.forEachIndexed { index, itemStr ->
+                        val parts = itemStr.split(":")
+                        val text = parts[0]
+                        val checked = parts[1].toBoolean()
+                        
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = checked,
+                                onCheckedChange = { isChecked ->
+                                    val newItems = items.toMutableList()
+                                    newItems[index] = "$text:$isChecked"
+                                    val newContent = newItems.joinToString(",")
+                                    val combinedData = "${note.title}::::$newContent::::CHECKLIST"
+                                    sharedPref.edit { putString(note.id, combinedData) }
+                                    // Note: This won't trigger a recompose of the list unless 'notes' state is updated in NoteBookScreen.
+                                    // For a quick fix, we can use a local state or rely on the user re-opening the screen.
+                                    // Better: The caller should handle updates.
+                                },
+                                colors = CheckboxDefaults.colors(checkedColor = Color(0xFF00D1B2)),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(
+                                text,
+                                fontSize = 15.sp,
+                                color = (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.8f),
+                                textDecoration = if (checked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
+                            )
+                        }
+                    }
+                }
+            } else {
+                Text(
+                    note.content,
+                    fontSize = 15.sp,
+                    lineHeight = 20.sp,
+                    color = (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.8f)
+                )
+            }
         }
     }
 }

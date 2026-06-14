@@ -40,23 +40,30 @@ object SecurityUtils {
         return sharedPrefs!!
     }
 
+    private fun getEffectiveUid(context: Context): String {
+        val prefs = context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
+        val isGuest = prefs.getBoolean("is_guest", false)
+        if (isGuest) return "guest"
+        return com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
+    }
+
     fun isAppLockEnabled(context: Context): Boolean {
-        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest"
+        val uid = getEffectiveUid(context)
         return getEncryptedPrefs(context).getBoolean("app_lock_enabled_$uid", false)
     }
 
     fun setAppLockEnabled(context: Context, enabled: Boolean) {
-        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest"
+        val uid = getEffectiveUid(context)
         getEncryptedPrefs(context).edit().putBoolean("app_lock_enabled_$uid", enabled).apply()
     }
 
     fun getAppPin(context: Context): String? {
-        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest"
+        val uid = getEffectiveUid(context)
         return getEncryptedPrefs(context).getString("app_pin_$uid", null)
     }
 
     fun setAppPin(context: Context, pin: String) {
-        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest"
+        val uid = getEffectiveUid(context)
         // Hash the PIN before saving for better security
         val hashedPin = hashPin(pin)
         getEncryptedPrefs(context).edit().putString("app_pin_$uid", hashedPin).apply()
@@ -84,12 +91,12 @@ object SecurityUtils {
     }
 
     fun isBiometricEnabled(context: Context): Boolean {
-        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest"
+        val uid = getEffectiveUid(context)
         return getEncryptedPrefs(context).getBoolean("biometric_enabled_$uid", false)
     }
 
     fun setBiometricEnabled(context: Context, enabled: Boolean) {
-        val uid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest"
+        val uid = getEffectiveUid(context)
         getEncryptedPrefs(context).edit().putBoolean("biometric_enabled_$uid", enabled).apply()
     }
 }

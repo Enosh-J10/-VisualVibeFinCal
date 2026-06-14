@@ -110,20 +110,21 @@ fun BudgetPlannerScreen(
     }
 
     if (showEditDialog) {
-        var amountStr by remember { mutableStateOf(budget?.amount?.toString() ?: "") }
+        var amountStr by remember { mutableStateOf(budget?.amount?.let { if (it == 0.0) "" else it.toString() } ?: "") }
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
             title = { Text("Set Budget for $currentMonth") },
             text = {
                 ValidatedTextField(
                     value = amountStr,
-                    onValueChange = { amountStr = ValidationUtils.formatNumericInput(it) },
-                    label = "Monthly Budget Amount"
+                    onValueChange = { amountStr = ValidationUtils.formatNumericInput(it, allowNegative = false) },
+                    label = "Monthly Budget Amount",
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
                 )
             },
             confirmButton = {
                 Button(onClick = {
-                    val amount = amountStr.toDoubleOrNull() ?: 0.0
+                    val amount = amountStr.toDoubleOrNull()?.let { kotlin.math.abs(it) } ?: 0.0
                     financialViewModel.setBudget(Budget(id = budget?.id ?: 0, month = currentMonth, amount = amount))
                     showEditDialog = false
                     scope.launch {

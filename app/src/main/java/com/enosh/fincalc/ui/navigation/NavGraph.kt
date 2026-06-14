@@ -23,6 +23,8 @@ import com.enosh.fincalc.ui.screens.InsightsDashboardScreen
 import com.enosh.fincalc.ui.screens.BudgetPlannerScreen
 import com.enosh.fincalc.ui.screens.GoalsScreen
 import com.enosh.fincalc.ui.screens.OnboardingScreen
+import com.enosh.fincalc.ui.screens.SmartTravelScreen
+import com.enosh.fincalc.ui.screens.TripDetailScreen
 import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -71,6 +73,7 @@ fun NavGraph(
                         "budget" -> navController.navigate(Screen.Budget.route)
                         "goals" -> navController.navigate(Screen.Goals.route)
                         "saving_planner" -> navController.navigate(Screen.SavingPlanner.route)
+                        "smart_travel" -> navController.navigate(Screen.SmartTravel.route)
                         "settings" -> navController.navigate(Screen.Settings.route)
                     }
                 },
@@ -106,6 +109,15 @@ fun NavGraph(
         composable(Screen.Goals.route) { GoalsScreen(navController, isDarkMode, assistantViewModel) }
         composable(Screen.SavingPlanner.route) { com.enosh.fincalc.ui.screens.AutoSavingPlannerScreen(navController, isDarkMode, assistantViewModel) }
         
+        composable(Screen.SmartTravel.route) { SmartTravelScreen(navController, isDarkMode, assistantViewModel) }
+        composable(
+            route = Screen.TripDetail.route,
+            arguments = listOf(navArgument("tripId") { type = NavType.StringType })
+        ) { backStackEntry ->
+            val tripId = backStackEntry.arguments?.getString("tripId") ?: ""
+            TripDetailScreen(tripId, navController, isDarkMode, assistantViewModel)
+        }
+
         composable(Screen.Onboarding.route) { 
             OnboardingScreen(onFinished = {
                 sharedPref.edit().putBoolean("onboarding_complete", true).apply()

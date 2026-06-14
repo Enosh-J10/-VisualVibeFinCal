@@ -28,6 +28,7 @@ work = "2.10.0"
 security = "1.1.0-alpha06"
 firebaseBom = "33.10.0"
 googleServicesPlugin = "4.4.2"
+guava = "33.3.1-android"
 credentials = "1.3.0"
 googleid = "1.1.1"
 playServicesAuth = "21.3.0"
@@ -35,6 +36,8 @@ playServicesAuth = "21.3.0"
 [libraries]
 firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
 firebase-auth = { group = "com.google.firebase", name = "firebase-auth-ktx" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore-ktx" }
+firebase-storage = { group = "com.google.firebase", name = "firebase-storage-ktx" }
 androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "cameraX" }
 androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "cameraX" }
 androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "cameraX" }
@@ -77,6 +80,7 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
+guava = { group = "com.google.guava", name = "guava", version.ref = "guava" }
 play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 
 [plugins]

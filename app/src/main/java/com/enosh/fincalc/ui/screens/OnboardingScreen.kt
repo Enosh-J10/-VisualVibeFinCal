@@ -26,18 +26,28 @@ fun OnboardingScreen(onFinished: () -> Unit) {
     
     val pages = listOf(
         OnboardingPage(
-            "Everything in one place",
-            "Quickly calculate loans, taxes, and currency rates without switching apps.",
-            R.drawable.ic_fincalc_logo_vector
-        ),
-        OnboardingPage(
             "Scan your receipts",
-            "Take a photo of your receipt and the app will try to read the total and category for you.",
+            "Take a photo of your receipt and the app will automatically record the total and category.",
             R.drawable.ic_calc
         ),
         OnboardingPage(
-            "Tips from your assistant",
-            "A little robot assistant will give you budget tips and help you stay on track.",
+            "Track your spending",
+            "View detailed insights and charts to understand where your money goes every month.",
+            R.drawable.ic_calc
+        ),
+        OnboardingPage(
+            "Set a monthly budget",
+            "Keep your spending in check by setting a budget and getting warnings if you go over.",
+            R.drawable.ic_calc
+        ),
+        OnboardingPage(
+            "Plan your savings",
+            "Set financial goals and track your progress as you save for what matters most.",
+            R.drawable.ic_calc
+        ),
+        OnboardingPage(
+            "Meet your assistant",
+            "Our smart assistant gives you personalized tips and helps you manage your finances.",
             R.drawable.ic_bmi
         )
     )

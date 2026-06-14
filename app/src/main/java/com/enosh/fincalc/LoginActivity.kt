@@ -35,6 +35,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -180,6 +181,18 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun onAuthSuccess(email: String?) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user != null) {
+            FirebaseFirestore.getInstance().collection("users").document(user.uid).set(
+                mapOf(
+                    "uid" to user.uid,
+                    "name" to (user.displayName ?: "User"),
+                    "email" to (user.email ?: ""),
+                    "searchName" to (user.displayName?.lowercase() ?: "user")
+                ),
+                com.google.firebase.firestore.SetOptions.merge()
+            )
+        }
         lifecycleScope.launch {
             withContext(Dispatchers.IO) {
                 SecurityUtils.skipNextLock = true

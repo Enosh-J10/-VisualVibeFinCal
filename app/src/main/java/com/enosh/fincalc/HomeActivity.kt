@@ -113,6 +113,13 @@ class HomeActivity : ComponentActivity() {
                         onLogout = {
                             SecurityUtils.hasAuthenticatedThisSession = false
                             SecurityUtils.skipNextLock = false
+                            com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
+                            sharedPref.edit { 
+                                putBoolean("is_guest", false)
+                                remove("email")
+                                remove("name")
+                                remove("profile_pic")
+                            }
                             startActivity(Intent(this@HomeActivity, LoginActivity::class.java))
                             finish()
                         },

@@ -50,17 +50,17 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.enosh.fincalc.data.local.AppDatabase
 import com.enosh.fincalc.data.local.entity.Expense
+import com.enosh.fincalc.data.model.TravelExpense
 import com.enosh.fincalc.ui.screens.CalculatorScreenScaffold
 import com.enosh.fincalc.ui.screens.ScanItemSkeleton
 import com.enosh.fincalc.ui.screens.BouncyButton
 import com.enosh.fincalc.ui.screens.CalculatorCard
 import com.enosh.fincalc.utils.NotificationHelper
-import com.enosh.fincalc.viewmodel.AssistantViewModel
-import com.enosh.fincalc.viewmodel.AssistantState
-import com.enosh.fincalc.viewmodel.AssistantMessageType
+import com.enosh.fincalc.viewmodel.*
 import com.enosh.fincalc.utils.CurrencyUtils
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
@@ -97,7 +97,16 @@ fun SmartScanScreen(
     var editingExpense by remember { mutableStateOf<Expense?>(null) }
     var isLoading by remember { mutableStateOf(true) }
 
+    var showLowConfidenceDialog by remember { mutableStateOf(false) }
+    var showDuplicateDialog by remember { mutableStateOf(false) }
+    var pendingScanResult by remember { mutableStateOf<Expense?>(null) }
+
+    var showSaveTargetDialog by remember { mutableStateOf(false) }
+    val travelViewModel: SmartTravelViewModel = viewModel()
+    val trips by travelViewModel.trips.collectAsState()
+
     LaunchedEffect(Unit) {
+        travelViewModel.fetchTrips()
         delay(1000)
         isLoading = false
     }
@@ -114,6 +123,8 @@ fun SmartScanScreen(
     val expenseSavedToast = stringResource(R.string.expense_saved)
     val expenseAddedTitle = stringResource(R.string.expense_added_notif_title)
     val expenseAddedDesc = stringResource(R.string.expense_added_notif_desc)
+
+    val otherCat = stringResource(R.string.cat_other)
 
     CalculatorScreenScaffold(
         title = stringResource(R.string.smart_scan),
@@ -133,80 +144,117 @@ fun SmartScanScreen(
             ) {
                 // Action Buttons
                 item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        val filePickerLauncher = rememberLauncherForActivityResult(
-                            contract = ActivityResultContracts.GetContent()
-                        ) { uri: Uri? ->
-                            uri?.let {
-                                scope.launch {
-                                    isProcessing = true
-                                    assistantViewModel.showMessage(analyzingBillMsg, AssistantState.THINKING, AssistantMessageType.THOUGHT)
-                                    val result = processUri(context, it)
-                                    if (result != null) {
-                                        assistantViewModel.showMessage(foundReceiptMsg, AssistantState.HAPPY)
-                                        editingExpense = Expense(
-                                            amount = result.amount,
-                                            date = result.date,
-                                            merchant = result.merchant,
-                                            category = result.category,
-                                            source = "upload",
-                                            notes = "VAT: ${CurrencyUtils.formatCurrency(context, result.vat)}"
-                                        )
-                                    } else {
-                                        assistantViewModel.showMessage(couldNotReadMsg, AssistantState.ERROR)
-                                        Toast.makeText(context, couldNotReadReceiptToast, Toast.LENGTH_SHORT).show()
+                    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            val filePickerLauncher = rememberLauncherForActivityResult(
+                                contract = ActivityResultContracts.GetContent()
+                            ) { uri: Uri? ->
+                                uri?.let {
+                                    scope.launch {
+                                        isProcessing = true
+                                        assistantViewModel.showMessage(analyzingBillMsg, AssistantState.THINKING, AssistantMessageType.THOUGHT)
+                                        val result = processUri(context, it)
+                                        if (result != null) {
+                                            assistantViewModel.showMessage(foundReceiptMsg, AssistantState.HAPPY)
+                                            val newExpense = Expense(
+                                                amount = result.amount,
+                                                date = result.date,
+                                                merchant = result.merchant,
+                                                category = result.category,
+                                                source = "upload",
+                                                notes = "VAT: ${CurrencyUtils.formatCurrency(context, result.vat)}"
+                                            )
+
+                                            if (result.confidenceLow) {
+                                                pendingScanResult = newExpense
+                                                showLowConfidenceDialog = true
+                                            } else {
+                                                val duplicate = expenseDao.findDuplicate(newExpense.amount, newExpense.date, newExpense.merchant)
+                                                if (duplicate != null) {
+                                                    pendingScanResult = newExpense
+                                                    showDuplicateDialog = true
+                                                } else {
+                                                    pendingScanResult = newExpense
+                                                    showSaveTargetDialog = true
+                                                }
+                                            }
+                                        } else {
+                                            assistantViewModel.showMessage(couldNotReadMsg, AssistantState.ERROR)
+                                            Toast.makeText(context, couldNotReadReceiptToast, Toast.LENGTH_SHORT).show()
+                                        }
+                                        isProcessing = false
                                     }
-                                    isProcessing = false
+                                }
+                            }
+
+                            BouncyButton(
+                                onClick = { 
+                                    assistantViewModel.showMessage(openingCameraMsg, AssistantState.IDLE)
+                                    showScanner = true 
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(56.dp)
+                                    .semantics {
+                                        contentDescription = "Scan a receipt using your camera"
+                                    },
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Default.CameraAlt, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.scan_receipt), fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                            }
+
+                            BouncyButton(
+                                onClick = { 
+                                    assistantViewModel.showMessage(chooseFileMsg, AssistantState.IDLE)
+                                    filePickerLauncher.launch("*/*") 
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(56.dp)
+                                    .semantics {
+                                        contentDescription = "Upload a receipt from your phone"
+                                    },
+                                shape = RoundedCornerShape(12.dp),
+                                containerColor = Color.Transparent
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .padding(horizontal = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Icon(Icons.Default.FileUpload, contentDescription = null, tint = Color(0xFF00D1B2))
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(stringResource(R.string.upload_bill), fontWeight = FontWeight.SemiBold, color = Color(0xFF00D1B2), fontSize = 12.sp)
                                 }
                             }
                         }
 
                         BouncyButton(
                             onClick = { 
-                                assistantViewModel.showMessage(openingCameraMsg, AssistantState.IDLE)
-                                showScanner = true 
+                                editingExpense = Expense(
+                                    amount = 0.0,
+                                    date = System.currentTimeMillis(),
+                                    merchant = "",
+                                    category = otherCat,
+                                    source = "manual"
+                                )
                             },
                             modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp)
-                                .semantics {
-                                    contentDescription = "Scan a receipt using your camera"
-                                },
-                            shape = RoundedCornerShape(12.dp)
-                        ) {
-                            Icon(Icons.Default.CameraAlt, contentDescription = null)
-                            Spacer(Modifier.width(8.dp))
-                            Text(stringResource(R.string.scan_receipt), fontWeight = FontWeight.SemiBold)
-                        }
-
-                        BouncyButton(
-                            onClick = { 
-                                assistantViewModel.showMessage(chooseFileMsg, AssistantState.IDLE)
-                                filePickerLauncher.launch("*/*") 
-                            },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp)
-                                .semantics {
-                                    contentDescription = "Upload a receipt from your phone"
-                                },
+                                .fillMaxWidth()
+                                .height(56.dp),
                             shape = RoundedCornerShape(12.dp),
-                            containerColor = Color.Transparent
+                            containerColor = Color(0xFF00D1B2).copy(alpha = 0.1f)
                         ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(horizontal = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Icon(Icons.Default.FileUpload, contentDescription = null, tint = Color(0xFF00D1B2))
-                                Spacer(Modifier.width(8.dp))
-                                Text(stringResource(R.string.upload_bill), fontWeight = FontWeight.SemiBold, color = Color(0xFF00D1B2))
-                            }
+                            Icon(Icons.Default.Add, contentDescription = null, tint = Color(0xFF00D1B2))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Add Manual Expense", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
                         }
                     }
                 }
@@ -261,7 +309,7 @@ fun SmartScanScreen(
                     val result = processUri(context, uri)
                     if (result != null) {
                         assistantViewModel.showMessage(scanCompleteMsg, AssistantState.HAPPY)
-                        editingExpense = Expense(
+                        val newExpense = Expense(
                             amount = result.amount,
                             date = result.date,
                             merchant = result.merchant,
@@ -269,6 +317,20 @@ fun SmartScanScreen(
                             source = "scan",
                             notes = "VAT: ${CurrencyUtils.formatCurrency(context, result.vat)}"
                         )
+
+                        if (result.confidenceLow) {
+                            pendingScanResult = newExpense
+                            showLowConfidenceDialog = true
+                        } else {
+                            val duplicate = expenseDao.findDuplicate(newExpense.amount, newExpense.date, newExpense.merchant)
+                            if (duplicate != null) {
+                                pendingScanResult = newExpense
+                                showDuplicateDialog = true
+                            } else {
+                                pendingScanResult = newExpense
+                                showSaveTargetDialog = true
+                            }
+                        }
                     } else {
                         assistantViewModel.showMessage(scanFailedMsg, AssistantState.ERROR)
                         Toast.makeText(context, couldNotReadReceiptToast, Toast.LENGTH_SHORT).show()
@@ -310,6 +372,91 @@ fun SmartScanScreen(
         ) {
             CircularProgressIndicator(color = Color(0xFF00D1B2))
         }
+    }
+
+    if (showLowConfidenceDialog) {
+        AlertDialog(
+            onDismissRequest = { showLowConfidenceDialog = false },
+            title = { Text(stringResource(R.string.low_confidence_title)) },
+            text = { Text(stringResource(R.string.low_confidence_msg)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLowConfidenceDialog = false
+                        editingExpense = pendingScanResult
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))
+                ) { Text(stringResource(R.string.yes_continue)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLowConfidenceDialog = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
+    if (showDuplicateDialog) {
+        AlertDialog(
+            onDismissRequest = { showDuplicateDialog = false },
+            title = { Text(stringResource(R.string.duplicate_found_title)) },
+            text = { Text(stringResource(R.string.duplicate_found_msg)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDuplicateDialog = false
+                        showSaveTargetDialog = true
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))
+                ) { Text(stringResource(R.string.yes_save_anyway)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDuplicateDialog = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
+    }
+
+    if (showSaveTargetDialog) {
+        AlertDialog(
+            onDismissRequest = { showSaveTargetDialog = false },
+            title = { Text("Save Expense") },
+            text = { Text("Where would you like to save this expense?") },
+            confirmButton = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = {
+                            showSaveTargetDialog = false
+                            editingExpense = pendingScanResult
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))
+                    ) { Text("Personal Expenses") }
+                    
+                    if (trips.isNotEmpty()) {
+                        Text("Save to Trip:", fontSize = 12.sp, color = Color.Gray)
+                        trips.forEach { trip ->
+                            OutlinedButton(
+                                onClick = {
+                                    showSaveTargetDialog = false
+                                    val expense = pendingScanResult!!
+                                    travelViewModel.addExpense(trip.id, TravelExpense(
+                                        title = expense.merchant,
+                                        amount = expense.amount,
+                                        paidBy = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "",
+                                        date = expense.date,
+                                        category = expense.category,
+                                        tripId = trip.id
+                                    ))
+                                    Toast.makeText(context, "Saved to ${trip.name}", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text(trip.name) }
+                        }
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSaveTargetDialog = false }) { Text("Cancel") }
+            }
+        )
     }
 }
 
@@ -411,6 +558,7 @@ fun EditExpenseDialog(expense: Expense, isDarkMode: Boolean, onDismiss: () -> Un
         stringResource(R.string.cat_shopping),
         stringResource(R.string.cat_bills),
         stringResource(R.string.cat_health),
+        stringResource(R.string.cat_travel),
         stringResource(R.string.cat_other)
     )
     var expanded by remember { mutableStateOf(false) }
@@ -440,6 +588,7 @@ fun EditExpenseDialog(expense: Expense, isDarkMode: Boolean, onDismiss: () -> Un
                                       else null
                     },
                     label = stringResource(R.string.amount),
+                    keyboardType = KeyboardType.Decimal,
                     error = amountError
                 )
                 
@@ -482,6 +631,7 @@ fun EditExpenseDialog(expense: Expense, isDarkMode: Boolean, onDismiss: () -> Un
                     value = notes,
                     onValueChange = { notes = it },
                     label = stringResource(R.string.notes_optional),
+                    keyboardType = KeyboardType.Text,
                     capitalization = KeyboardCapitalization.Sentences,
                     error = null
                 )
@@ -552,7 +702,11 @@ fun CameraScannerDialog(onDismiss: () -> Unit, onImageCaptured: (Uri) -> Unit) {
             Box(modifier = Modifier.fillMaxSize()) {
                 if (hasCameraPermission) {
                     AndroidView(
-                        factory = { previewView },
+                        factory = { 
+                            previewView.apply {
+                                scaleType = PreviewView.ScaleType.FILL_CENTER
+                            }
+                        },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -677,6 +831,12 @@ private fun startCamera(
     }, ContextCompat.getMainExecutor(context))
 }
 
+private fun isReceipt(text: String): Boolean {
+    val keywords = listOf("RECEIPT", "INVOICE", "BILL", "TAX INVOICE", "TOTAL", "CASHIER", "MERCHANT", "VAT", "GST", "THANK YOU")
+    val upper = text.uppercase()
+    return keywords.any { upper.contains(it) }
+}
+
 private const val TAG = "SmartScan"
 
 data class ScanResult(
@@ -715,6 +875,8 @@ suspend fun processUri(context: Context, uri: Uri): ScanResult? = withContext(Di
             
             val vat = detectVAT(lines)
 
+            val isReceiptDetected = isReceipt(fullText)
+
             return@withContext ScanResult(
                 amount = totalData.first,
                 vat = vat,
@@ -722,7 +884,7 @@ suspend fun processUri(context: Context, uri: Uri): ScanResult? = withContext(Di
                 merchant = merchant,
                 date = date,
                 category = category,
-                confidenceLow = totalData.second
+                confidenceLow = totalData.second || !isReceiptDetected || totalData.first == 0.0
             )
         }
     } catch (e: Exception) {

@@ -1,13 +1,17 @@
 package com.enosh.fincalc.ui.screens
 
 import android.app.DatePickerDialog
+import android.app.TimePickerDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -50,6 +54,13 @@ fun DateTimeScreen(
     val screenHistory = history["datetime"] ?: emptyList()
 
     val sdf = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+    val inputSdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+    val dateOnlySdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
+
+    var startText by remember { mutableStateOf(inputSdf.format(startDate.time)) }
+    var endText by remember { mutableStateOf(inputSdf.format(endDate.time)) }
+    var startError by remember { mutableStateOf<String?>(null) }
+    var endError by remember { mutableStateOf<String?>(null) }
 
     val scrollState = rememberScrollState()
 
@@ -68,46 +79,85 @@ fun DateTimeScreen(
                     Text("Calculate difference between dates", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black)
                     Spacer(Modifier.height(24.dp))
 
-                    Text("Start Date", fontSize = 14.sp, color = Color.Gray)
-                    OutlinedButton(
-                        onClick = {
-                            val d = DatePickerDialog(context, { _, y, m, day ->
-                                val cal = Calendar.getInstance()
-                                cal.set(y, m, day)
-                                startDate = cal
-                            }, startDate.get(Calendar.YEAR), startDate.get(Calendar.MONTH), startDate.get(Calendar.DAY_OF_MONTH))
-                            d.show()
-                        },
-                        modifier = Modifier.fillMaxWidth().semantics {
-                            contentDescription = "Select start date. Currently: ${sdf.format(startDate.time)}"
+                    Text("Start Date & Time", fontSize = 14.sp, color = Color.Gray)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ValidatedTextField(
+                            value = startText,
+                            onValueChange = { 
+                                startText = it
+                                try {
+                                    val date = if (it.length <= 10) dateOnlySdf.parse(it) else inputSdf.parse(it)
+                                    if (date != null) {
+                                        startDate = Calendar.getInstance().apply { time = date }
+                                        startError = null
+                                    }
+                                } catch (e: Exception) {
+                                    startError = "Format: DD/MM/YYYY HH:MM:SS"
+                                }
+                            },
+                            label = "DD/MM/YYYY HH:MM:SS",
+                            modifier = Modifier.weight(1f),
+                            error = startError,
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
+                        )
+                        IconButton(onClick = {
+                            DatePickerDialog(context, { _, y, m, day ->
+                                TimePickerDialog(context, { _, h, min ->
+                                    val cal = Calendar.getInstance()
+                                    cal.set(y, m, day, h, min, 0)
+                                    startDate = cal
+                                    startText = inputSdf.format(cal.time)
+                                    startError = null
+                                }, startDate.get(Calendar.HOUR_OF_DAY), startDate.get(Calendar.MINUTE), true).show()
+                            }, startDate.get(Calendar.YEAR), startDate.get(Calendar.MONTH), startDate.get(Calendar.DAY_OF_MONTH)).show()
+                        }) {
+                            Icon(Icons.Default.CalendarToday, contentDescription = "Pick Date & Time")
                         }
-                    ) {
-                        Text(sdf.format(startDate.time), color = if (isDarkMode) Color.White else Color.Black)
                     }
 
                     Spacer(Modifier.height(16.dp))
 
-                    Text("End Date", fontSize = 14.sp, color = Color.Gray)
-                    OutlinedButton(
-                        onClick = {
-                            val d = DatePickerDialog(context, { _, y, m, day ->
-                                val cal = Calendar.getInstance()
-                                cal.set(y, m, day)
-                                endDate = cal
-                            }, endDate.get(Calendar.YEAR), endDate.get(Calendar.MONTH), endDate.get(Calendar.DAY_OF_MONTH))
-                            d.show()
-                        },
-                        modifier = Modifier.fillMaxWidth().semantics {
-                            contentDescription = "Select end date. Currently: ${sdf.format(endDate.time)}"
+                    Text("End Date & Time", fontSize = 14.sp, color = Color.Gray)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        ValidatedTextField(
+                            value = endText,
+                            onValueChange = { 
+                                endText = it
+                                try {
+                                    val date = if (it.length <= 10) dateOnlySdf.parse(it) else inputSdf.parse(it)
+                                    if (date != null) {
+                                        endDate = Calendar.getInstance().apply { time = date }
+                                        endError = null
+                                    }
+                                } catch (e: Exception) {
+                                    endError = "Format: DD/MM/YYYY HH:MM:SS"
+                                }
+                            },
+                            label = "DD/MM/YYYY HH:MM:SS",
+                            modifier = Modifier.weight(1f),
+                            error = endError,
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
+                        )
+                        IconButton(onClick = {
+                            DatePickerDialog(context, { _, y, m, day ->
+                                TimePickerDialog(context, { _, h, min ->
+                                    val cal = Calendar.getInstance()
+                                    cal.set(y, m, day, h, min, 0)
+                                    endDate = cal
+                                    endText = inputSdf.format(cal.time)
+                                    endError = null
+                                }, endDate.get(Calendar.HOUR_OF_DAY), endDate.get(Calendar.MINUTE), true).show()
+                            }, endDate.get(Calendar.YEAR), endDate.get(Calendar.MONTH), endDate.get(Calendar.DAY_OF_MONTH)).show()
+                        }) {
+                            Icon(Icons.Default.CalendarToday, contentDescription = "Pick Date & Time")
                         }
-                    ) {
-                        Text(sdf.format(endDate.time), color = if (isDarkMode) Color.White else Color.Black)
                     }
 
                     Spacer(Modifier.height(32.dp))
 
                     BouncyButton(
                         onClick = {
+                            if (startError != null || endError != null) return@BouncyButton
                             val diff = endDate.timeInMillis - startDate.timeInMillis
                             if (diff < 0) {
                                 diffResult = "Invalid range: End date must be after start date."
@@ -123,7 +173,22 @@ fun DateTimeScreen(
                             var years = endCal.get(Calendar.YEAR) - startCal.get(Calendar.YEAR)
                             var months = endCal.get(Calendar.MONTH) - startCal.get(Calendar.MONTH)
                             var days = endCal.get(Calendar.DAY_OF_MONTH) - startCal.get(Calendar.DAY_OF_MONTH)
-                            
+                            var hours = endCal.get(Calendar.HOUR_OF_DAY) - startCal.get(Calendar.HOUR_OF_DAY)
+                            var minutes = endCal.get(Calendar.MINUTE) - startCal.get(Calendar.MINUTE)
+                            var seconds = endCal.get(Calendar.SECOND) - startCal.get(Calendar.SECOND)
+
+                            if (seconds < 0) {
+                                minutes -= 1
+                                seconds += 60
+                            }
+                            if (minutes < 0) {
+                                hours -= 1
+                                minutes += 60
+                            }
+                            if (hours < 0) {
+                                days -= 1
+                                hours += 24
+                            }
                             if (days < 0) {
                                 months -= 1
                                 val tempCal = Calendar.getInstance().apply {
@@ -138,17 +203,25 @@ fun DateTimeScreen(
                                 months += 12
                             }
                             
-                            val result = "$years years, $months months, $days days"
+                            val resultParts = mutableListOf<String>()
+                            if (years > 0) resultParts.add("$years years")
+                            if (months > 0) resultParts.add("$months months")
+                            if (days > 0) resultParts.add("$days days")
+                            if (hours > 0) resultParts.add("$hours hours")
+                            if (minutes > 0) resultParts.add("$minutes minutes")
+                            if (seconds > 0) resultParts.add("$seconds seconds")
+
+                            val result = if (resultParts.isEmpty()) "0 seconds" else resultParts.joinToString(", ")
                             diffResult = result
 
-                            assistantViewModel.showMessage("It's a duration of $years years and $months months!", AssistantState.HAPPY)
+                            assistantViewModel.showMessage("Difference: $result", AssistantState.HAPPY)
 
                             historyViewModel.addToHistory(
                                 "datetime",
                                 HistoryItem(
                                     title = "Date Difference",
                                     result = result,
-                                    details = "From: ${sdf.format(startDate.time)} | To: ${sdf.format(endDate.time)}"
+                                    details = "From: ${inputSdf.format(startDate.time)} | To: ${inputSdf.format(endDate.time)}"
                                 )
                             )
                         },

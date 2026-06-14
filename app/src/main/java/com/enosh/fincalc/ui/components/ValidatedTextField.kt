@@ -26,7 +26,9 @@ fun ValidatedTextField(
     keyboardType: KeyboardType = KeyboardType.Decimal,
     capitalization: KeyboardCapitalization = KeyboardCapitalization.None,
     visualTransformation: VisualTransformation = VisualTransformation.None,
-    singleLine: Boolean = true
+    singleLine: Boolean = true,
+    maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
+    minLines: Int = 1
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Text(label, fontSize = 14.sp, color = Color.Gray)
@@ -41,14 +43,17 @@ fun ValidatedTextField(
             isError = error != null,
             keyboardOptions = KeyboardOptions(
                 keyboardType = keyboardType,
-                capitalization = capitalization
+                capitalization = capitalization,
+                imeAction = if (singleLine) androidx.compose.ui.text.input.ImeAction.Next else androidx.compose.ui.text.input.ImeAction.Default
             ),
             visualTransformation = visualTransformation,
             colors = OutlinedTextFieldDefaults.colors(
                 focusedBorderColor = Color(0xFF00D1B2),
                 errorBorderColor = MaterialTheme.colorScheme.error
             ),
-            singleLine = singleLine
+            singleLine = singleLine,
+            maxLines = maxLines,
+            minLines = minLines
         )
         if (error != null) {
             Text(

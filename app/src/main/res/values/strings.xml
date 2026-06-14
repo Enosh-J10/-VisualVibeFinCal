@@ -96,6 +96,12 @@
     <string name="expense_added_notif_desc">Successfully added %1$s for %2$s</string>
     <string name="camera_permission_denied">Camera permission denied</string>
     <string name="could_not_read_receipt">Could not read receipt</string>
+    <string name="low_confidence_title">Low Confidence Scan</string>
+    <string name="low_confidence_msg">This does not look like a valid receipt. Do you still want to save it?</string>
+    <string name="duplicate_found_title">Duplicate Found</string>
+    <string name="duplicate_found_msg">A similar expense already exists. Do you still want to save this one?</string>
+    <string name="yes_continue">Yes, Continue</string>
+    <string name="yes_save_anyway">Yes, Save Anyway</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
