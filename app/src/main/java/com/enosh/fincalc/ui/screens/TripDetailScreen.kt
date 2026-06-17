@@ -3,6 +3,8 @@ package com.enosh.fincalc.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -14,7 +16,6 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -24,23 +25,22 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import com.enosh.fincalc.data.model.TravelExpense
 import com.enosh.fincalc.data.model.TravelTrip
-import com.enosh.fincalc.viewmodel.AssistantViewModel
+import com.enosh.fincalc.data.model.User
 import com.enosh.fincalc.viewmodel.SmartTravelViewModel
+import com.enosh.fincalc.ui.components.ValidatedTextField
 import com.google.firebase.auth.FirebaseAuth
-import java.text.SimpleDateFormat
 import java.util.*
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun TripDetailScreen(
     tripId: String,
     navController: NavController,
     isDarkMode: Boolean,
-    assistantViewModel: AssistantViewModel,
     travelViewModel: SmartTravelViewModel = viewModel()
 ) {
     val trips by travelViewModel.trips.collectAsState()
-    val trip = trips.find { it.id == tripId }
+    val trip = trips.find { it.tripId == tripId }
     val expenses by travelViewModel.currentTripExpenses.collectAsState()
     val searchResults by travelViewModel.searchResults.collectAsState()
 
@@ -48,11 +48,16 @@ fun TripDetailScreen(
     val tabs = listOf("Expenses", "Members", "Insights", "Settlement")
 
     var showAddExpenseDialog by remember { mutableStateOf(false) }
+    var editingExpense by remember { mutableStateOf<TravelExpense?>(null) }
     var showAddMemberDialog by remember { mutableStateOf(false) }
+    
+    val context = LocalContext.current
+    val currentUid = remember { FirebaseAuth.getInstance().currentUser?.uid ?: "" }
+    val effectiveTripId = trip?.tripId ?: tripId
 
-    LaunchedEffect(tripId) {
+    LaunchedEffect(effectiveTripId) {
         travelViewModel.fetchTrips()
-        travelViewModel.fetchExpenses(tripId)
+        travelViewModel.fetchExpenses(effectiveTripId)
     }
 
     if (trip == null) {
@@ -90,33 +95,63 @@ fun TripDetailScreen(
 
             Box(modifier = Modifier.weight(1f)) {
                 when (selectedTab) {
-                    0 -> ExpensesTab(expenses, isDarkMode, onAdd = { showAddExpenseDialog = true })
+                    0 -> ExpensesTab(
+                        expenses = expenses, 
+                        isDarkMode = isDarkMode, 
+                        onAdd = { showAddExpenseDialog = true },
+                        onEdit = { editingExpense = it },
+                        onDelete = { travelViewModel.deleteExpense(effectiveTripId, it.expenseId) },
+                        currentUid = currentUid,
+                        isAdmin = trip.createdByUid == currentUid,
+                        currency = trip.currencyCode
+                    )
                     1 -> MembersTab(trip, isDarkMode, onAdd = { showAddMemberDialog = true })
                     2 -> InsightsTab(trip, expenses, isDarkMode)
-                    3 -> SettlementTab(trip, expenses, isDarkMode, onFinalize = { travelViewModel.finalizeTrip(trip.id) })
+                    3 -> SettlementTab(trip, expenses, onFinalize = { travelViewModel.finalizeTrip(effectiveTripId) })
                 }
             }
         }
     }
 
-    if (showAddExpenseDialog) {
+    if (showAddExpenseDialog || editingExpense != null) {
         AddTravelExpenseDialog(
             trip = trip,
-            onDismiss = { showAddExpenseDialog = false },
-            onAdd = { expense ->
-                travelViewModel.addExpense(trip.id, expense)
+            expense = editingExpense,
+            effectiveTripId = effectiveTripId,
+            onDismiss = { 
                 showAddExpenseDialog = false
+                editingExpense = null
+            },
+            onSave = { expense ->
+                if (expense.expenseId.isEmpty()) {
+                    travelViewModel.addExpense(effectiveTripId, expense)
+                } else {
+                    travelViewModel.updateExpense(effectiveTripId, expense)
+                }
+                showAddExpenseDialog = false
+                editingExpense = null
             }
         )
     }
 
     if (showAddMemberDialog) {
+        val friendsViewModel: com.enosh.fincalc.viewmodel.FriendsViewModel = viewModel()
+        val friends by friendsViewModel.friends.collectAsState()
+        
         AddMemberDialog(
+            friends = friends,
             searchResults = searchResults,
             onSearch = { travelViewModel.searchUsers(it) },
             onAdd = { user ->
-                travelViewModel.addMember(trip.id, user["uid"] as String, user["name"] as String, user["email"] as String)
+                travelViewModel.addMember(effectiveTripId, user.uid, user.name, user.email)
                 showAddMemberDialog = false
+            },
+            onAddFriend = { friend ->
+                travelViewModel.addMember(effectiveTripId, friend.uid, friend.name, friend.email)
+                showAddMemberDialog = false
+            },
+            onSendFriendRequest = { user ->
+                friendsViewModel.sendFriendRequest(user)
             },
             onDismiss = { showAddMemberDialog = false }
         )
@@ -124,7 +159,16 @@ fun TripDetailScreen(
 }
 
 @Composable
-fun ExpensesTab(expenses: List<TravelExpense>, isDarkMode: Boolean, onAdd: () -> Unit) {
+fun ExpensesTab(
+    expenses: List<TravelExpense>, 
+    isDarkMode: Boolean, 
+    onAdd: () -> Unit,
+    onEdit: (TravelExpense) -> Unit,
+    onDelete: (TravelExpense) -> Unit,
+    currentUid: String,
+    isAdmin: Boolean,
+    currency: String
+) {
     Box(Modifier.fillMaxSize()) {
         if (expenses.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -136,7 +180,14 @@ fun ExpensesTab(expenses: List<TravelExpense>, isDarkMode: Boolean, onAdd: () ->
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(expenses) { expense ->
-                    TravelExpenseItem(expense, isDarkMode)
+                    TravelExpenseItem(
+                        expense = expense, 
+                        isDarkMode = isDarkMode,
+                        onEdit = onEdit,
+                        onDelete = onDelete,
+                        canEdit = isAdmin || expense.paidByUid == currentUid,
+                        currency = currency
+                    )
                 }
             }
         }
@@ -153,9 +204,20 @@ fun ExpensesTab(expenses: List<TravelExpense>, isDarkMode: Boolean, onAdd: () ->
 }
 
 @Composable
-fun TravelExpenseItem(expense: TravelExpense, isDarkMode: Boolean) {
+fun TravelExpenseItem(
+    expense: TravelExpense, 
+    isDarkMode: Boolean, 
+    onEdit: (TravelExpense) -> Unit, 
+    onDelete: (TravelExpense) -> Unit,
+    canEdit: Boolean,
+    currency: String
+) {
+    var showMenu by remember { mutableStateOf(false) }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = canEdit) { showMenu = true },
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isDarkMode) Color.White.copy(alpha = 0.05f) else Color.White
@@ -174,22 +236,49 @@ fun TravelExpenseItem(expense: TravelExpense, isDarkMode: Boolean) {
                 Text(expense.category, fontSize = 12.sp, color = Color.Gray)
             }
             Text(
-                String.format("%.2f", expense.amount), 
+                "$currency ${String.format(Locale.getDefault(), "%.2f", expense.amount)}", 
                 fontWeight = FontWeight.Bold, 
                 color = Color(0xFF00D1B2)
             )
+
+            if (canEdit) {
+                Box {
+                    IconButton(onClick = { showMenu = true }) {
+                        Icon(Icons.Default.MoreVert, contentDescription = "Options")
+                    }
+                    DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Edit") },
+                            onClick = { 
+                                showMenu = false
+                                onEdit(expense)
+                            },
+                            leadingIcon = { Icon(Icons.Default.Edit, null) }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Delete", color = Color.Red) },
+                            onClick = { 
+                                showMenu = false
+                                onDelete(expense)
+                            },
+                            leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) }
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
 fun MembersTab(trip: TravelTrip, isDarkMode: Boolean, onAdd: () -> Unit) {
+    val members = trip.memberUids
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(trip.members) { memberId ->
+            items(members) { memberId ->
                 val detail = trip.memberDetails[memberId]
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -231,7 +320,9 @@ fun MembersTab(trip: TravelTrip, isDarkMode: Boolean, onAdd: () -> Unit) {
 @Composable
 fun InsightsTab(trip: TravelTrip, expenses: List<TravelExpense>, isDarkMode: Boolean) {
     val totalCost = expenses.sumOf { it.amount }
-    val perPerson = if (trip.members.isNotEmpty()) totalCost / trip.members.size else 0.0
+    val membersCount = trip.memberUids.size
+    val perPerson = if (membersCount > 0) totalCost / membersCount else 0.0
+    val currency = trip.currencyCode
     
     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         CalculatorCard(isDarkMode = isDarkMode) {
@@ -239,11 +330,11 @@ fun InsightsTab(trip: TravelTrip, expenses: List<TravelExpense>, isDarkMode: Boo
             Spacer(Modifier.height(8.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Total Cost")
-                Text(String.format("%.2f %s", totalCost, trip.currency), fontWeight = FontWeight.Bold)
+                Text(String.format(Locale.getDefault(), "%.2f %s", totalCost, currency), fontWeight = FontWeight.Bold)
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Cost Per Person")
-                Text(String.format("%.2f %s", perPerson, trip.currency), fontWeight = FontWeight.Bold)
+                Text(String.format(Locale.getDefault(), "%.2f %s", perPerson, currency), fontWeight = FontWeight.Bold)
             }
         }
         
@@ -255,7 +346,7 @@ fun InsightsTab(trip: TravelTrip, expenses: List<TravelExpense>, isDarkMode: Boo
             categories.forEach { (cat, amount) ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(cat)
-                    Text(String.format("%.2f", amount))
+                    Text(String.format(Locale.getDefault(), "%.2f", amount))
                 }
             }
         }
@@ -263,7 +354,7 @@ fun InsightsTab(trip: TravelTrip, expenses: List<TravelExpense>, isDarkMode: Boo
 }
 
 @Composable
-fun SettlementTab(trip: TravelTrip, expenses: List<TravelExpense>, isDarkMode: Boolean, onFinalize: () -> Unit) {
+fun SettlementTab(trip: TravelTrip, expenses: List<TravelExpense>, onFinalize: () -> Unit) {
     val travelViewModel: SmartTravelViewModel = viewModel()
     val settlements = travelViewModel.calculateSettlements(trip, expenses)
 
@@ -284,7 +375,7 @@ fun SettlementTab(trip: TravelTrip, expenses: List<TravelExpense>, isDarkMode: B
 
         item {
             Spacer(Modifier.height(32.dp))
-            if (trip.adminId == FirebaseAuth.getInstance().currentUser?.uid && !trip.isFinalized) {
+            if (trip.createdByUid == FirebaseAuth.getInstance().currentUser?.uid && !trip.isFinalized) {
                 Button(
                     onClick = onFinalize,
                     modifier = Modifier.fillMaxWidth(),
@@ -306,27 +397,73 @@ fun SettlementTab(trip: TravelTrip, expenses: List<TravelExpense>, isDarkMode: B
 }
 
 @Composable
-fun AddTravelExpenseDialog(trip: TravelTrip, onDismiss: () -> Unit, onAdd: (TravelExpense) -> Unit) {
-    var title by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var selectedCategory by remember { mutableStateOf("Food") }
+fun AddTravelExpenseDialog(
+    trip: TravelTrip, 
+    expense: TravelExpense? = null,
+    effectiveTripId: String,
+    onDismiss: () -> Unit, 
+    onSave: (TravelExpense) -> Unit
+) {
+    var title by remember { mutableStateOf(expense?.title ?: "") }
+    var amount by remember { mutableStateOf(expense?.amount?.toString() ?: "") }
+    var selectedCategory by remember { mutableStateOf(expense?.category ?: "Food") }
     val categories = listOf("Food", "Fuel", "Hotel", "Tickets", "Shopping", "Transport", "Activities", "Other")
+    
+    var titleError by remember { mutableStateOf<String?>(null) }
+    var amountError by remember { mutableStateOf<String?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add Expense") },
+        title = { Text(if (expense == null) "Add Expense" else "Edit Expense") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = title, onValueChange = { title = it }, label = { Text("Title") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Amount") }, modifier = Modifier.fillMaxWidth())
-                // Category simplified for now
-                Text("Category", fontSize = 12.sp, color = Color.Gray)
-                LazyColumn(Modifier.height(100.dp)) {
-                    items(categories) { cat ->
-                        Row(Modifier.fillMaxWidth().clickable { selectedCategory = cat }.padding(4.dp)) {
-                            RadioButton(selected = selectedCategory == cat, onClick = { selectedCategory = cat })
-                            Text(cat)
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
+                ValidatedTextField(
+                    value = title, 
+                    onValueChange = { 
+                        title = it
+                        titleError = if (it.isBlank()) "Expense title is required." else null
+                    }, 
+                    label = "Title", 
+                    modifier = Modifier.fillMaxWidth(),
+                    error = titleError,
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
+                )
+                
+                ValidatedTextField(
+                    value = amount, 
+                    onValueChange = { input ->
+                        val filtered = com.enosh.fincalc.utils.ValidationUtils.formatNumericInput(input)
+                        amount = filtered
+                        val value = filtered.toDoubleOrNull()
+                        amountError = when {
+                            filtered.isBlank() -> "Please enter a valid amount."
+                            value == null -> "Please enter a valid amount."
+                            value <= 0 -> "Amount must be greater than 0."
+                            else -> null
                         }
+                    }, 
+                    label = "Amount", 
+                    modifier = Modifier.fillMaxWidth(),
+                    error = amountError,
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                )
+
+                Text("Category", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    maxItemsInEachRow = 3
+                ) {
+                    categories.forEach { cat ->
+                        FilterChip(
+                            selected = selectedCategory == cat,
+                            onClick = { selectedCategory = cat },
+                            label = { Text(cat, fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Color(0xFF00D1B2).copy(alpha = 0.2f),
+                                selectedLabelColor = Color(0xFF00D1B2)
+                            )
+                        )
                     }
                 }
             }
@@ -334,17 +471,28 @@ fun AddTravelExpenseDialog(trip: TravelTrip, onDismiss: () -> Unit, onAdd: (Trav
         confirmButton = {
             Button(
                 onClick = { 
-                    onAdd(TravelExpense(
-                        title = title,
-                        amount = amount.toDoubleOrNull() ?: 0.0,
-                        paidBy = FirebaseAuth.getInstance().currentUser?.uid ?: "",
-                        date = System.currentTimeMillis(),
-                        category = selectedCategory,
-                        tripId = trip.id
-                    ))
+                    val finalAmount = amount.toDoubleOrNull() ?: 0.0
+                    onSave(
+                        expense?.copy(
+                            title = title,
+                            amount = finalAmount,
+                            category = selectedCategory,
+                            updatedAt = System.currentTimeMillis()
+                        ) ?: TravelExpense(
+                            title = title,
+                            amount = finalAmount,
+                            paidByUid = FirebaseAuth.getInstance().currentUser?.uid ?: "",
+                            createdAt = System.currentTimeMillis(),
+                            category = selectedCategory,
+                            tripId = effectiveTripId,
+                            currencyCode = trip.currencyCode,
+                            currencySymbol = trip.currencySymbol
+                        )
+                    )
                 },
-                enabled = title.isNotBlank() && amount.isNotBlank()
-            ) { Text("Add") }
+                enabled = title.isNotBlank() && amount.isNotBlank() && titleError == null && amountError == null,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))
+            ) { Text(if (expense == null) "Add" else "Save") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
@@ -352,43 +500,95 @@ fun AddTravelExpenseDialog(trip: TravelTrip, onDismiss: () -> Unit, onAdd: (Trav
 
 @Composable
 fun AddMemberDialog(
-    searchResults: List<Map<String, Any>>,
+    friends: List<User>,
+    searchResults: List<User>,
     onSearch: (String) -> Unit,
-    onAdd: (Map<String, Any>) -> Unit,
+    onAdd: (User) -> Unit,
+    onAddFriend: (User) -> Unit,
+    onSendFriendRequest: (User) -> Unit,
     onDismiss: () -> Unit
 ) {
     var query by remember { mutableStateOf("") }
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add Member") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = query, 
-                    onValueChange = { 
-                        query = it
-                        onSearch(it)
-                    }, 
-                    label = { Text("Search by name or email") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+                TabRow(
+                    selectedTabIndex = selectedTab,
+                    containerColor = Color.Transparent,
+                    contentColor = Color(0xFF00D1B2)
+                ) {
+                    Tab(selected = selectedTab == 0, onClick = { selectedTab = 0 }, text = { Text("Friends", fontSize = 12.sp) })
+                    Tab(selected = selectedTab == 1, onClick = { selectedTab = 1 }, text = { Text("Search", fontSize = 12.sp) })
+                }
                 
-                LazyColumn(Modifier.height(200.dp)) {
-                    items(searchResults) { user ->
-                        Row(
-                            Modifier.fillMaxWidth().clickable { onAdd(user) }.padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.Person, null)
-                            Spacer(Modifier.width(8.dp))
-                            Column {
-                                Text(user["name"] as String, fontWeight = FontWeight.Bold)
-                                Text(user["email"] as String, fontSize = 12.sp, color = Color.Gray)
+                Spacer(Modifier.height(8.dp))
+
+                if (selectedTab == 0) {
+                    if (friends.isEmpty()) {
+                        Box(Modifier.height(200.dp).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            Text("No friends found.", color = Color.Gray)
+                        }
+                    } else {
+                        LazyColumn(Modifier.height(200.dp)) {
+                            items(friends) { friend ->
+                                Row(
+                                    Modifier.fillMaxWidth().clickable { onAddFriend(friend) }.padding(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2))
+                                    Spacer(Modifier.width(8.dp))
+                                    Column {
+                                        Text(friend.name, fontWeight = FontWeight.Bold)
+                                        Text(friend.finCalcId, fontSize = 12.sp, color = Color.Gray)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = query, 
+                        onValueChange = { 
+                            query = it
+                            onSearch(it)
+                        }, 
+                        label = { Text("Search FinCalc Users") },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    
+                    LazyColumn(Modifier.height(200.dp)) {
+                        items(searchResults) { user ->
+                            val isFriend = friends.any { it.uid == user.uid }
+                            Row(
+                                Modifier.fillMaxWidth().padding(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Default.Person, null)
+                                Spacer(Modifier.width(8.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(user.name, fontWeight = FontWeight.Bold)
+                                    Text(user.email, fontSize = 12.sp, color = Color.Gray)
+                                }
+                                
+                                if (isFriend) {
+                                    IconButton(onClick = { onAdd(user) }) {
+                                        Icon(Icons.Default.Add, null, tint = Color(0xFF00D1B2))
+                                    }
+                                } else {
+                                    IconButton(onClick = { onSendFriendRequest(user) }) {
+                                        Icon(Icons.Default.PersonAdd, null, tint = Color.Gray)
+                                    }
+                                }
                             }
                         }
                     }
                 }
+                
+                Text("You can only add accepted friends to trips.", fontSize = 10.sp, color = Color.Gray)
             }
         },
         confirmButton = {},

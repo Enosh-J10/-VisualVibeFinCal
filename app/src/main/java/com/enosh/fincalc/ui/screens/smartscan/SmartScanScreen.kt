@@ -105,12 +105,6 @@ fun SmartScanScreen(
     val travelViewModel: SmartTravelViewModel = viewModel()
     val trips by travelViewModel.trips.collectAsState()
 
-    LaunchedEffect(Unit) {
-        travelViewModel.fetchTrips()
-        delay(1000)
-        isLoading = false
-    }
-
     val analyzingBillMsg = stringResource(R.string.msg_analyzing_bill)
     val foundReceiptMsg = stringResource(R.string.msg_found_receipt)
     val couldNotReadMsg = stringResource(R.string.msg_could_not_read)
@@ -125,6 +119,53 @@ fun SmartScanScreen(
     val expenseAddedDesc = stringResource(R.string.expense_added_notif_desc)
 
     val otherCat = stringResource(R.string.cat_other)
+
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            scope.launch {
+                isProcessing = true
+                assistantViewModel.showMessage(analyzingBillMsg, AssistantState.THINKING, AssistantMessageType.THOUGHT)
+                val result = processUri(context, it)
+                if (result != null) {
+                    assistantViewModel.showMessage(foundReceiptMsg, AssistantState.HAPPY)
+                    val newExpense = Expense(
+                        amount = result.amount,
+                        date = result.date,
+                        merchant = result.merchant,
+                        category = result.category,
+                        source = "upload",
+                        notes = "VAT: ${CurrencyUtils.formatCurrency(context, result.vat)}"
+                    )
+
+                    if (result.confidenceLow) {
+                        pendingScanResult = newExpense
+                        showLowConfidenceDialog = true
+                    } else {
+                        val duplicate = expenseDao.findDuplicate(newExpense.amount, newExpense.date, newExpense.merchant)
+                        if (duplicate != null) {
+                            pendingScanResult = newExpense
+                            showDuplicateDialog = true
+                        } else {
+                            pendingScanResult = newExpense
+                            showSaveTargetDialog = true
+                        }
+                    }
+                } else {
+                    assistantViewModel.showMessage(couldNotReadMsg, AssistantState.ERROR)
+                    Toast.makeText(context, couldNotReadReceiptToast, Toast.LENGTH_SHORT).show()
+                }
+                isProcessing = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        travelViewModel.fetchTrips()
+        delay(1000)
+        isLoading = false
+    }
 
     CalculatorScreenScaffold(
         title = stringResource(R.string.smart_scan),
@@ -149,47 +190,6 @@ fun SmartScanScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            val filePickerLauncher = rememberLauncherForActivityResult(
-                                contract = ActivityResultContracts.GetContent()
-                            ) { uri: Uri? ->
-                                uri?.let {
-                                    scope.launch {
-                                        isProcessing = true
-                                        assistantViewModel.showMessage(analyzingBillMsg, AssistantState.THINKING, AssistantMessageType.THOUGHT)
-                                        val result = processUri(context, it)
-                                        if (result != null) {
-                                            assistantViewModel.showMessage(foundReceiptMsg, AssistantState.HAPPY)
-                                            val newExpense = Expense(
-                                                amount = result.amount,
-                                                date = result.date,
-                                                merchant = result.merchant,
-                                                category = result.category,
-                                                source = "upload",
-                                                notes = "VAT: ${CurrencyUtils.formatCurrency(context, result.vat)}"
-                                            )
-
-                                            if (result.confidenceLow) {
-                                                pendingScanResult = newExpense
-                                                showLowConfidenceDialog = true
-                                            } else {
-                                                val duplicate = expenseDao.findDuplicate(newExpense.amount, newExpense.date, newExpense.merchant)
-                                                if (duplicate != null) {
-                                                    pendingScanResult = newExpense
-                                                    showDuplicateDialog = true
-                                                } else {
-                                                    pendingScanResult = newExpense
-                                                    showSaveTargetDialog = true
-                                                }
-                                            }
-                                        } else {
-                                            assistantViewModel.showMessage(couldNotReadMsg, AssistantState.ERROR)
-                                            Toast.makeText(context, couldNotReadReceiptToast, Toast.LENGTH_SHORT).show()
-                                        }
-                                        isProcessing = false
-                                    }
-                                }
-                            }
-
                             BouncyButton(
                                 onClick = { 
                                     assistantViewModel.showMessage(openingCameraMsg, AssistantState.IDLE)
@@ -277,7 +277,7 @@ fun SmartScanScreen(
                 }
 
                 if (isLoading) {
-                    items(3) {
+                    items(count = 3) {
                         ScanItemSkeleton(isDarkMode)
                     }
                 } else if (expenses.isEmpty()) {
@@ -287,7 +287,7 @@ fun SmartScanScreen(
                         }
                     }
                 } else {
-                    items(expenses) { expense ->
+                    items(items = expenses) { expense ->
                         ExpenseItem(expense, isDarkMode, 
                             onDelete = { scope.launch { expenseDao.deleteExpense(expense) } },
                             onEdit = { editingExpense = expense }
@@ -437,13 +437,15 @@ fun SmartScanScreen(
                                 onClick = {
                                     showSaveTargetDialog = false
                                     val expense = pendingScanResult!!
-                                    travelViewModel.addExpense(trip.id, TravelExpense(
+                                    travelViewModel.addExpense(trip.tripId, TravelExpense(
                                         title = expense.merchant,
                                         amount = expense.amount,
-                                        paidBy = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "",
-                                        date = expense.date,
+                                        paidByUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "",
                                         category = expense.category,
-                                        tripId = trip.id
+                                        tripId = trip.tripId,
+                                        currencyCode = trip.currencyCode,
+                                        currencySymbol = trip.currencySymbol,
+                                        createdAt = expense.date
                                     ))
                                     Toast.makeText(context, "Saved to ${trip.name}", Toast.LENGTH_SHORT).show()
                                 },

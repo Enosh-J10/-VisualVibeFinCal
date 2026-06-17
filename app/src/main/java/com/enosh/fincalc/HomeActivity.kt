@@ -22,11 +22,13 @@ import com.enosh.fincalc.ui.navigation.NavGraph
 import com.enosh.fincalc.ui.navigation.Screen
 import com.enosh.fincalc.utils.SecurityUtils
 import com.enosh.fincalc.utils.NotificationHelper
+import com.enosh.fincalc.utils.UserUtils
 import com.enosh.fincalc.viewmodel.AssistantViewModel
 import com.enosh.fincalc.viewmodel.AssistantState
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 
 class HomeActivity : ComponentActivity() {
@@ -78,27 +80,42 @@ class HomeActivity : ComponentActivity() {
         }
 
         enableEdgeToEdge()
-        val sharedPref = getSharedPreferences("UserPrefs", MODE_PRIVATE)
+        val sharedPref = getSharedPreferences(UserUtils.PREFS_NAME, MODE_PRIVATE)
         val openSettings = intent.getBooleanExtra("OPEN_SETTINGS", false)
         val resetPin = intent.getBooleanExtra("RESET_PIN", false)
+        val deepLinkUri = intent.data
 
         setContent {
             val assistantViewModel: AssistantViewModel = viewModel()
             val context = LocalContext.current
+            val uid = remember { FirebaseAuth.getInstance().currentUser?.uid ?: "guest" }
+            val darkModeKey = remember(uid) { UserUtils.getScopedKey(uid, "is_dark_mode") }
             
-            var isDarkMode by remember { 
-                mutableStateOf(sharedPref.getBoolean("is_dark_mode", true)) 
+            var isDarkMode by remember(darkModeKey) { 
+                mutableStateOf(sharedPref.getBoolean(darkModeKey, true)) 
             }
             FinCalcTheme(darkTheme = isDarkMode) {
                 val navController = rememberNavController()
 
                 LaunchedEffect(Unit) {
                     assistantViewModel.loadPrefs(context)
+                    
+                    UserUtils.ensureFinCalcUserProfile(context)
+
                     delay(1000)
                     assistantViewModel.showMessage("Hey! Ready to calculate? 😊", AssistantState.HAPPY)
                     
                     if (openSettings) {
                         navController.navigate(Screen.Settings.route + "?resetPin=$resetPin")
+                    }
+                    
+                    deepLinkUri?.let { uri ->
+                        if (uri.scheme == "fincalc" && uri.host == "add-friend") {
+                            val friendId = uri.getQueryParameter("id")
+                            if (friendId != null) {
+                                navController.navigate(Screen.Friends.route + "?search=$friendId")
+                            }
+                        }
                     }
                 }
 
@@ -108,20 +125,13 @@ class HomeActivity : ComponentActivity() {
                         isDarkMode = isDarkMode,
                         onDarkModeChange = { 
                             isDarkMode = it 
-                            sharedPref.edit { putBoolean("is_dark_mode", it) }
+                            sharedPref.edit { putBoolean(darkModeKey, it) }
                         },
                         onLogout = {
-                            SecurityUtils.hasAuthenticatedThisSession = false
-                            SecurityUtils.skipNextLock = false
-                            com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
-                            sharedPref.edit { 
-                                putBoolean("is_guest", false)
-                                remove("email")
-                                remove("name")
-                                remove("profile_pic")
+                            UserUtils.logout(this@HomeActivity) {
+                                startActivity(Intent(this@HomeActivity, LoginActivity::class.java))
+                                finish()
                             }
-                            startActivity(Intent(this@HomeActivity, LoginActivity::class.java))
-                            finish()
                         },
                         assistantViewModel = assistantViewModel
                     )
@@ -137,4 +147,3 @@ class HomeActivity : ComponentActivity() {
         }
     }
 }
-

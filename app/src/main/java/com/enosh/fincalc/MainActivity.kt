@@ -23,6 +23,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
         enableEdgeToEdge()
         setContentView(R.layout.activity_main)
 
@@ -46,13 +47,20 @@ class MainActivity : AppCompatActivity() {
             val keepMeSignedIn = getSharedPreferences("UserPrefs", MODE_PRIVATE).getBoolean("keep_me_signed_in", true)
 
             if ((auth.currentUser != null || isGuest) && keepMeSignedIn) {
-                if (SecurityUtils.isAppLockEnabled(this)) {
-                    val intent = Intent(this, LockActivity::class.java)
-                    intent.putExtra("DESTINATION", "HOME")
-                    startActivity(intent)
+                val intent = if (SecurityUtils.isAppLockEnabled(this)) {
+                    Intent(this, LockActivity::class.java).apply {
+                        putExtra("DESTINATION", "HOME")
+                    }
                 } else {
-                    startActivity(Intent(this, HomeActivity::class.java))
+                    Intent(this, HomeActivity::class.java)
                 }
+                
+                // Pass deep link data if any
+                getIntent().data?.let { uri ->
+                    intent.data = uri
+                }
+                
+                startActivity(intent)
             } else {
                 startActivity(Intent(this, LoginActivity::class.java))
             }

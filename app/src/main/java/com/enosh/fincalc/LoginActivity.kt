@@ -14,16 +14,12 @@ import androidx.core.net.toUri
 import androidx.core.widget.addTextChangedListener
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.GetCredentialException
-import androidx.credentials.exceptions.GetCredentialCancellationException
-import androidx.credentials.exceptions.NoCredentialException
 import androidx.lifecycle.lifecycleScope
 import com.enosh.fincalc.utils.ValidationUtils
 import com.enosh.fincalc.utils.SecurityUtils
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -35,7 +31,6 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
-import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
@@ -183,15 +178,9 @@ class LoginActivity : AppCompatActivity() {
     private fun onAuthSuccess(email: String?) {
         val user = FirebaseAuth.getInstance().currentUser
         if (user != null) {
-            FirebaseFirestore.getInstance().collection("users").document(user.uid).set(
-                mapOf(
-                    "uid" to user.uid,
-                    "name" to (user.displayName ?: "User"),
-                    "email" to (user.email ?: ""),
-                    "searchName" to (user.displayName?.lowercase() ?: "user")
-                ),
-                com.google.firebase.firestore.SetOptions.merge()
-            )
+            lifecycleScope.launch {
+                com.enosh.fincalc.utils.UserUtils.ensureFinCalcUserProfile(this@LoginActivity)
+            }
         }
         lifecycleScope.launch {
             withContext(Dispatchers.IO) {

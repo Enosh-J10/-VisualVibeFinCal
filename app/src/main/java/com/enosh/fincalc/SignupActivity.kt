@@ -19,11 +19,8 @@ import androidx.core.content.edit
 import androidx.core.widget.addTextChangedListener
 import androidx.credentials.CredentialManager
 import androidx.credentials.GetCredentialRequest
-import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.NoCredentialException
-import androidx.credentials.exceptions.GetCredentialProviderConfigurationException
-import androidx.credentials.exceptions.GetCredentialUnsupportedException
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.tasks.await
 import androidx.lifecycle.lifecycleScope
@@ -45,7 +42,6 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
-import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,28 +56,25 @@ class SignupActivity : AppCompatActivity() {
     private var accentTeal: Int = 0
 
     private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        android.util.Log.d("SignupActivity", "Legacy Google Sign-In Result Received")
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
         try {
             val account = task.getResult(ApiException::class.java)
-            android.util.Log.d("SignupActivity", "Legacy Google Sign-In Success")
             val firebaseCredential = GoogleAuthProvider.getCredential(account.idToken, null)
             
             lifecycleScope.launch {
                 setLoading(true)
                 try {
                     auth.signInWithCredential(firebaseCredential).await()
-                    android.util.Log.d("SignupActivity", "Firebase Google Auth Success (Legacy)")
                     onAuthSuccess()
                 } catch (e: Exception) {
-                    android.util.Log.e("SignupActivity", "Firebase Google Auth Failed (Legacy)", e)
+                    android.util.Log.e("SignupActivity", "Firebase Google Auth Failed", e)
                     Toast.makeText(this@SignupActivity, "Firebase Auth Failed: ${e.message}", Toast.LENGTH_LONG).show()
                 } finally {
                     setLoading(false)
                 }
             }
         } catch (e: ApiException) {
-            android.util.Log.e("SignupActivity", "Legacy Google Sign-In Failed (Code: ${e.statusCode})", e)
+            android.util.Log.e("SignupActivity", "Google Sign-In Failed (Code: ${e.statusCode})", e)
             val msg = when (e.statusCode) {
                 7 -> "Network Error. Please check your connection."
                 10 -> "Developer Error: Ensure SHA-1 and package name match in Firebase."
@@ -129,7 +122,6 @@ class SignupActivity : AppCompatActivity() {
         val etPassword = findViewById<TextInputEditText>(R.id.et_password)
         val tilConfirmPassword = findViewById<TextInputLayout>(R.id.til_confirm_password)
         val etConfirmPassword = findViewById<TextInputEditText>(R.id.et_confirm_password)
-        val cbTerms = findViewById<CheckBox>(R.id.cb_terms)
         val btnSignup = findViewById<MaterialButton>(R.id.btn_signup)
         val btnGoogle = findViewById<MaterialButton>(R.id.btn_google)
         val tvLogin = findViewById<TextView>(R.id.tv_login)
@@ -226,14 +218,7 @@ class SignupActivity : AppCompatActivity() {
                 val result = auth.createUserWithEmailAndPassword(email, password).await()
                 val uid = result.user?.uid
                 if (uid != null) {
-                    FirebaseFirestore.getInstance().collection("users").document(uid).set(
-                        mapOf(
-                            "uid" to uid,
-                            "name" to name,
-                            "email" to email,
-                            "searchName" to name.lowercase()
-                        )
-                    )
+                    com.enosh.fincalc.utils.UserUtils.ensureFinCalcUserProfile(this@SignupActivity, providedName = name, providedEmail = email)
                 }
 
                 // Save profile data (Off main thread)
@@ -249,7 +234,7 @@ class SignupActivity : AppCompatActivity() {
 
                 // Send verification email
                 val user = auth.currentUser
-                val verificationTask = user?.sendEmailVerification()?.await()
+                user?.sendEmailVerification()?.await()
                 
                 withContext(Dispatchers.Main) {
                     androidx.appcompat.app.AlertDialog.Builder(this@SignupActivity)
@@ -347,15 +332,19 @@ class SignupActivity : AppCompatActivity() {
         SecurityUtils.skipNextLock = true
         SecurityUtils.hasAuthenticatedThisSession = true
         
-        lifecycleScope.launch(Dispatchers.IO) {
-            getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
-                putBoolean("is_guest", false)
-                putString("email", user?.email)
-                putString("name", user?.displayName)
-                putString("profile_pic", user?.photoUrl?.toString())
+        lifecycleScope.launch {
+            com.enosh.fincalc.utils.UserUtils.ensureFinCalcUserProfile(this@SignupActivity)
+            
+            withContext(Dispatchers.IO) {
+                getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
+                    putBoolean("is_guest", false)
+                    putString("email", user?.email)
+                    putString("name", user?.displayName)
+                    putString("profile_pic", user?.photoUrl?.toString())
+                }
             }
             
-            val isLockEnabled = SecurityUtils.isAppLockEnabled(applicationContext)
+            val isLockEnabled = withContext(Dispatchers.IO) { SecurityUtils.isAppLockEnabled(applicationContext) }
             
             withContext(Dispatchers.Main) {
                 Toast.makeText(this@SignupActivity, getString(R.string.login_successful), Toast.LENGTH_SHORT).show()

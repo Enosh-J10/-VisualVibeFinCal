@@ -1,11 +1,9 @@
 package com.enosh.fincalc.viewmodel
 
 import android.content.Context
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -101,7 +99,10 @@ class AssistantViewModel : ViewModel() {
         "Don't put all your money in one place. 🥚",
         "Even a small drop in interest rates can save you a lot! 📉",
         "Planning a trip? Use Smart Travel to split costs! ✈️",
-        "Don't forget to finalize your trip to see the total! 🗺️"
+        "Don't forget to finalize your trip to see the total! 🗺️",
+        "Add friends to collaborate on travel expenses! 👥",
+        "You can invite friends using your unique FinCalc ID! 🆔",
+        "Scan a friend's QR code to connect instantly! 📱"
     )
 
     private val funFacts = listOf(
@@ -110,6 +111,11 @@ class AssistantViewModel : ViewModel() {
         "I'm always ready to help. No sleep for me!",
         "Beep boop! Just thinking..."
     )
+
+    private fun getPrefName(): String {
+        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "guest"
+        return "AssistantPrefs_$uid"
+    }
 
     fun showMessage(
         text: String,
@@ -125,7 +131,6 @@ class AssistantViewModel : ViewModel() {
             
             val finalState = if (_prefs.value.isMuted) AssistantState.SHUSH else state
 
-            // Keep waving if I'm already doing it
             if (_robotState.value != AssistantState.WAVING) {
                 _robotState.value = finalState
             }
@@ -240,7 +245,7 @@ class AssistantViewModel : ViewModel() {
     }
 
     fun loadPrefs(context: Context) {
-        val sharedPref = context.getSharedPreferences("AssistantPrefs_v3", Context.MODE_PRIVATE)
+        val sharedPref = context.getSharedPreferences(getPrefName(), Context.MODE_PRIVATE)
         _prefs.value = AssistantPrefs(
             isEnabled = sharedPref.getBoolean("enabled", true),
             isMuted = sharedPref.getBoolean("muted", false),
@@ -258,7 +263,7 @@ class AssistantViewModel : ViewModel() {
     }
 
     private fun savePrefs(context: Context) {
-        val sharedPref = context.getSharedPreferences("AssistantPrefs_v3", Context.MODE_PRIVATE)
+        val sharedPref = context.getSharedPreferences(getPrefName(), Context.MODE_PRIVATE)
         sharedPref.edit().apply {
             putBoolean("enabled", _prefs.value.isEnabled)
             putBoolean("muted", _prefs.value.isMuted)

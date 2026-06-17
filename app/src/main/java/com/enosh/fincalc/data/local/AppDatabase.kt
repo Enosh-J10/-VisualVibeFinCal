@@ -38,6 +38,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     dbName
                 )
+                // TODO: Replace fallbackToDestructiveMigration with explicit Room migrations before production release.
                 .fallbackToDestructiveMigration(true)
                 .build()
                 INSTANCE = instance

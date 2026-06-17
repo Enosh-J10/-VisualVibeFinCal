@@ -27,12 +27,16 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.constraintlayout.compose.ConstraintLayout
+import androidx.constraintlayout.compose.Dimension
 import androidx.core.content.edit
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enosh.fincalc.R
@@ -42,7 +46,9 @@ import com.enosh.fincalc.viewmodel.AssistantViewModel
 import com.enosh.fincalc.viewmodel.AssistantMessageType
 import com.enosh.fincalc.viewmodel.AssistantState
 import com.enosh.fincalc.utils.ReminderWorker
+import com.enosh.fincalc.utils.UserUtils
 import androidx.work.*
+import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
 
@@ -58,8 +64,12 @@ fun HomeScreen(
     financialViewModel: FinancialViewModel = viewModel()
 ) {
     val context = LocalContext.current
-    val sharedPref = remember { context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE) }
+    val sharedPref = remember { context.getSharedPreferences(UserUtils.PREFS_NAME, Context.MODE_PRIVATE) }
+    val uid = remember { FirebaseAuth.getInstance().currentUser?.uid ?: "guest" }
     
+    val recentToolsKey = remember(uid) { UserUtils.getScopedKey(uid, "recent_tools") }
+    val favoriteToolsKey = remember(uid) { UserUtils.getScopedKey(uid, "favorite_tools") }
+
     LaunchedEffect(Unit) {
         val workManager = WorkManager.getInstance(context)
         val reminderRequest = PeriodicWorkRequestBuilder<ReminderWorker>(1, TimeUnit.DAYS)
@@ -102,8 +112,8 @@ fun HomeScreen(
         )
     }
 
-    val favoritesState = remember {
-        val initialIds = sharedPref.getString("favorite_tools", "") ?: ""
+    val favoritesState = remember(favoriteToolsKey) {
+        val initialIds = sharedPref.getString(favoriteToolsKey, "") ?: ""
         val initialList = initialIds.split(",")
             .filter { it.isNotBlank() }
             .mapNotNull { id -> allTools.find { it.id == id } }
@@ -111,8 +121,8 @@ fun HomeScreen(
     }
     val favoriteTools = favoritesState.value
 
-    val recentToolsState = remember {
-        val initialIds = sharedPref.getString("recent_tools", "") ?: ""
+    val recentToolsState = remember(recentToolsKey) {
+        val initialIds = sharedPref.getString(recentToolsKey, "") ?: ""
         val initialList = initialIds.split(",")
             .filter { it.isNotBlank() }
             .mapNotNull { id -> allTools.find { it.id == id } }
@@ -121,12 +131,12 @@ fun HomeScreen(
     val recentTools = recentToolsState.value
 
     val handleNavigateToTool: (String) -> Unit = { toolId ->
-        val currentRecent = sharedPref.getString("recent_tools", "") ?: ""
+        val currentRecent = sharedPref.getString(recentToolsKey, "") ?: ""
         val recentList = currentRecent.split(",").filter { it.isNotBlank() }.toMutableList()
         recentList.remove(toolId)
         recentList.add(0, toolId)
         val updatedRecent = recentList.take(5).joinToString(",")
-        sharedPref.edit { putString("recent_tools", updatedRecent) }
+        sharedPref.edit { putString(recentToolsKey, updatedRecent) }
         
         recentToolsState.value = updatedRecent.split(",")
             .filter { it.isNotBlank() }
@@ -136,7 +146,7 @@ fun HomeScreen(
     }
 
     val toggleFavorite: (String) -> Unit = { toolId ->
-        val currentFavorites = sharedPref.getString("favorite_tools", "") ?: ""
+        val currentFavorites = sharedPref.getString(favoriteToolsKey, "") ?: ""
         val favList = currentFavorites.split(",").filter { it.isNotBlank() }.toMutableList()
         if (favList.contains(toolId)) {
             favList.remove(toolId)
@@ -144,7 +154,7 @@ fun HomeScreen(
             favList.add(toolId)
         }
         val updatedFavorites = favList.joinToString(",")
-        sharedPref.edit { putString("favorite_tools", updatedFavorites) }
+        sharedPref.edit { putString(favoriteToolsKey, updatedFavorites) }
         
         favoritesState.value = updatedFavorites.split(",")
             .filter { it.isNotBlank() }
@@ -346,35 +356,54 @@ fun HomeScreen(
                             Text("No tools found", color = Color.Gray)
                         }
                     } else {
-                        // Grid-like layout but scrollable
-                        categories.chunked(2).forEach { rowCategories ->
-                            Row(Modifier.fillMaxWidth().height(IntrinsicSize.Max)) {
-                                rowCategories.forEach { cat ->
-                                    CategoryCard(cat, Modifier.weight(1f).fillMaxHeight(), visible, categories.indexOf(cat), isDarkMode, handleNavigateToTool, favoriteTools, toggleFavorite)
+                        // Improved Grid layout with PremiumFab at the exact intersection
+                        Box(contentAlignment = Alignment.TopCenter) {
+                            var firstRowHeight by remember { mutableStateOf(0) }
+                            val density = androidx.compose.ui.platform.LocalDensity.current
+
+                            Column {
+                                val chunkedCategories = categories.chunked(2)
+                                chunkedCategories.forEachIndexed { rowIndex, rowCategories ->
+                                    Row(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .height(IntrinsicSize.Max)
+                                            .onGloballyPositioned { 
+                                                if (rowIndex == 0) firstRowHeight = it.size.height 
+                                            }
+                                    ) {
+                                        rowCategories.forEach { cat ->
+                                            CategoryCard(cat, Modifier.weight(1f).fillMaxHeight(), visible, categories.indexOf(cat), isDarkMode, handleNavigateToTool, favoriteTools, toggleFavorite)
+                                        }
+                                        if (rowCategories.size == 1) {
+                                            Spacer(Modifier.weight(1f))
+                                        }
+                                    }
                                 }
-                                if (rowCategories.size == 1) {
-                                    Spacer(Modifier.weight(1f))
-                                }
+                            }
+                            
+                            if (categories.size >= 4 && firstRowHeight > 0) {
+                                val yOffset = with(density) { firstRowHeight.toDp() }
+                                PremiumFab(
+                                    visible = visible, 
+                                    onClick = { 
+                                        val currentTime = System.currentTimeMillis()
+                                        if (currentTime - lastRefreshTime > 2000) {
+                                            lastRefreshTime = currentTime
+                                            refreshTrigger++ 
+                                            assistantViewModel.showMessage("Refreshing the page for you! ⚡", state = AssistantState.HAPPY, type = AssistantMessageType.THOUGHT)
+                                            Toast.makeText(context, "Page Refreshed", Toast.LENGTH_SHORT).show()
+                                        } else {
+                                            Toast.makeText(context, "Refreshing too fast! Please wait.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .offset(y = yOffset - 30.dp) // 30dp is half of FAB size (60dp)
+                                        .semantics { contentDescription = "Refresh the home screen tools" }
+                                )
                             }
                         }
                     }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    // Refresh/Up Button - Moved here to move with scroll
-                    PremiumFab(visible = visible, onClick = { 
-                        val currentTime = System.currentTimeMillis()
-                        if (currentTime - lastRefreshTime > 2000) {
-                            lastRefreshTime = currentTime
-                            refreshTrigger++ 
-                            assistantViewModel.showMessage("Refreshing the page for you! ⚡", state = AssistantState.HAPPY, type = AssistantMessageType.THOUGHT)
-                            Toast.makeText(context, "Page Refreshed", Toast.LENGTH_SHORT).show()
-                        } else {
-                            Toast.makeText(context, "Refreshing too fast! Please wait.", Toast.LENGTH_SHORT).show()
-                        }
-                    }, modifier = Modifier.semantics {
-                        contentDescription = "Refresh the home screen tools"
-                    })
 
                     Spacer(Modifier.height(120.dp)) // Padding for bottom nav chips
                 }

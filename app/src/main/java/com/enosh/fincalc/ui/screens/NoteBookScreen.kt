@@ -25,6 +25,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import com.enosh.fincalc.ui.components.ValidatedTextField
 import com.enosh.fincalc.utils.ValidationUtils
+import com.enosh.fincalc.utils.UserUtils
 import com.enosh.fincalc.viewmodel.AssistantViewModel
 import com.enosh.fincalc.viewmodel.AssistantState
 import com.enosh.fincalc.viewmodel.AssistantMessageType
@@ -41,9 +42,10 @@ fun NoteBookScreen(
     assistantViewModel: AssistantViewModel
 ) {
     val context = LocalContext.current
-    val sharedPref = remember { context.getSharedPreferences("NotesPrefs", Context.MODE_PRIVATE) }
+    val uid = UserUtils.getEffectiveUid(context)
+    val sharedPref = remember(uid) { context.getSharedPreferences("NotesPrefs_$uid", Context.MODE_PRIVATE) }
     
-    var notes by remember { 
+    var notes by remember(sharedPref) { 
         mutableStateOf(
             sharedPref.all.map { (key, value) -> 
                 val parts = value.toString().split("::::")
@@ -235,7 +237,8 @@ data class Note(val id: String, val title: String, val content: String, val time
 @Composable
 fun NoteItem(note: Note, isDarkMode: Boolean, onDelete: () -> Unit, onEdit: () -> Unit) {
     val context = LocalContext.current
-    val sharedPref = remember { context.getSharedPreferences("NotesPrefs", Context.MODE_PRIVATE) }
+    val uid = UserUtils.getEffectiveUid(context)
+    val sharedPref = remember(uid) { context.getSharedPreferences("NotesPrefs_$uid", Context.MODE_PRIVATE) }
     val date = SimpleDateFormat("MMM dd, yyyy HH:mm", Locale.getDefault()).format(Date(note.timestamp))
     
     Card(

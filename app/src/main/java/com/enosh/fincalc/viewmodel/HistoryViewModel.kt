@@ -5,6 +5,7 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.core.content.edit
 import com.enosh.fincalc.data.model.HistoryItem
+import com.enosh.fincalc.utils.UserUtils
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,7 +13,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 class HistoryViewModel(application: Application) : AndroidViewModel(application) {
-    private val sharedPrefs = application.getSharedPreferences("app_history_prefs", Context.MODE_PRIVATE)
+    private val uid = UserUtils.getEffectiveUid(application)
+    private val sharedPrefs = application.getSharedPreferences("app_history_prefs_$uid", Context.MODE_PRIVATE)
     private val gson = Gson()
 
     private val _histories = MutableStateFlow<Map<String, List<HistoryItem>>>(emptyMap())

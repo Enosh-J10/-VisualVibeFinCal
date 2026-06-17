@@ -41,10 +41,7 @@ object SecurityUtils {
     }
 
     private fun getEffectiveUid(context: Context): String {
-        val prefs = context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
-        val isGuest = prefs.getBoolean("is_guest", false)
-        if (isGuest) return "guest"
-        return com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
+        return UserUtils.getEffectiveUid(context)
     }
 
     fun isAppLockEnabled(context: Context): Boolean {

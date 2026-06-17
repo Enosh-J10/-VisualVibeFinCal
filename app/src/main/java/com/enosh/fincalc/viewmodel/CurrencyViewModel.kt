@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.enosh.fincalc.data.model.CurrencyHistoryItem
 import com.enosh.fincalc.data.model.CurrencyResponse
 import com.enosh.fincalc.domain.repository.CurrencyRepository
+import com.enosh.fincalc.utils.UserUtils
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -25,7 +26,8 @@ class CurrencyViewModel(
     private val repository: CurrencyRepository,
     private val context: Context
 ) : ViewModel() {
-    private val sharedPrefs = context.getSharedPreferences("currency_prefs", Context.MODE_PRIVATE)
+    private val uid = UserUtils.getEffectiveUid(context)
+    private val sharedPrefs = context.getSharedPreferences("currency_prefs_$uid", Context.MODE_PRIVATE)
     private val gson = Gson()
 
     private val _uiState = MutableStateFlow<CurrencyUiState>(CurrencyUiState.Idle)
@@ -96,16 +98,13 @@ class CurrencyViewModel(
 
     fun fetchRates(base: String) {
         val cleanBase = base.uppercase().trim()
-        Log.d("CurrencyViewModel", "fetchRates initiated for: $cleanBase")
         viewModelScope.launch {
             _uiState.value = CurrencyUiState.Loading
             repository.getLatestRates(cleanBase)
                 .onSuccess { response ->
-                    Log.d("CurrencyViewModel", "API Response Success: ${response.result}")
                     val rates = response.allRates
                     if (rates.isNotEmpty()) {
                         _availableCurrencies.value = rates.keys.toList().sorted()
-                        Log.d("CurrencyViewModel", "Updated available currencies: ${rates.size} items")
                     }
                     _uiState.value = CurrencyUiState.Success(response)
                 }
@@ -117,13 +116,10 @@ class CurrencyViewModel(
     }
 
     fun convert(amount: Double, toRate: Double?) {
-        Log.d("CurrencyViewModel", "convert called: amount=$amount, toRate=$toRate")
         if (toRate == null) {
-            Log.w("CurrencyViewModel", "toRate is null, cannot convert")
             _convertedAmount.value = null
             return
         }
         _convertedAmount.value = amount * toRate
-        Log.d("CurrencyViewModel", "convertedAmount updated: ${_convertedAmount.value}")
     }
 }

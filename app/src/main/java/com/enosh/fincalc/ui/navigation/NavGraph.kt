@@ -111,11 +111,22 @@ fun NavGraph(
         
         composable(Screen.SmartTravel.route) { SmartTravelScreen(navController, isDarkMode, assistantViewModel) }
         composable(
+            route = Screen.Friends.route,
+            arguments = listOf(navArgument("search") { 
+                type = NavType.StringType
+                nullable = true
+                defaultValue = null 
+            })
+        ) { backStackEntry ->
+            val initialSearch = backStackEntry.arguments?.getString("search")
+            com.enosh.fincalc.ui.screens.FriendsScreen(navController, isDarkMode, initialSearch = initialSearch)
+        }
+        composable(
             route = Screen.TripDetail.route,
             arguments = listOf(navArgument("tripId") { type = NavType.StringType })
         ) { backStackEntry ->
             val tripId = backStackEntry.arguments?.getString("tripId") ?: ""
-            TripDetailScreen(tripId, navController, isDarkMode, assistantViewModel)
+            TripDetailScreen(tripId, navController, isDarkMode)
         }
 
         composable(Screen.Onboarding.route) { 

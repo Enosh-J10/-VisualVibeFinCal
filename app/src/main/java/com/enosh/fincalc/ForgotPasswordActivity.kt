@@ -36,10 +36,9 @@ class ForgotPasswordActivity : AppCompatActivity() {
         
         try {
             auth = FirebaseAuth.getInstance()
-            android.util.Log.d("FirebaseInit", "Firebase initialized successfully in ForgotPasswordActivity")
         } catch (e: Exception) {
             Toast.makeText(this, "Firebase configuration error. Please check app setup.", Toast.LENGTH_LONG).show()
-            android.util.Log.e("FirebaseInit", "Firebase initialization failed in ForgotPasswordActivity", e)
+            android.util.Log.e("FirebaseInit", "Firebase initialization failed", e)
         }
 
         enableEdgeToEdge()
@@ -90,8 +89,6 @@ class ForgotPasswordActivity : AppCompatActivity() {
                         .setCancelable(false)
                         .show()
 
-                    android.util.Log.d("ForgotPassword", "Reset email sent")
-                    
                     tvStepDesc.text = getString(R.string.reset_link_sent_to, email)
                     layoutStep1.visibility = View.GONE
                     btnAction.text = getString(R.string.back_to_login)

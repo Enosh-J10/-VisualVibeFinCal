@@ -28,7 +28,9 @@ fun ValidatedTextField(
     visualTransformation: VisualTransformation = VisualTransformation.None,
     singleLine: Boolean = true,
     maxLines: Int = if (singleLine) 1 else Int.MAX_VALUE,
-    minLines: Int = 1
+    minLines: Int = 1,
+    leadingIcon: @Composable (() -> Unit)? = null,
+    trailingIcon: @Composable (() -> Unit)? = null
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
         Text(label, fontSize = 14.sp, color = Color.Gray)
@@ -53,7 +55,9 @@ fun ValidatedTextField(
             ),
             singleLine = singleLine,
             maxLines = maxLines,
-            minLines = minLines
+            minLines = minLines,
+            leadingIcon = leadingIcon,
+            trailingIcon = trailingIcon
         )
         if (error != null) {
             Text(

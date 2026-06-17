@@ -1,12 +1,16 @@
 package com.enosh.fincalc.data.model
 
 data class TravelExpense(
-    val id: String = "",
+    val expenseId: String = "",
     val tripId: String = "",
     val title: String = "",
     val amount: Double = 0.0,
-    val paidBy: String = "", // UID
-    val date: Long = 0,
+    val currencyCode: String = "",
+    val currencySymbol: String = "",
+    val paidByUid: String = "",
+    val createdByUid: String = "",
+    val createdAt: Long = 0,
+    val updatedAt: Long = 0,
     val category: String = "Other",
     val notes: String = "",
     val receiptUrl: String? = null,

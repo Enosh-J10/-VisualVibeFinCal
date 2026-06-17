@@ -22,6 +22,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -39,9 +41,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import androidx.core.net.toUri
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.userProfileChangeRequest
 import com.enosh.fincalc.R
 import com.enosh.fincalc.ui.components.AssistantRobot
 import com.enosh.fincalc.ui.components.ValidatedTextField
@@ -49,8 +53,10 @@ import com.enosh.fincalc.viewmodel.*
 import com.enosh.fincalc.utils.SecurityUtils
 import com.enosh.fincalc.utils.BackupUtils
 import com.enosh.fincalc.utils.CurrencyUtils
+import com.enosh.fincalc.utils.UserUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -59,21 +65,28 @@ fun SettingsScreen(
     isDarkMode: Boolean,
     onDarkModeChange: (Boolean) -> Unit,
     assistantViewModel: AssistantViewModel,
+    settingsViewModel: SettingsViewModel = viewModel(),
     initialResetPin: Boolean = false
 ) {
     val context = LocalContext.current
-    val securePrefs = remember { SecurityUtils.getEncryptedPrefs(context) }
-    val sharedPref = remember { context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE) }
+    val sharedPref = remember { context.getSharedPreferences(UserUtils.PREFS_NAME, Context.MODE_PRIVATE) }
     val coroutineScope = rememberCoroutineScope()
     val assistantPrefs by assistantViewModel.prefs.collectAsState()
+    
+    val cloudSyncState by settingsViewModel.cloudSyncState.collectAsState()
+
     
     val auth = remember { FirebaseAuth.getInstance() }
     val firebaseUser = auth.currentUser
     val isVerified = firebaseUser?.isEmailVerified ?: false
 
-    val email = securePrefs.getString("email", firebaseUser?.email ?: "No Email") ?: "No Email"
-    val initialName = securePrefs.getString("name", firebaseUser?.displayName ?: "User") ?: "User"
-    val initialProfilePic = sharedPref.getString("profile_pic", null)
+    val userUid = firebaseUser?.uid ?: ""
+    val email = firebaseUser?.email ?: "No Email"
+    val initialName = firebaseUser?.displayName ?: "User"
+    
+    val profilePicKey = remember(userUid) { UserUtils.getScopedKey(userUid, "profile_pic") }
+    val initialProfilePic = sharedPref.getString(profilePicKey, null)
+    val finCalcId = remember(userUid) { UserUtils.generateStableFinCalcId(userUid) }
 
     var userName by remember { mutableStateOf(initialName) }
     var userEmail by remember { mutableStateOf(email) }
@@ -89,8 +102,7 @@ fun SettingsScreen(
     var biometricEnabled by remember { mutableStateOf(SecurityUtils.isBiometricEnabled(context)) }
     var showPinDialog by remember { mutableStateOf(false) }
     
-    // PIN Setup/Reset State
-    var pinStep by remember { mutableStateOf(if (initialResetPin) 2 else 1) } // 1: Old PIN, 2: New PIN, 3: Confirm PIN
+    var pinStep by remember { mutableStateOf(if (initialResetPin) 2 else 1) } 
     var currentPinInput by remember { mutableStateOf("") }
     var newPinInput by remember { mutableStateOf("") }
     var confirmPinInput by remember { mutableStateOf("") }
@@ -134,7 +146,7 @@ fun SettingsScreen(
                         Intent.FLAG_GRANT_READ_URI_PERMISSION
                     )
                     profilePicUri = uri
-                    sharedPref.edit { putString("profile_pic", uri.toString()) }
+                    sharedPref.edit { putString(profilePicKey, uri.toString()) }
                 } catch (e: Exception) {
                     Toast.makeText(context, "Failed to save profile picture", Toast.LENGTH_SHORT).show()
                 }
@@ -213,22 +225,50 @@ fun SettingsScreen(
                 }
             }
 
-    val verificationEmailSentMsg = stringResource(R.string.verification_email_sent)
-
-    if (!isVerified && firebaseUser != null) {
-        TextButton(onClick = {
-            firebaseUser.sendEmailVerification().addOnCompleteListener { task ->
-                if (task.isSuccessful) {
-                    Toast.makeText(context, verificationEmailSentMsg, Toast.LENGTH_SHORT).show()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "FinCalc ID: $finCalcId",
+                    fontSize = 14.sp,
+                    color = Color.Gray
+                )
+                IconButton(onClick = {
+                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("FinCalc ID", finCalcId)
+                    clipboard.setPrimaryClip(clip)
+                    Toast.makeText(context, "ID Copied", Toast.LENGTH_SHORT).show()
+                }, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy ID", modifier = Modifier.size(16.dp), tint = Color(0xFF00D1B2))
                 }
             }
-        }) {
-            Text(stringResource(R.string.resend_verification), color = Color(0xFF00D1B2), fontSize = 12.sp)
-        }
-    }
+
+            val verificationEmailSentMsg = stringResource(R.string.verification_email_sent)
+
+            if (!isVerified && firebaseUser != null) {
+                TextButton(onClick = {
+                    firebaseUser.sendEmailVerification().addOnCompleteListener { task ->
+                        if (task.isSuccessful) {
+                            Toast.makeText(context, verificationEmailSentMsg, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }) {
+                    Text(stringResource(R.string.resend_verification), color = Color(0xFF00D1B2), fontSize = 12.sp)
+                }
+            }
             
             TextButton(onClick = { showEditDialog = true }) {
                 Text(stringResource(R.string.edit_profile), color = Color(0xFF00D1B2), fontWeight = FontWeight.Bold)
+            }
+
+
+            BouncyButton(
+                onClick = { navController.navigate("friends") },
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                shape = RoundedCornerShape(12.dp),
+                containerColor = Color(0xFF00D1B2).copy(alpha = 0.1f)
+            ) {
+                Icon(Icons.Default.GroupAdd, contentDescription = null, tint = Color(0xFF00D1B2))
+                Spacer(Modifier.width(8.dp))
+                Text("Friends / Add Friends", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
             }
 
             Spacer(Modifier.height(24.dp))
@@ -586,7 +626,6 @@ fun SettingsScreen(
                             .fillMaxWidth(0.85f)
                             .heightIn(max = 300.dp)
                     ) {
-                        // Search field inside dropdown
                         OutlinedTextField(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
@@ -728,7 +767,7 @@ fun SettingsScreen(
                 }
             }
 
-            Spacer(Modifier.height(32.dp))
+            Spacer(Modifier.height(80.dp))
         }
     }
 
@@ -746,29 +785,23 @@ fun SettingsScreen(
                         label = stringResource(R.string.full_name),
                         keyboardType = KeyboardType.Text
                     )
-                    Spacer(Modifier.height(12.dp))
-                    ValidatedTextField(
-                        value = userEmail,
-                        onValueChange = { userEmail = it },
-                        label = "Email",
-                        keyboardType = KeyboardType.Email
-                    )
                 }
             },
             confirmButton = {
                 BouncyButton(onClick = { 
-                    securePrefs.edit {
-                        putString("name", userName)
-                        putString("email", userEmail)
+                    coroutineScope.launch {
+                        firebaseUser?.updateProfile(userProfileChangeRequest {
+                            displayName = userName
+                        })?.await()
+                        settingsViewModel.uploadProfileToCloud()
+                        showEditDialog = false
+                        Toast.makeText(context, profileUpdatedMsg, Toast.LENGTH_SHORT).show()
                     }
-                    showEditDialog = false
-                    Toast.makeText(context, profileUpdatedMsg, Toast.LENGTH_SHORT).show()
                 }) { Text(stringResource(R.string.save), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
                 TextButton(onClick = { 
                     userName = initialName
-                    userEmail = email
                     showEditDialog = false 
                 }) { Text(stringResource(R.string.cancel), color = Color.Gray) }
             }

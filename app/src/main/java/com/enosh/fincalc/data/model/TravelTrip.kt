@@ -1,16 +1,20 @@
 package com.enosh.fincalc.data.model
 
+import com.google.firebase.Timestamp
+
 data class TravelTrip(
-    val id: String = "",
+    val tripId: String = "",
     val name: String = "",
-    val destination: String = "",
-    val startDate: Long = 0,
-    val endDate: Long = 0,
-    val currency: String = "INR",
-    val description: String = "",
-    val adminId: String = "",
-    val members: List<String> = emptyList(), // List of UIDs
+    val destinationCountry: String = "",
+    val destinationCity: String = "",
+    val currencyCode: String = "",
+    val currencySymbol: String = "",
+    val createdByUid: String = "",
+    val memberUids: List<String> = emptyList(),
     val memberDetails: Map<String, MemberInfo> = emptyMap(),
+    val createdAt: Timestamp? = null,
+    val updatedAt: Timestamp? = null,
+    val description: String = "",
     val isFinalized: Boolean = false
 )
 
