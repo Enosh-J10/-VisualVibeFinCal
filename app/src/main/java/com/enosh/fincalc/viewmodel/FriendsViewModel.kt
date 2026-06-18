@@ -31,6 +31,12 @@ class FriendsViewModel : ViewModel() {
     private val _friends = MutableStateFlow<List<User>>(emptyList())
     val friends: StateFlow<List<User>> = _friends
 
+    private val _friendNicknames = MutableStateFlow<Map<String, String>>(emptyMap())
+    val friendNicknames: StateFlow<Map<String, String>> = _friendNicknames
+
+    private val _blockedUsers = MutableStateFlow<Set<String>>(emptySet())
+    val blockedUsers: StateFlow<Set<String>> = _blockedUsers
+
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching
 
@@ -40,10 +46,13 @@ class FriendsViewModel : ViewModel() {
     private var pendingListener: ListenerRegistration? = null
     private var sentListener: ListenerRegistration? = null
     private var friendsListener: ListenerRegistration? = null
+    private var nicknamesListener: ListenerRegistration? = null
+    private var blockedListener: ListenerRegistration? = null
 
     init {
         fetchPendingRequests()
         fetchFriends()
+        fetchFriendMetadata()
     }
 
     override fun onCleared() {
@@ -51,6 +60,8 @@ class FriendsViewModel : ViewModel() {
         pendingListener?.remove()
         sentListener?.remove()
         friendsListener?.remove()
+        nicknamesListener?.remove()
+        blockedListener?.remove()
     }
 
     fun searchUsers(query: String) {
@@ -64,7 +75,8 @@ class FriendsViewModel : ViewModel() {
             try {
                 val currentUid = auth.currentUser?.uid
                 val users = UserUtils.searchUsers(query)
-                _searchResults.value = users.filter { it.uid != currentUid }
+                val blocked = _blockedUsers.value
+                _searchResults.value = users.filter { it.uid != currentUid && !blocked.contains(it.uid) }
             } catch (e: Exception) {
                 Log.e("FriendsError", "Search failed", e)
                 _errorMessage.value = "Search failed: ${e.message}"
@@ -302,6 +314,8 @@ class FriendsViewModel : ViewModel() {
                     try {
                         val users = mutableListOf<User>()
                         for (uid in friendUids) {
+                            if (_blockedUsers.value.contains(uid)) continue
+                            
                             val userDoc = db.collection("users").document(uid).get().await()
                             if (userDoc.exists()) {
                                 userDoc.toObject(User::class.java)?.let { users.add(it) }
@@ -316,5 +330,101 @@ class FriendsViewModel : ViewModel() {
                     }
                 }
             }
+    }
+
+    private fun fetchFriendMetadata() {
+        val currentUid = auth.currentUser?.uid ?: return
+        
+        nicknamesListener?.remove()
+        nicknamesListener = db.collection("users").document(currentUid)
+            .collection("friendSettings")
+            .addSnapshotListener { snapshot, _ ->
+                val nicknames = snapshot?.documents?.associate { doc ->
+                    doc.id to (doc.getString("nickname") ?: "")
+                } ?: emptyMap()
+                _friendNicknames.value = nicknames
+            }
+
+        blockedListener?.remove()
+        blockedListener = db.collection("users").document(currentUid)
+            .collection("blockedUsers")
+            .addSnapshotListener { snapshot, _ ->
+                val blocked = snapshot?.documents?.map { it.id }?.toSet() ?: emptySet()
+                _blockedUsers.value = blocked
+                // Re-filter friends if blocked users change
+                fetchFriends()
+            }
+    }
+
+    fun setNickname(friendUid: String, nickname: String) {
+        val currentUid = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            try {
+                db.collection("users").document(currentUid)
+                    .collection("friendSettings").document(friendUid)
+                    .set(mapOf(
+                        "nickname" to nickname,
+                        "updatedAt" to FieldValue.serverTimestamp()
+                    )).await()
+            } catch (e: Exception) {
+                _errorMessage.value = "Failed to set nickname."
+            }
+        }
+    }
+
+    fun removeFriend(friendUid: String) {
+        val currentUid = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            try {
+                val uids = listOf(currentUid, friendUid).sorted()
+                val friendshipId = "${uids[0]}_${uids[1]}"
+                
+                db.collection("friends").document(friendshipId).delete().await()
+                
+                // Also remove any pending/accepted requests
+                db.collection("friendRequests").document("${currentUid}_$friendUid").delete().await()
+                db.collection("friendRequests").document("${friendUid}_$currentUid").delete().await()
+                
+                _errorMessage.value = "Friend removed."
+            } catch (e: Exception) {
+                _errorMessage.value = "Failed to remove friend."
+            }
+        }
+    }
+
+    fun blockUser(blockedUid: String) {
+        val currentUid = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            try {
+                // 1. Remove friendship if exists
+                removeFriend(blockedUid)
+                
+                // 2. Add to blocked list
+                db.collection("users").document(currentUid)
+                    .collection("blockedUsers").document(blockedUid)
+                    .set(mapOf(
+                        "blockedUid" to blockedUid,
+                        "blockedAt" to FieldValue.serverTimestamp()
+                    )).await()
+                
+                _errorMessage.value = "User blocked."
+            } catch (e: Exception) {
+                _errorMessage.value = "Failed to block user."
+            }
+        }
+    }
+
+    fun unblockUser(blockedUid: String) {
+        val currentUid = auth.currentUser?.uid ?: return
+        viewModelScope.launch {
+            try {
+                db.collection("users").document(currentUid)
+                    .collection("blockedUsers").document(blockedUid)
+                    .delete().await()
+                _errorMessage.value = "User unblocked."
+            } catch (e: Exception) {
+                _errorMessage.value = "Failed to unblock user."
+            }
+        }
     }
 }

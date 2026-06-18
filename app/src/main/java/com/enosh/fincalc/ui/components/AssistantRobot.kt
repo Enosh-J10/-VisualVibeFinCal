@@ -9,9 +9,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +36,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.enosh.fincalc.viewmodel.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -45,7 +44,8 @@ fun AssistantRobot(
     viewModel: AssistantViewModel,
     isDarkMode: Boolean,
     isPreview: Boolean = false,
-    onOpenSettings: () -> Unit = {}
+    onOpenSettings: () -> Unit = {},
+    onOpenAiChat: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val prefs by viewModel.prefs.collectAsState()
@@ -53,6 +53,8 @@ fun AssistantRobot(
     val messageType by viewModel.messageType.collectAsState()
     val isTyping by viewModel.isTyping.collectAsState()
     val robotState by viewModel.robotState.collectAsState()
+
+    var showAiChatPopup by remember { mutableStateOf(false) }
 
     if (!prefs.isEnabled && !isPreview) return
 
@@ -74,9 +76,9 @@ fun AssistantRobot(
     val bubbleMaxWidth = 220.dp
     val bubbleMaxWidthPx = with(density) { bubbleMaxWidth.toPx() }
 
-    // Starts in the bottom right, accounting for navigation bars
+    // Starts in the middle right, away from bottom navigation and FAB
     val initialX = screenWidthPx - robotWidthPx - screenPaddingPx
-    val initialY = screenHeightPx - robotHeightPx - navigationBarsHeightPx - with(density) { 32.dp.toPx() }
+    val initialY = (screenHeightPx / 2) - (robotHeightPx / 2)
 
     val animX = remember { Animatable(if (prefs.lastPosX != -1f) prefs.lastPosX else initialX) }
     val animY = remember { Animatable(if (prefs.lastPosY != -1f) prefs.lastPosY else initialY) }
@@ -217,6 +219,32 @@ fun AssistantRobot(
                     alignment = bubbleAlignment
                 )
             }
+
+            AnimatedVisibility(
+                visible = showAiChatPopup,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+                modifier = Modifier
+                    .graphicsLayer {
+                        val xPos = animX.value + (robotWidthPx / 2) - 50.dp.toPx()
+                        val yPos = animY.value - 45.dp.toPx()
+                        translationX = xPos.coerceIn(screenPaddingPx, screenWidthPx - 100.dp.toPx() - screenPaddingPx)
+                        translationY = yPos + floatAnim
+                    }
+            ) {
+                Button(
+                    onClick = { 
+                        showAiChatPopup = false
+                        onOpenAiChat()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2)),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.height(32.dp)
+                ) {
+                    Text("AI Chat?", fontSize = 12.sp, color = Color.White)
+                }
+            }
         }
 
         // Robot Character
@@ -269,6 +297,16 @@ fun AssistantRobot(
                     if (!isPreview) {
                         detectTapGestures(
                             onTap = {
+                                if (!showAiChatPopup) {
+                                    showAiChatPopup = true
+                                    coroutineScope.launch {
+                                        delay(4000)
+                                        showAiChatPopup = false
+                                    }
+                                } else {
+                                    showAiChatPopup = false
+                                }
+
                                 if (message == null && !isTyping) {
                                     viewModel.triggerWave()
                                     viewModel.triggerRandomTip()

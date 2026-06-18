@@ -27,4 +27,11 @@ sealed class Screen(val route: String) {
     object TripDetail : Screen("trip_detail/{tripId}") {
         fun createRoute(tripId: String) = "trip_detail/$tripId"
     }
+    object ChatList : Screen("chat_list")
+    object ChatRoom : Screen("chat_room/{chatId}/{friendUid}") {
+        fun createRoute(chatId: String, friendUid: String) = "chat_room/$chatId/$friendUid"
+    }
+    object AiChat : Screen("ai_chat")
+    object AiSettings : Screen("ai_settings")
+    object SmartBusiness : Screen("smart_business")
 }

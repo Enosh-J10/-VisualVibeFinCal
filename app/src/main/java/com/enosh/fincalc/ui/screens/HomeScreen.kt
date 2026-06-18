@@ -58,7 +58,7 @@ import com.enosh.fincalc.viewmodel.FinancialViewModel
 @Composable
 fun HomeScreen(
     isDarkMode: Boolean, 
-    onLogout: () -> Unit,
+    onNavigateToChat: () -> Unit,
     onNavigateToTool: (String) -> Unit,
     assistantViewModel: AssistantViewModel,
     financialViewModel: FinancialViewModel = viewModel()
@@ -92,6 +92,7 @@ fun HomeScreen(
 
     val allTools = remember {
         listOf(
+            Tool("ai_chat", "FinCalc AI", R.drawable.ic_calc),
             Tool("curr", "Currency", R.drawable.ic_currency),
             Tool("loan", "Loan Calculator", R.drawable.ic_loan),
             Tool("tip", "Tip & Split Calculator", R.drawable.ic_tip),
@@ -108,7 +109,8 @@ fun HomeScreen(
             Tool("budget", "Budget Planner", R.drawable.ic_calc),
             Tool("goals", "Savings Goals", R.drawable.ic_calc),
             Tool("saving_planner", "Auto Saving Planner", R.drawable.ic_salary),
-            Tool("smart_travel", "Smart Travel", R.drawable.ic_tip)
+            Tool("smart_travel", "Smart Travel", R.drawable.ic_tip),
+            Tool("smart_business", "Smart Business", R.drawable.ic_tax)
         )
     }
 
@@ -183,9 +185,9 @@ fun HomeScreen(
 
     val categories = remember(searchQuery, isDarkMode) {
         listOf(
-            Category("Insights & Planning", filteredTools.filter { it.id in listOf("insights", "budget", "goals", "saving_planner") }, if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFE3F2FD)),
+            Category("Insights & Planning", filteredTools.filter { it.id in listOf("ai_chat", "insights", "budget", "goals", "saving_planner") }, if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFE3F2FD)),
             Category("Finance Basics", filteredTools.filter { it.id in listOf("curr", "loan", "tip") }, if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFF0F4F8)),
-            Category("Advanced", filteredTools.filter { it.id in listOf("tax", "perc", "smart_scan", "smart_travel") }, if (isDarkMode) Color(0xFF1E322E) else Color(0xFFE8F5E9)),
+            Category("Advanced", filteredTools.filter { it.id in listOf("tax", "perc", "smart_scan", "smart_travel", "smart_business") }, if (isDarkMode) Color(0xFF1E322E) else Color(0xFFE8F5E9)),
             Category("Personal", filteredTools.filter { it.id in listOf("unit", "date", "bmi", "calc", "salary", "notes") }, if (isDarkMode) Color(0xFF2E1B33) else Color(0xFFF3E5F5))
         ).filter { it.tools.isNotEmpty() }
     }
@@ -218,8 +220,12 @@ fun HomeScreen(
                 CenterAlignedTopAppBar(
                     title = { Text(stringResource(R.string.fincalc), fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black) },
                     navigationIcon = {
-                        TextButton(onClick = onLogout) {
-                            Text(stringResource(R.string.logout), color = Color(0xFF00D1B2))
+                        IconButton(onClick = onNavigateToChat) {
+                            Icon(
+                                Icons.Default.Chat,
+                                contentDescription = "Chat",
+                                tint = Color(0xFF00D1B2)
+                            )
                         }
                     },
                     actions = {
@@ -434,7 +440,7 @@ fun CategoryCard(
 
     Card(
         modifier = modifier
-            .padding(4.dp)
+            .padding(6.dp)
             .graphicsLayer {
                 alpha = animatedAlpha
                 translationY = animatedOffsetY
@@ -445,14 +451,14 @@ fun CategoryCard(
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
     ) {
-        Column(Modifier.padding(12.dp)) {
+        Column(Modifier.padding(16.dp)) {
             Text(
                 category.title,
                 fontWeight = FontWeight.ExtraBold,
-                fontSize = 16.sp,
-                color = if (isDarkMode) Color.White else Color(0xFF0F2027)
+                fontSize = 18.sp,
+                color = if (isDarkMode) Color.White else Color(0xFF0F2027),
+                modifier = Modifier.padding(bottom = 8.dp)
             )
-            Spacer(Modifier.height(8.dp))
             category.tools.forEach { tool ->
                 ToolItem(
                     tool = tool, 

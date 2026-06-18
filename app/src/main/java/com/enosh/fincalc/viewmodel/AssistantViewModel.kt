@@ -102,7 +102,10 @@ class AssistantViewModel : ViewModel() {
         "Don't forget to finalize your trip to see the total! 🗺️",
         "Add friends to collaborate on travel expenses! 👥",
         "You can invite friends using your unique FinCalc ID! 🆔",
-        "Scan a friend's QR code to connect instantly! 📱"
+        "Scan a friend's QR code to connect instantly! 📱",
+        "You can add extra returned money in Budget Planner using 'Add Extra Amount'. 💰",
+        "Smart Business helps track income, targets, and payment sources. 📈",
+        "You can chat only with accepted friends. 💬"
     )
 
     private val funFacts = listOf(
@@ -245,21 +248,25 @@ class AssistantViewModel : ViewModel() {
     }
 
     fun loadPrefs(context: Context) {
-        val sharedPref = context.getSharedPreferences(getPrefName(), Context.MODE_PRIVATE)
-        _prefs.value = AssistantPrefs(
-            isEnabled = sharedPref.getBoolean("enabled", true),
-            isMuted = sharedPref.getBoolean("muted", false),
-            frequency = AssistantFrequency.valueOf(sharedPref.getString("frequency", AssistantFrequency.MEDIUM.name) ?: AssistantFrequency.MEDIUM.name),
-            theme = AssistantTheme.valueOf(sharedPref.getString("theme", AssistantTheme.DEFAULT.name) ?: AssistantTheme.DEFAULT.name),
-            customHeadColor = AssistantColor.valueOf(sharedPref.getString("customHeadColor", AssistantColor.DEFAULT.name) ?: AssistantColor.DEFAULT.name),
-            customBodyColor = AssistantColor.valueOf(sharedPref.getString("customBodyColor", AssistantColor.DEFAULT.name) ?: AssistantColor.DEFAULT.name),
-            customAccentColor = AssistantColor.valueOf(sharedPref.getString("customAccentColor", AssistantColor.DEFAULT.name) ?: AssistantColor.DEFAULT.name),
-            isCustomMode = sharedPref.getBoolean("isCustomMode", false),
-            lastPosX = sharedPref.getFloat("posX", -1f),
-            lastPosY = sharedPref.getFloat("posY", -1f),
-            gender = AssistantGender.valueOf(sharedPref.getString("gender", AssistantGender.FEMALE.name) ?: AssistantGender.FEMALE.name),
-            isAnimated = sharedPref.getBoolean("isAnimated", true)
-        )
+        try {
+            val sharedPref = context.getSharedPreferences(getPrefName(), Context.MODE_PRIVATE)
+            _prefs.value = AssistantPrefs(
+                isEnabled = sharedPref.getBoolean("enabled", true),
+                isMuted = sharedPref.getBoolean("muted", false),
+                frequency = try { AssistantFrequency.valueOf(sharedPref.getString("frequency", AssistantFrequency.MEDIUM.name) ?: AssistantFrequency.MEDIUM.name) } catch (e: Exception) { AssistantFrequency.MEDIUM },
+                theme = try { AssistantTheme.valueOf(sharedPref.getString("theme", AssistantTheme.DEFAULT.name) ?: AssistantTheme.DEFAULT.name) } catch (e: Exception) { AssistantTheme.DEFAULT },
+                customHeadColor = try { AssistantColor.valueOf(sharedPref.getString("customHeadColor", AssistantColor.DEFAULT.name) ?: AssistantColor.DEFAULT.name) } catch (e: Exception) { AssistantColor.DEFAULT },
+                customBodyColor = try { AssistantColor.valueOf(sharedPref.getString("customBodyColor", AssistantColor.DEFAULT.name) ?: AssistantColor.DEFAULT.name) } catch (e: Exception) { AssistantColor.DEFAULT },
+                customAccentColor = try { AssistantColor.valueOf(sharedPref.getString("customAccentColor", AssistantColor.DEFAULT.name) ?: AssistantColor.DEFAULT.name) } catch (e: Exception) { AssistantColor.DEFAULT },
+                isCustomMode = sharedPref.getBoolean("isCustomMode", false),
+                lastPosX = sharedPref.getFloat("posX", -1f),
+                lastPosY = sharedPref.getFloat("posY", -1f),
+                gender = try { AssistantGender.valueOf(sharedPref.getString("gender", AssistantGender.FEMALE.name) ?: AssistantGender.FEMALE.name) } catch (e: Exception) { AssistantGender.FEMALE },
+                isAnimated = sharedPref.getBoolean("isAnimated", true)
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("AssistantVM", "Error loading prefs", e)
+        }
     }
 
     private fun savePrefs(context: Context) {

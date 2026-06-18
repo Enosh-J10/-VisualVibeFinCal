@@ -5,17 +5,41 @@ import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import com.enosh.fincalc.data.local.dao.BudgetDao
+import com.enosh.fincalc.data.local.dao.BudgetExtraAmountDao
 import com.enosh.fincalc.data.local.dao.ExpenseDao
 import com.enosh.fincalc.data.local.dao.GoalDao
+import com.enosh.fincalc.data.local.dao.BusinessDao
 import com.enosh.fincalc.data.local.entity.Budget
+import com.enosh.fincalc.data.local.entity.BudgetExtraAmount
 import com.enosh.fincalc.data.local.entity.Expense
 import com.enosh.fincalc.data.local.entity.Goal
+import com.enosh.fincalc.data.local.entity.BusinessIncomeEntity
+import com.enosh.fincalc.data.local.entity.BusinessTargetEntity
+import com.enosh.fincalc.data.local.ConversationEntity
+import com.enosh.fincalc.data.local.MessageEntity
+import com.enosh.fincalc.data.local.AiChatDao
 
-@Database(entities = [Expense::class, Goal::class, Budget::class], version = 4)
+@Database(
+    entities = [
+        Expense::class, 
+        Goal::class, 
+        Budget::class, 
+        BudgetExtraAmount::class, 
+        BusinessIncomeEntity::class, 
+        BusinessTargetEntity::class,
+        ConversationEntity::class,
+        MessageEntity::class
+    ], 
+    version = 7
+)
+@androidx.room.TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
     abstract fun goalDao(): GoalDao
     abstract fun budgetDao(): BudgetDao
+    abstract fun budgetExtraAmountDao(): BudgetExtraAmountDao
+    abstract fun businessDao(): BusinessDao
+    abstract fun aiChatDao(): AiChatDao
 
     companion object {
         @Volatile

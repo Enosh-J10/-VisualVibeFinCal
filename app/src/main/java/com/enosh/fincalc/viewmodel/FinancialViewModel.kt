@@ -5,6 +5,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.enosh.fincalc.data.local.AppDatabase
 import com.enosh.fincalc.data.local.entity.Budget
+import com.enosh.fincalc.data.local.entity.BudgetExtraAmount
 import com.enosh.fincalc.data.local.entity.Expense
 import com.enosh.fincalc.data.local.entity.Goal
 import com.enosh.fincalc.data.repository.FinancialRepository
@@ -23,7 +24,7 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
 
     init {
         val db = AppDatabase.getDatabase(application)
-        repository = FinancialRepository(db.expenseDao(), db.goalDao(), db.budgetDao())
+        repository = FinancialRepository(db.expenseDao(), db.goalDao(), db.budgetDao(), db.budgetExtraAmountDao())
         allExpenses = repository.allExpenses.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
         allGoals = repository.allGoals.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     }
@@ -38,6 +39,10 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun getBudgetForMonth(month: String): Flow<Budget?> = repository.getBudgetForMonth(month)
     fun setBudget(budget: Budget) = viewModelScope.launch { repository.insertBudget(budget) }
+
+    fun getExtraAmountsForMonth(month: String): Flow<List<BudgetExtraAmount>> = repository.getExtraAmountsForMonth(month)
+    fun insertExtraAmount(extraAmount: BudgetExtraAmount) = viewModelScope.launch { repository.insertExtraAmount(extraAmount) }
+    fun deleteExtraAmount(extraAmount: BudgetExtraAmount) = viewModelScope.launch { repository.deleteExtraAmount(extraAmount) }
     
     fun getCurrentMonth(): String {
         return SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date())

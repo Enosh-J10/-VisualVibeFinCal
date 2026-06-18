@@ -246,16 +246,21 @@ fun CalculatorScreenScaffold(
                 }
                 
                 // Financial Disclaimer
-                Text(
-                    "Calculations are estimates and do not constitute financial advice.",
-                    fontSize = 10.sp,
-                    color = (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.3f),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp)
-                        .padding(bottom = 8.dp)
-                )
+                Surface(
+                    color = Color.Transparent,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        "Calculations are estimates and do not constitute financial advice.",
+                        fontSize = 10.sp,
+                        color = (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.3f),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 24.dp)
+                            .padding(top = 8.dp, bottom = 16.dp)
+                    )
+                }
             }
         }
     }

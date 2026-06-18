@@ -1,5 +1,9 @@
 package com.enosh.fincalc.ui.navigation
 
+import com.enosh.fincalc.ui.screens.ChatListScreen
+import com.enosh.fincalc.ui.screens.ChatRoomScreen
+import com.enosh.fincalc.ui.screens.AiChatScreen
+import com.enosh.fincalc.ui.screens.SmartBusinessScreen
 import androidx.compose.runtime.Composable
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
@@ -26,6 +30,7 @@ import com.enosh.fincalc.ui.screens.OnboardingScreen
 import com.enosh.fincalc.ui.screens.SmartTravelScreen
 import com.enosh.fincalc.ui.screens.TripDetailScreen
 import android.content.Context
+import androidx.core.content.edit
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
@@ -54,7 +59,7 @@ fun NavGraph(
         composable(Screen.Home.route) {
             HomeScreen(
                 isDarkMode = isDarkMode,
-                onLogout = onLogout,
+                onNavigateToChat = { navController.navigate(Screen.ChatList.route) },
                 onNavigateToTool = { toolId ->
                     when (toolId) {
                         "curr" -> navController.navigate(Screen.CurrencyConverter.route)
@@ -69,17 +74,47 @@ fun NavGraph(
                         "salary" -> navController.navigate(Screen.Salary.route)
                         "notes" -> navController.navigate(Screen.NoteBook.route)
                         "smart_scan" -> navController.navigate(Screen.SmartScan.route)
+                        "ai_chat" -> navController.navigate(Screen.AiChat.route)
                         "insights" -> navController.navigate(Screen.Insights.route)
                         "budget" -> navController.navigate(Screen.Budget.route)
                         "goals" -> navController.navigate(Screen.Goals.route)
                         "saving_planner" -> navController.navigate(Screen.SavingPlanner.route)
                         "smart_travel" -> navController.navigate(Screen.SmartTravel.route)
+                        "smart_business" -> navController.navigate(Screen.SmartBusiness.route)
                         "settings" -> navController.navigate(Screen.Settings.route)
                     }
                 },
                 assistantViewModel = assistantViewModel,
                 financialViewModel = viewModel()
             )
+        }
+
+        composable(Screen.ChatList.route) {
+            ChatListScreen(navController, isDarkMode)
+        }
+
+        composable(
+            route = Screen.ChatRoom.route,
+            arguments = listOf(
+                navArgument("chatId") { type = NavType.StringType },
+                navArgument("friendUid") { type = NavType.StringType }
+            )
+        ) { backStackEntry ->
+            val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
+            val friendUid = backStackEntry.arguments?.getString("friendUid") ?: ""
+            ChatRoomScreen(chatId, friendUid, navController, isDarkMode)
+        }
+
+        composable(Screen.AiChat.route) {
+            AiChatScreen(navController, isDarkMode)
+        }
+
+        composable(Screen.AiSettings.route) {
+            com.enosh.fincalc.ui.screens.AiSettingsScreen(navController, isDarkMode)
+        }
+
+        composable(Screen.SmartBusiness.route) {
+            SmartBusinessScreen(navController, isDarkMode)
         }
         
         composable(Screen.CurrencyConverter.route) { 
@@ -131,7 +166,7 @@ fun NavGraph(
 
         composable(Screen.Onboarding.route) { 
             OnboardingScreen(onFinished = {
-                sharedPref.edit().putBoolean("onboarding_complete", true).apply()
+                sharedPref.edit { putBoolean("onboarding_complete", true) }
                 isOnboardingComplete.value = true
                 navController.navigate(Screen.Home.route) {
                     popUpTo(Screen.Onboarding.route) { inclusive = true }
@@ -153,6 +188,7 @@ fun NavGraph(
                 navController = navController,
                 isDarkMode = isDarkMode,
                 onDarkModeChange = onDarkModeChange,
+                onLogout = onLogout,
                 assistantViewModel = assistantViewModel,
                 initialResetPin = resetPin
             )

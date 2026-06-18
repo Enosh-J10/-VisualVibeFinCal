@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ArrowDropUp
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.GroupAdd
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -64,6 +65,7 @@ fun SettingsScreen(
     navController: NavController,
     isDarkMode: Boolean,
     onDarkModeChange: (Boolean) -> Unit,
+    onLogout: () -> Unit,
     assistantViewModel: AssistantViewModel,
     settingsViewModel: SettingsViewModel = viewModel(),
     initialResetPin: Boolean = false
@@ -94,6 +96,7 @@ fun SettingsScreen(
     var showEditDialog by remember { mutableStateOf(false) }
     var showFeedbackDialog by remember { mutableStateOf(false) }
     var showRestoreConfirmDialog by remember { mutableStateOf(false) }
+    var showLogoutConfirmDialog by remember { mutableStateOf(false) }
     var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
     var feedbackText by remember { mutableStateOf("") }
     var isSendingFeedback by remember { mutableStateOf(false) }
@@ -695,61 +698,24 @@ fun SettingsScreen(
 
             CalculatorCard(isDarkMode = isDarkMode) {
                 Text(stringResource(R.string.security), fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2), modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(8.dp))
+                // ... (security items)
+            }
 
-                SettingsItem(
-                    title = stringResource(R.string.app_lock_pin),
-                    trailing = {
-                        Switch(
-                            checked = appLockEnabled,
-                            onCheckedChange = { 
-                                if (it) {
-                                    pinStep = if (hasExistingPin) 1 else 2
-                                    showPinDialog = true
-                                } else {
-                                    appLockEnabled = false
-                                    SecurityUtils.setAppLockEnabled(context, false)
-                                }
-                            }
-                        )
-                    }
-                )
+            Spacer(Modifier.height(24.dp))
 
-                if (appLockEnabled) {
-                    SettingsItem(
-                        title = stringResource(R.string.biometric_login),
-                        trailing = {
-                            Switch(
-                                checked = biometricEnabled,
-                                enabled = canUseBiometric,
-                                onCheckedChange = { 
-                                    biometricEnabled = it
-                                    SecurityUtils.setBiometricEnabled(context, it)
-                                }
-                            )
-                        }
-                    )
-                    
-                    if (!canUseBiometric) {
-                        Text(
-                            text = stringResource(R.string.biometric_not_available),
-                            fontSize = 12.sp,
-                            color = Color.Red.copy(alpha = 0.7f),
-                            modifier = Modifier.padding(bottom = 8.dp)
-                        )
-                    }
-                    
-                    SettingsItem(
-                        title = stringResource(R.string.change_pin),
-                        trailing = {
-                            TextButton(onClick = { 
-                                pinStep = if (hasExistingPin) 1 else 2
-                                showPinDialog = true 
-                            }) {
-                                Text(stringResource(R.string.change_pin).uppercase().split(" ").last(), color = Color(0xFF00D1B2), fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    )
+            // Account Section
+            CalculatorCard(isDarkMode = isDarkMode) {
+                Text("Account", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2), modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(16.dp))
+                
+                BouncyButton(
+                    onClick = { showLogoutConfirmDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    containerColor = Color.Red.copy(alpha = 0.1f)
+                ) {
+                    Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color.Red)
+                    Spacer(Modifier.width(8.dp))
+                    Text("Logout", fontWeight = FontWeight.Bold, color = Color.Red)
                 }
             }
 
@@ -995,6 +961,30 @@ fun SettingsScreen(
             dismissButton = {
                 TextButton(onClick = { showRestoreConfirmDialog = false }) {
                     Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showLogoutConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutConfirmDialog = false },
+            title = { Text("Logout") },
+            text = { Text("Are you sure you want to log out?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showLogoutConfirmDialog = false
+                        onLogout()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) {
+                    Text("Logout")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutConfirmDialog = false }) {
+                    Text("Cancel")
                 }
             }
         )

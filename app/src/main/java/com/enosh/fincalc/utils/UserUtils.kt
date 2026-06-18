@@ -100,11 +100,16 @@ object UserUtils {
             "updatedAt" to FieldValue.serverTimestamp()
         )
 
-        FirebaseFirestore.getInstance()
-            .collection("users")
-            .document(uid)
-            .set(userMap)
-            .await()
+        try {
+            FirebaseFirestore.getInstance()
+                .collection("users")
+                .document(uid)
+                .set(userMap)
+                .await()
+        } catch (e: Exception) {
+            android.util.Log.e("UserUtils", "Failed to upload user profile: ${e.message}")
+            // Don't rethrow, just log. Profile sync is non-critical for main app functionality.
+        }
     }
 
 

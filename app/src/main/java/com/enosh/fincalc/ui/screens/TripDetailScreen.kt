@@ -273,6 +273,9 @@ fun TravelExpenseItem(
 @Composable
 fun MembersTab(trip: TravelTrip, isDarkMode: Boolean, onAdd: () -> Unit) {
     val members = trip.memberUids
+    val friendsViewModel: com.enosh.fincalc.viewmodel.FriendsViewModel = viewModel()
+    val nicknames by friendsViewModel.friendNicknames.collectAsState()
+
     Box(Modifier.fillMaxSize()) {
         LazyColumn(
             contentPadding = PaddingValues(16.dp),
@@ -280,6 +283,7 @@ fun MembersTab(trip: TravelTrip, isDarkMode: Boolean, onAdd: () -> Unit) {
         ) {
             items(members) { memberId ->
                 val detail = trip.memberDetails[memberId]
+                val nickname = nicknames[memberId]
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -296,8 +300,13 @@ fun MembersTab(trip: TravelTrip, isDarkMode: Boolean, onAdd: () -> Unit) {
                         }
                         Spacer(Modifier.width(16.dp))
                         Column {
-                            Text(detail?.name ?: "Unknown", fontWeight = FontWeight.Bold)
-                            Text(detail?.email ?: "", fontSize = 12.sp, color = Color.Gray)
+                            if (!nickname.isNullOrBlank()) {
+                                Text(nickname, fontWeight = FontWeight.Bold)
+                                Text(detail?.name ?: "Unknown", fontSize = 12.sp, color = Color.Gray)
+                            } else {
+                                Text(detail?.name ?: "Unknown", fontWeight = FontWeight.Bold)
+                                Text(detail?.email ?: "", fontSize = 12.sp, color = Color.Gray)
+                            }
                         }
                         Spacer(Modifier.weight(1f))
                         Text(detail?.status ?: "", fontSize = 10.sp, color = Color(0xFF00D1B2))

@@ -25,9 +25,14 @@ import com.enosh.fincalc.utils.NotificationHelper
 import com.enosh.fincalc.utils.UserUtils
 import com.enosh.fincalc.viewmodel.AssistantViewModel
 import com.enosh.fincalc.viewmodel.AssistantState
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 
@@ -85,6 +90,7 @@ class HomeActivity : ComponentActivity() {
         val resetPin = intent.getBooleanExtra("RESET_PIN", false)
         val deepLinkUri = intent.data
 
+        @OptIn(ExperimentalLayoutApi::class)
         setContent {
             val assistantViewModel: AssistantViewModel = viewModel()
             val context = LocalContext.current
@@ -100,7 +106,14 @@ class HomeActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     assistantViewModel.loadPrefs(context)
                     
-                    UserUtils.ensureFinCalcUserProfile(context)
+                    val isGuest = sharedPref.getBoolean("is_guest", false)
+                    if (!isGuest && FirebaseAuth.getInstance().currentUser != null) {
+                        try {
+                            UserUtils.ensureFinCalcUserProfile(context)
+                        } catch (e: Exception) {
+                            android.util.Log.e("FinCalc", "Profile sync failed: ${e.message}")
+                        }
+                    }
 
                     delay(1000)
                     assistantViewModel.showMessage("Hey! Ready to calculate? 😊", AssistantState.HAPPY)
@@ -120,6 +133,9 @@ class HomeActivity : ComponentActivity() {
                 }
 
                 Box {
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry?.destination?.route
+                    
                     NavGraph(
                         navController = navController,
                         isDarkMode = isDarkMode,
@@ -135,13 +151,30 @@ class HomeActivity : ComponentActivity() {
                         },
                         assistantViewModel = assistantViewModel
                     )
-                    AssistantRobot(
-                        viewModel = assistantViewModel, 
-                        isDarkMode = isDarkMode,
-                        onOpenSettings = {
-                            navController.navigate(Screen.Settings.route)
-                        }
+                    
+                    val excludedRoutes = listOf(
+                        Screen.AiChat.route,
+                        Screen.AiSettings.route,
+                        Screen.ChatRoom.route,
+                        Screen.ChatList.route,
+                        Screen.Friends.route,
+                        Screen.Onboarding.route
                     )
+                    
+                    val isImeVisible = WindowInsets.isImeVisible
+                    
+                    if (currentRoute !in excludedRoutes && !isImeVisible) {
+                        AssistantRobot(
+                            viewModel = assistantViewModel, 
+                            isDarkMode = isDarkMode,
+                            onOpenSettings = {
+                                navController.navigate(Screen.Settings.route)
+                            },
+                            onOpenAiChat = {
+                                navController.navigate(Screen.AiChat.route)
+                            }
+                        )
+                    }
                 }
             }
         }

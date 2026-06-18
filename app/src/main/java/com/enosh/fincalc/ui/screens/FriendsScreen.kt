@@ -103,6 +103,7 @@ fun FriendsScreen(
 @Composable
 fun FriendsListTab(viewModel: FriendsViewModel, isDarkMode: Boolean) {
     val friends by viewModel.friends.collectAsState()
+    val nicknames by viewModel.friendNicknames.collectAsState()
     val context = LocalContext.current
     val sharedPref = remember { context.getSharedPreferences(com.enosh.fincalc.utils.UserUtils.PREFS_NAME, android.content.Context.MODE_PRIVATE) }
     val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""
@@ -194,7 +195,14 @@ fun FriendsListTab(viewModel: FriendsViewModel, isDarkMode: Boolean) {
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
                 items(friends) { friend ->
-                    FriendItem(friend, isDarkMode)
+                    FriendItem(
+                        user = friend, 
+                        nickname = nicknames[friend.uid],
+                        isDarkMode = isDarkMode,
+                        onSetNickname = { viewModel.setNickname(friend.uid, it) },
+                        onRemove = { viewModel.removeFriend(friend.uid) },
+                        onBlock = { viewModel.blockUser(friend.uid) }
+                    )
                 }
             }
         }
@@ -268,7 +276,19 @@ fun FriendsListTab(viewModel: FriendsViewModel, isDarkMode: Boolean) {
 }
 
 @Composable
-fun FriendItem(user: User, isDarkMode: Boolean) {
+fun FriendItem(
+    user: User, 
+    nickname: String?,
+    isDarkMode: Boolean,
+    onSetNickname: (String) -> Unit,
+    onRemove: () -> Unit,
+    onBlock: () -> Unit
+) {
+    var showMenu by remember { mutableStateOf(false) }
+    var showNicknameDialog by remember { mutableStateOf(false) }
+    var showRemoveDialog by remember { mutableStateOf(false) }
+    var showBlockDialog by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -284,11 +304,107 @@ fun FriendItem(user: User, isDarkMode: Boolean) {
                 Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2))
             }
             Spacer(Modifier.width(16.dp))
-            Column {
-                Text(user.name, fontWeight = FontWeight.Bold)
-                Text(user.finCalcId, fontSize = 12.sp, color = Color.Gray)
+            Column(Modifier.weight(1f)) {
+                if (!nickname.isNullOrBlank()) {
+                    Text(nickname, fontWeight = FontWeight.Bold)
+                    Text("${user.name} • ${user.finCalcId}", fontSize = 12.sp, color = Color.Gray)
+                } else {
+                    Text(user.name, fontWeight = FontWeight.Bold)
+                    Text(user.finCalcId, fontSize = 12.sp, color = Color.Gray)
+                }
+            }
+            Box {
+                IconButton(onClick = { showMenu = true }) {
+                    Icon(Icons.Default.MoreVert, contentDescription = "Options")
+                }
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(
+                        text = { Text("Set Nickname") },
+                        onClick = { 
+                            showMenu = false
+                            showNicknameDialog = true
+                        },
+                        leadingIcon = { Icon(Icons.Default.Edit, null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Remove Friend", color = Color.Red) },
+                        onClick = { 
+                            showMenu = false
+                            showRemoveDialog = true
+                        },
+                        leadingIcon = { Icon(Icons.Default.PersonRemove, null, tint = Color.Red) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Block User", color = Color.Red) },
+                        onClick = { 
+                            showMenu = false
+                            showBlockDialog = true
+                        },
+                        leadingIcon = { Icon(Icons.Default.Block, null, tint = Color.Red) }
+                    )
+                }
             }
         }
+    }
+
+    if (showNicknameDialog) {
+        var newNickname by remember { mutableStateOf(nickname ?: "") }
+        AlertDialog(
+            onDismissRequest = { showNicknameDialog = false },
+            title = { Text("Set Nickname") },
+            text = {
+                Column {
+                    Text("Official Name: ${user.name}", fontSize = 12.sp, color = Color.Gray)
+                    Spacer(Modifier.height(8.dp))
+                    ValidatedTextField(
+                        value = newNickname,
+                        onValueChange = { newNickname = it },
+                        label = "Nickname",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        onSetNickname(newNickname)
+                        showNicknameDialog = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))
+                ) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { showNicknameDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showRemoveDialog) {
+        AlertDialog(
+            onDismissRequest = { showRemoveDialog = false },
+            title = { Text("Remove Friend") },
+            text = { Text("Are you sure you want to remove ${nickname ?: user.name} from your friends?") },
+            confirmButton = {
+                Button(onClick = {
+                    onRemove()
+                    showRemoveDialog = false
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Remove") }
+            },
+            dismissButton = { TextButton(onClick = { showRemoveDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showBlockDialog) {
+        AlertDialog(
+            onDismissRequest = { showBlockDialog = false },
+            title = { Text("Block User") },
+            text = { Text("Are you sure you want to block ${nickname ?: user.name}? They will no longer be able to find you or chat with you.") },
+            confirmButton = {
+                Button(onClick = {
+                    onBlock()
+                    showBlockDialog = false
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Block") }
+            },
+            dismissButton = { TextButton(onClick = { showBlockDialog = false }) { Text("Cancel") } }
+        )
     }
 }
 
@@ -414,19 +530,19 @@ fun SentRequestItem(request: FriendRequest, isDarkMode: Boolean) {
 @Composable
 fun AddFriendTab(viewModel: FriendsViewModel, isDarkMode: Boolean, initialSearch: String? = null) {
     val context = LocalContext.current
-    var searchQuery by remember { mutableStateOf(initialSearch ?: "") }
+    var searchQuery by remember { mutableStateOf(if (initialSearch == "{search}") "" else initialSearch ?: "") }
     val searchResults by viewModel.searchResults.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
 
     // Update search query if initialSearch changes (deep link)
     LaunchedEffect(initialSearch) {
-        if (initialSearch != null) {
+        if (initialSearch != null && initialSearch != "{search}") {
             searchQuery = initialSearch
         }
     }
 
     Column(Modifier.fillMaxSize().padding(16.dp)) {
-        if (initialSearch != null) {
+        if (initialSearch != null && initialSearch != "{search}") {
             Text("Add Friend from Link", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2), modifier = Modifier.padding(bottom = 8.dp))
         }
 
