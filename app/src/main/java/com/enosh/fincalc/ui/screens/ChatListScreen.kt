@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -23,7 +24,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
-import com.enosh.fincalc.data.model.Chat
+import com.enosh.fincalc.data.model.ChatRoom
 import com.enosh.fincalc.viewmodel.ChatViewModel
 import com.enosh.fincalc.viewmodel.FriendsViewModel
 import com.enosh.fincalc.ui.navigation.Screen
@@ -38,7 +39,9 @@ data class ChatListItemData(
     val friendName: String,
     val lastMessage: String,
     val lastMessageAt: com.google.firebase.Timestamp?,
-    val isNew: Boolean
+    val isNew: Boolean,
+    val unreadCount: Int = 0,
+    val profilePic: String? = null
 )
 
 @Composable
@@ -62,6 +65,7 @@ fun ChatListScreen(
             val otherUid = chat.memberUids.find { it != currentUid } ?: ""
             if (otherUid.isNotBlank()) {
                 val friend = friends.find { it.uid == otherUid }
+                val unreadCount = chat.unreadCounts[currentUid] ?: 0
                 list.add(
                     ChatListItemData(
                         chatId = chat.chatId,
@@ -69,7 +73,9 @@ fun ChatListScreen(
                         friendName = nicknames[otherUid] ?: friend?.name ?: "",
                         lastMessage = chat.lastMessage,
                         lastMessageAt = chat.lastMessageAt,
-                        isNew = false
+                        isNew = unreadCount > 0,
+                        unreadCount = unreadCount,
+                        profilePic = friend?.profilePic
                     )
                 )
             }
@@ -85,7 +91,8 @@ fun ChatListScreen(
                         friendName = nicknames[friend.uid] ?: friend.name,
                         lastMessage = "Tap to start chatting",
                         lastMessageAt = null,
-                        isNew = true
+                        isNew = true,
+                        profilePic = friend.profilePic
                     )
                 )
             }
@@ -133,11 +140,8 @@ fun ChatListScreen(
                                     val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: ""
                                     val chatId = listOf(currentUid, friendUid).sorted().joinToString("_")
                                     
-                                    Log.d("ChatDebug", "Tapped friend: $friendUid, chatId: $chatId, currentUid: $currentUid")
-                                    
                                     navController.navigate(Screen.ChatRoom.createRoute(chatId, friendUid))
                                 } catch (e: Exception) {
-                                    Log.e("ChatDebug", "Navigation failed", e)
                                     Toast.makeText(context, "An error occurred. Please try again.", Toast.LENGTH_SHORT).show()
                                 }
                             }
@@ -185,13 +189,22 @@ fun ChatListItem(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(
-            modifier = Modifier
-                .size(50.dp)
-                .background(Color(0xFF00D1B2).copy(alpha = 0.1f), CircleShape),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2), modifier = Modifier.size(28.dp))
+        if (!item.profilePic.isNullOrBlank()) {
+            coil.compose.AsyncImage(
+                model = item.profilePic,
+                contentDescription = null,
+                modifier = Modifier.size(50.dp).clip(CircleShape),
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .size(50.dp)
+                    .background(Color(0xFF00D1B2).copy(alpha = 0.1f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2), modifier = Modifier.size(28.dp))
+            }
         }
         
         Spacer(Modifier.width(16.dp))
@@ -200,18 +213,36 @@ fun ChatListItem(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text(displayName, fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 if (timeStr.isNotBlank()) {
-                    Text(timeStr, fontSize = 12.sp, color = Color.Gray)
+                    Text(timeStr, fontSize = 12.sp, color = if (item.unreadCount > 0) Color(0xFF00D1B2) else Color.Gray)
                 }
             }
             Spacer(Modifier.height(4.dp))
-            Text(
-                item.lastMessage,
-                fontSize = 14.sp,
-                color = if (item.isNew) Color(0xFF00D1B2).copy(alpha = 0.7f) else Color.Gray,
-                maxLines = 1,
-                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                fontWeight = if (item.isNew) FontWeight.Medium else FontWeight.Normal
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    item.lastMessage,
+                    fontSize = 14.sp,
+                    color = if (item.unreadCount > 0) (if (isDarkMode) Color.White else Color.Black) else Color.Gray,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    fontWeight = if (item.unreadCount > 0) FontWeight.Medium else FontWeight.Normal,
+                    modifier = Modifier.weight(1f)
+                )
+                if (item.unreadCount > 0) {
+                    Box(
+                        modifier = Modifier
+                            .size(20.dp)
+                            .background(Color(0xFF00D1B2), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            item.unreadCount.toString(),
+                            color = Color.White,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
 }

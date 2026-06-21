@@ -1,9 +1,11 @@
 package com.enosh.fincalc.ui.screens
 
 import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -42,51 +44,48 @@ fun ChatRoomScreen(
     friendsViewModel: FriendsViewModel = viewModel()
 ) {
     val messages by chatViewModel.messages.collectAsState()
+    val friendStatus by chatViewModel.friendStatus.collectAsState()
     val friends by friendsViewModel.friends.collectAsState()
     val nicknames by friendsViewModel.friendNicknames.collectAsState()
     val currentUid = remember { FirebaseAuth.getInstance().currentUser?.uid ?: "" }
     
-    // Improved name resolution
     var resolvedFriendName by remember { mutableStateOf("Chat") }
-    var friendProfile by remember { mutableStateOf<com.enosh.fincalc.data.model.User?>(null) }
     
     LaunchedEffect(friendUid, friends, nicknames) {
         val friendFromList = friends.find { it.uid == friendUid }
-        friendProfile = friendFromList
-        
         val nickname = nicknames[friendUid]
         if (nickname != null) {
             resolvedFriendName = nickname
         } else if (friendFromList != null) {
             resolvedFriendName = friendFromList.name.ifBlank { friendFromList.email.substringBefore("@") }
         } else {
-            // Fetch from Firestore if not in friends list
             val profile = chatViewModel.getUserProfile(friendUid)
             if (profile != null) {
-                friendProfile = profile
                 resolvedFriendName = profile.name.ifBlank { profile.email.substringBefore("@") }
                 if (resolvedFriendName.isBlank()) resolvedFriendName = profile.finCalcId.ifBlank { "Friend" }
             }
         }
-        android.util.Log.d("ChatDebug", "Resolved friend name: $resolvedFriendName for $friendUid")
     }
 
     var messageText by remember { mutableStateOf("") }
+    var editingMessage by remember { mutableStateOf<Message?>(null) }
+    var replyingTo by remember { mutableStateOf<Message?>(null) }
+    var editText by remember { mutableStateOf("") }
+    
     val listState = rememberLazyListState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    if (friendUid.isBlank()) {
-        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            Text("Unable to open chat. Friend profile missing.", color = Color.Red)
-        }
-        return
-    }
-
     LaunchedEffect(chatId, friendUid) {
-        android.util.Log.d("ChatDebug", "Opening ChatRoom: chatId=$chatId, friendUid=$friendUid, currentUid=$currentUid, friendName=$resolvedFriendName")
         chatViewModel.ensureChatExists(chatId, friendUid)
         chatViewModel.listenToMessages(chatId)
+        chatViewModel.listenToFriendStatus(chatId, friendUid)
+    }
+
+    DisposableEffect(chatId) {
+        onDispose {
+            chatViewModel.setTypingStatus(chatId, false)
+        }
     }
 
     LaunchedEffect(messages.size) {
@@ -95,28 +94,12 @@ fun ChatRoomScreen(
         }
     }
 
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            chatViewModel.uploadFile(chatId, friendUid, it, "document", "file_${System.currentTimeMillis()}")
-        }
+    val filePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { chatViewModel.uploadFile(chatId, friendUid, it, "document", "file_${System.currentTimeMillis()}") }
     }
 
-    val imagePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            chatViewModel.uploadFile(chatId, friendUid, it, "image", "img_${System.currentTimeMillis()}.jpg")
-        }
-    }
-
-    val videoPickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            chatViewModel.uploadFile(chatId, friendUid, it, "video", "vid_${System.currentTimeMillis()}.mp4")
-        }
+    val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let { chatViewModel.uploadFile(chatId, friendUid, it, "image", "img_${System.currentTimeMillis()}.jpg") }
     }
 
     Scaffold(
@@ -124,228 +107,166 @@ fun ChatRoomScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(Color(0xFF00D1B2).copy(alpha = 0.1f), androidx.compose.foundation.shape.CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
+                        Box(Modifier.size(40.dp).background(Color(0xFF00D1B2).copy(alpha = 0.1f), androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
                             Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2), modifier = Modifier.size(24.dp))
                         }
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text(resolvedFriendName, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Text("Online", fontSize = 11.sp, color = Color(0xFF00D1B2))
+                            if (friendStatus != null) Text(friendStatus!!, fontSize = 11.sp, color = Color(0xFF00D1B2))
                         }
                     }
                 },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White
-                )
+                navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Default.ArrowBack, "Back") } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White)
             )
         },
         bottomBar = {
-            Surface(
-                tonalElevation = 8.dp,
-                shadowElevation = 8.dp,
-                modifier = Modifier.navigationBarsPadding().imePadding(),
-                color = if (isDarkMode) Color(0xFF1B2C33) else Color.White
-            ) {
-                Row(
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp).fillMaxWidth(),
-                    verticalAlignment = Alignment.Bottom
-                ) {
-                    var showMoreActions by remember { mutableStateOf(false) }
-
-                    IconButton(
-                        onClick = { showMoreActions = !showMoreActions },
-                        modifier = Modifier.padding(bottom = 4.dp)
-                    ) {
-                        Icon(
-                            if (showMoreActions) Icons.Default.Close else Icons.Default.Add, 
-                            contentDescription = "More", 
-                            tint = Color(0xFF00D1B2)
-                        )
-                    }
-
-                    if (showMoreActions) {
-                        Row {
-                            IconButton(onClick = { filePickerLauncher.launch("*/*") }) {
-                                Icon(Icons.Default.AttachFile, contentDescription = "Attach", tint = Color(0xFF00D1B2))
-                            }
-                            IconButton(onClick = { imagePickerLauncher.launch("image/*") }) {
-                                Icon(Icons.Default.PhotoCamera, contentDescription = "Image", tint = Color(0xFF00D1B2))
+            Surface(tonalElevation = 8.dp, modifier = Modifier.navigationBarsPadding().imePadding(), color = if (isDarkMode) Color(0xFF1B2C33) else Color.White) {
+                Column {
+                    if (replyingTo != null) {
+                        Surface(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), color = Color.Gray.copy(alpha = 0.1f), shape = RoundedCornerShape(8.dp)) {
+                            Row(Modifier.padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Column(Modifier.weight(1f)) {
+                                    Text("Replying to", fontSize = 10.sp, color = Color(0xFF00D1B2), fontWeight = FontWeight.Bold)
+                                    Text(replyingTo!!.text, fontSize = 12.sp, maxLines = 1, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                                }
+                                IconButton(onClick = { replyingTo = null }, modifier = Modifier.size(24.dp)) { Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp)) }
                             }
                         }
                     }
-                    
-                    OutlinedTextField(
-                        value = messageText,
-                        onValueChange = { messageText = it },
-                        modifier = Modifier
-                            .weight(1f)
-                            .padding(vertical = 4.dp),
-                        placeholder = { Text("Type a message...", fontSize = 14.sp) },
-                        shape = RoundedCornerShape(24.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF00D1B2).copy(alpha = 0.5f),
-                            unfocusedBorderColor = Color.LightGray.copy(alpha = 0.5f),
-                            focusedContainerColor = if (isDarkMode) Color(0xFF24343D) else Color(0xFFF0F2F5),
-                            unfocusedContainerColor = if (isDarkMode) Color(0xFF24343D) else Color(0xFFF0F2F5),
-                        ),
-                        maxLines = 5
-                    )
-                    
-                    Spacer(Modifier.width(4.dp))
-                    
-                    FloatingActionButton(
-                        onClick = {
-                            if (messageText.isNotBlank()) {
-                                android.util.Log.d("ChatDebug", "Send FAB clicked")
-                                chatViewModel.sendMessage(chatId, messageText, friendUid) { success, error ->
-                                    if (success) {
-                                        messageText = ""
-                                    } else {
-                                        android.widget.Toast.makeText(context, "Message failed: $error", android.widget.Toast.LENGTH_SHORT).show()
+                    Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp).fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                        var showMore by remember { mutableStateOf(false) }
+                        IconButton(onClick = { showMore = !showMore }, modifier = Modifier.padding(bottom = 4.dp)) {
+                            Icon(if (showMore) Icons.Default.Close else Icons.Default.Add, null, tint = Color(0xFF00D1B2))
+                        }
+                        if (showMore) {
+                            IconButton(onClick = { filePickerLauncher.launch("*/*") }) { Icon(Icons.Default.AttachFile, null, tint = Color(0xFF00D1B2)) }
+                            IconButton(onClick = { imagePickerLauncher.launch("image/*") }) { Icon(Icons.Default.PhotoCamera, null, tint = Color(0xFF00D1B2)) }
+                        }
+                        OutlinedTextField(
+                            value = messageText,
+                            onValueChange = { messageText = it; chatViewModel.setTypingStatus(chatId, it.isNotBlank()) },
+                            modifier = Modifier.weight(1f).padding(vertical = 4.dp),
+                            placeholder = { Text("Type a message...", fontSize = 14.sp) },
+                            shape = RoundedCornerShape(24.dp),
+                            maxLines = 5
+                        )
+                        Spacer(Modifier.width(4.dp))
+                        FloatingActionButton(
+                            onClick = {
+                                if (messageText.isNotBlank()) {
+                                    val currentMsg = messageText
+                                    chatViewModel.sendMessage(chatId, currentMsg, friendUid, replyTo = replyingTo) { success, error ->
+                                        if (success) {
+                                            messageText = ""
+                                            replyingTo = null
+                                            chatViewModel.setTypingStatus(chatId, false)
+                                        } else {
+                                            Toast.makeText(context, "Send failed: $error", Toast.LENGTH_LONG).show()
+                                        }
                                     }
                                 }
-                            }
-                        },
-                        containerColor = Color(0xFF00D1B2),
-                        contentColor = Color.White,
-                        modifier = Modifier.size(48.dp).padding(bottom = 4.dp),
-                        shape = androidx.compose.foundation.shape.CircleShape,
-                        elevation = FloatingActionButtonDefaults.elevation(0.dp, 0.dp)
-                    ) {
-                        Icon(Icons.Default.Send, contentDescription = "Send", modifier = Modifier.size(20.dp))
+                            },
+                            containerColor = Color(0xFF00D1B2), contentColor = Color.White, modifier = Modifier.size(48.dp).padding(bottom = 4.dp), shape = androidx.compose.foundation.shape.CircleShape
+                        ) { Icon(Icons.Default.Send, null, modifier = Modifier.size(20.dp)) }
                     }
                 }
             }
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+        Box(Modifier.fillMaxSize().padding(innerPadding)) {
             if (messages.isEmpty()) {
                 Column(
                     modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        Icons.Default.Chat, 
-                        null, 
-                        modifier = Modifier.size(64.dp), 
-                        tint = Color.Gray.copy(alpha = 0.3f)
-                    )
+                    Icon(Icons.Default.Chat, null, Modifier.size(64.dp), Color.Gray.copy(alpha = 0.3f))
                     Spacer(Modifier.height(16.dp))
                     Text("No messages yet.", color = Color.Gray)
-                    Text("Say hello to start the chat.", fontSize = 12.sp, color = Color.Gray)
                 }
             } else {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    items(messages, key = { it.messageId }) { message ->
-                        MessageItem(message, currentUid, isDarkMode)
+                LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    items(messages, key = { it.messageId }) { msg ->
+                        MessageItem(
+                            message = msg, currentUid = currentUid, isDarkMode = isDarkMode,
+                            onDelete = { chatViewModel.deleteMessage(chatId, msg.messageId) },
+                            onEdit = { editingMessage = msg; editText = msg.text },
+                            onReply = { replyingTo = msg },
+                            onCopy = {
+                                val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Message", msg.text))
+                                Toast.makeText(context, "Message copied", Toast.LENGTH_SHORT).show()
+                            }
+                        )
                     }
                 }
             }
-            
             val progress by chatViewModel.uploadProgress.collectAsState()
-            if (progress != null) {
-                LinearProgressIndicator(
-                    progress = { progress!! },
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
-                    color = Color(0xFF00D1B2)
-                )
-            }
+            if (progress != null) LinearProgressIndicator(progress = { progress!! }, Modifier.fillMaxWidth().align(Alignment.TopCenter), Color(0xFF00D1B2))
         }
+    }
+
+    if (editingMessage != null) {
+        AlertDialog(
+            onDismissRequest = { editingMessage = null },
+            title = { Text("Edit Message") },
+            text = { OutlinedTextField(value = editText, onValueChange = { editText = it }, modifier = Modifier.fillMaxWidth()) },
+            confirmButton = {
+                Button(onClick = { chatViewModel.editMessage(chatId, editingMessage!!.messageId, editText); editingMessage = null }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))) { Text("Save") }
+            },
+            dismissButton = { TextButton(onClick = { editingMessage = null }) { Text("Cancel") } }
+        )
     }
 }
 
 @Composable
-fun MessageItem(message: Message, currentUid: String, isDarkMode: Boolean) {
+fun MessageItem(
+    message: Message, currentUid: String, isDarkMode: Boolean,
+    onDelete: () -> Unit, onEdit: () -> Unit, onReply: () -> Unit, onCopy: () -> Unit
+) {
     val isMine = message.senderUid == currentUid
     val sdf = SimpleDateFormat("HH:mm", Locale.getDefault())
     val timeStr = message.createdAt?.toDate()?.let { sdf.format(it) } ?: ""
+    var showMenu by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalAlignment = if (isMine) Alignment.End else Alignment.Start
-    ) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = if (isMine) Alignment.End else Alignment.Start) {
         Surface(
             color = if (isMine) Color(0xFF00D1B2) else if (isDarkMode) Color(0xFF1B2C33) else Color(0xFFF0F0F0),
             contentColor = if (isMine) Color.White else if (isDarkMode) Color.White else Color.Black,
-            shape = RoundedCornerShape(
-                topStart = 16.dp,
-                topEnd = 16.dp,
-                bottomStart = if (isMine) 16.dp else 0.dp,
-                bottomEnd = if (isMine) 0.dp else 16.dp
-            ),
-            modifier = Modifier.widthIn(max = 280.dp)
+            shape = RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = if (isMine) 16.dp else 0.dp, bottomEnd = if (isMine) 0.dp else 16.dp),
+            modifier = Modifier.widthIn(max = 280.dp).combinedClickable(onClick = {}, onLongClick = { showMenu = true })
         ) {
-            Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-                when (message.type) {
-                    "text" -> {
-                        Text(message.text)
-                    }
-                    "image" -> {
-                        AsyncImage(
-                            model = message.fileUrl,
-                            contentDescription = "Image",
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .heightIn(max = 200.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                        )
-                    }
-                    "video" -> {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.VideoLibrary, null, modifier = Modifier.size(24.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Column {
-                                Text("Video", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text(message.fileName ?: "video.mp4", fontSize = 12.sp, maxLines = 1)
-                            }
-                        }
-                    }
-                    else -> { // document
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Description, null, modifier = Modifier.size(24.dp))
-                            Spacer(Modifier.width(8.dp))
-                            Column {
-                                Text("Document", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text(message.fileName ?: "file", fontSize = 12.sp, maxLines = 1)
-                            }
-                        }
-                    }
+            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
+                DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                    DropdownMenuItem(text = { Text("Reply") }, onClick = { onReply(); showMenu = false }, leadingIcon = { Icon(Icons.Default.Reply, null) })
+                    DropdownMenuItem(text = { Text("Copy") }, onClick = { onCopy(); showMenu = false }, leadingIcon = { Icon(Icons.Default.ContentCopy, null) })
+                    if (isMine && message.type == "text") DropdownMenuItem(text = { Text("Edit") }, onClick = { onEdit(); showMenu = false }, leadingIcon = { Icon(Icons.Default.Edit, null) })
+                    if (isMine) DropdownMenuItem(text = { Text("Delete", color = Color.Red) }, onClick = { onDelete(); showMenu = false }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) })
                 }
                 
-                Row(
-                    modifier = Modifier.align(Alignment.End),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        timeStr, 
-                        fontSize = 10.sp, 
-                        color = (if (isMine) Color.White.copy(alpha = 0.7f) else Color.Gray)
-                    )
+                if (message.replyToText != null) {
+                    Surface(Modifier.padding(bottom = 4.dp), color = Color.Black.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
+                        Text(message.replyToText, fontSize = 11.sp, modifier = Modifier.padding(4.dp), maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    }
+                }
+
+                when (message.type) {
+                    "text" -> Text(message.text)
+                    "image" -> AsyncImage(model = message.fileUrl, contentDescription = "Image", modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp).clip(RoundedCornerShape(8.dp)))
+                    else -> Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(if (message.type == "video") Icons.Default.VideoLibrary else Icons.Default.Description, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(message.fileName ?: "File", fontSize = 14.sp)
+                    }
+                }
+                Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
+                    Text(timeStr, fontSize = 10.sp, color = if (isMine) Color.White.copy(alpha = 0.7f) else Color.Gray)
                     if (isMine) {
                         Spacer(Modifier.width(4.dp))
-                        val isRead = message.readBy.isNotEmpty()
-                        Icon(
-                            if (isRead) Icons.Default.DoneAll else Icons.Default.Done,
-                            null,
-                            modifier = Modifier.size(12.dp),
-                            tint = if (isRead) Color(0xFF34B7F1) else Color.White.copy(alpha = 0.7f)
-                        )
+                        val isRead = message.readBy.any { it != currentUid }
+                        Icon(if (isRead) Icons.Default.DoneAll else Icons.Default.Done, null, Modifier.size(12.dp), tint = if (isRead) Color(0xFF34B7F1) else Color.White.copy(alpha = 0.7f))
                     }
                 }
             }

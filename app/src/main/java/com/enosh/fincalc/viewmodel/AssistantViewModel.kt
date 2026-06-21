@@ -70,7 +70,8 @@ data class AssistantPrefs(
     val lastPosX: Float = -1f,
     val lastPosY: Float = -1f,
     val gender: AssistantGender = AssistantGender.FEMALE,
-    val isAnimated: Boolean = true
+    val isAnimated: Boolean = true,
+    val isRoastMode: Boolean = false
 )
 
 class AssistantViewModel : ViewModel() {
@@ -108,11 +109,34 @@ class AssistantViewModel : ViewModel() {
         "You can chat only with accepted friends. 💬"
     )
 
+    private val roastTips = listOf(
+        "Try saving 10%... or just keep buying things you don't need. I'm just a robot, what do I know? 🙄",
+        "Tracking your spending? Oh, this should be a comedy special. 🎭",
+        "The earlier you start saving, the less you'll have to beg later. 🪙",
+        "Emergency cash? You mean your 'accidental pizza' fund? 🍕",
+        "Don't put all your money in one place. Unless that place is a literal hole in the ground. 🕳️",
+        "Interest rates are dropping. Unlike your screen time. 📉",
+        "Planning a trip? Hope your bank account is ready for the jump scare. ✈️",
+        "Finalize your trip. Face the music. Or the empty wallet. 🗺️",
+        "Collaborate on expenses. Or just argue about who ordered the extra appetizer. 👥",
+        "Your FinCalc ID is unique. Too bad your spending habits aren't. 🆔",
+        "Scan a QR code. It's faster than you're currently calculating 2+2. 📱",
+        "Budgeting? How's that 'wishful thinking' going for you? 💰",
+        "Smart Business? Finally, someone putting the 'smart' in this relationship. 📈"
+    )
+
     private val funFacts = listOf(
         "I'm mostly a calculator, but I try to be funny too 🤖",
         "Math is actually pretty cool! 😄",
         "I'm always ready to help. No sleep for me!",
         "Beep boop! Just thinking..."
+    )
+
+    private val roastFacts = listOf(
+        "I'm a calculator. You're... well, you're trying your best. 🤖",
+        "Math is cool. Your inputs? Questionable. 😄",
+        "I never sleep. I just wait for you to make another typo.",
+        "Beep boop! I'm judging your recent transactions..."
     )
 
     private fun getPrefName(): String {
@@ -132,7 +156,11 @@ class AssistantViewModel : ViewModel() {
         messageJob = viewModelScope.launch {
             _messageType.value = type
             
-            val finalState = if (_prefs.value.isMuted) AssistantState.SHUSH else state
+            var finalState = if (_prefs.value.isMuted) AssistantState.SHUSH else state
+            
+            if (_prefs.value.isRoastMode && finalState == AssistantState.HAPPY) {
+                finalState = AssistantState.WAVING // Cheekeier
+            }
 
             if (_robotState.value != AssistantState.WAVING) {
                 _robotState.value = finalState
@@ -163,19 +191,30 @@ class AssistantViewModel : ViewModel() {
             if (_message.value == null) {
                 _robotState.value = AssistantState.IDLE
             } else {
-                _robotState.value = if (_prefs.value.isMuted) AssistantState.SHUSH else AssistantState.HAPPY
+                val base = if (_prefs.value.isMuted) AssistantState.SHUSH else AssistantState.HAPPY
+                _robotState.value = if (_prefs.value.isRoastMode && base == AssistantState.HAPPY) AssistantState.WAVING else base
             }
         }
     }
 
     fun triggerRandomTip() {
-        val tip = financialTips.random()
-        showMessage(tip, AssistantState.HAPPY)
+        val tip = if (_prefs.value.isRoastMode) roastTips.random() else financialTips.random()
+        showMessage(tip, if (_prefs.value.isRoastMode) AssistantState.WAVING else AssistantState.HAPPY)
     }
 
     fun triggerRandomJoke() {
-        val joke = funFacts.random()
+        val joke = if (_prefs.value.isRoastMode) roastFacts.random() else funFacts.random()
         showMessage(joke, AssistantState.EXCITED)
+    }
+
+    fun setRoastMode(enabled: Boolean, context: Context) {
+        _prefs.value = _prefs.value.copy(isRoastMode = enabled)
+        savePrefs(context)
+        if (enabled) {
+            showMessage("Oh, it's on! Prepare to be slightly inconvenienced by my wit. 😏", AssistantState.WAVING)
+        } else {
+            showMessage("Back to professional mode. Boring, but safe. 👔", AssistantState.HAPPY)
+        }
     }
 
     fun updatePosition(x: Float, y: Float, context: Context) {
@@ -262,7 +301,8 @@ class AssistantViewModel : ViewModel() {
                 lastPosX = sharedPref.getFloat("posX", -1f),
                 lastPosY = sharedPref.getFloat("posY", -1f),
                 gender = try { AssistantGender.valueOf(sharedPref.getString("gender", AssistantGender.FEMALE.name) ?: AssistantGender.FEMALE.name) } catch (e: Exception) { AssistantGender.FEMALE },
-                isAnimated = sharedPref.getBoolean("isAnimated", true)
+                isAnimated = sharedPref.getBoolean("isAnimated", true),
+                isRoastMode = sharedPref.getBoolean("isRoastMode", false)
             )
         } catch (e: Exception) {
             android.util.Log.e("AssistantVM", "Error loading prefs", e)
@@ -284,6 +324,7 @@ class AssistantViewModel : ViewModel() {
             putFloat("posY", _prefs.value.lastPosY)
             putString("gender", _prefs.value.gender.name)
             putBoolean("isAnimated", _prefs.value.isAnimated)
+            putBoolean("isRoastMode", _prefs.value.isRoastMode)
             apply()
         }
     }

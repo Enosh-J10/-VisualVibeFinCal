@@ -5,6 +5,7 @@ import com.enosh.fincalc.ui.screens.ChatRoomScreen
 import com.enosh.fincalc.ui.screens.AiChatScreen
 import com.enosh.fincalc.ui.screens.SmartBusinessScreen
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -30,6 +31,7 @@ import com.enosh.fincalc.ui.screens.OnboardingScreen
 import com.enosh.fincalc.ui.screens.SmartTravelScreen
 import com.enosh.fincalc.ui.screens.TripDetailScreen
 import android.content.Context
+import android.widget.Toast
 import androidx.core.content.edit
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,10 +59,21 @@ fun NavGraph(
         startDestination = if (isOnboardingComplete.value) Screen.Home.route else Screen.Onboarding.route
     ) {
         composable(Screen.Home.route) {
+            val isGuest = remember { sharedPref.getBoolean("is_guest", false) }
             HomeScreen(
                 isDarkMode = isDarkMode,
-                onNavigateToChat = { navController.navigate(Screen.ChatList.route) },
+                onNavigateToChat = { 
+                    if (isGuest) {
+                        Toast.makeText(context, "Friends and Messages are available only for registered users.", Toast.LENGTH_LONG).show()
+                    } else {
+                        navController.navigate(Screen.ChatList.route) 
+                    }
+                },
                 onNavigateToTool = { toolId ->
+                    if (isGuest && toolId in listOf("smart_travel", "friends")) {
+                        Toast.makeText(context, "This feature is available only for registered users.", Toast.LENGTH_LONG).show()
+                        return@HomeScreen
+                    }
                     when (toolId) {
                         "curr" -> navController.navigate(Screen.CurrencyConverter.route)
                         "loan" -> navController.navigate(Screen.LoanCalculator.route)
@@ -85,12 +98,21 @@ fun NavGraph(
                     }
                 },
                 assistantViewModel = assistantViewModel,
-                financialViewModel = viewModel()
+                financialViewModel = viewModel(),
+                onLogout = onLogout
             )
         }
 
         composable(Screen.ChatList.route) {
-            ChatListScreen(navController, isDarkMode)
+            val isGuest = remember { sharedPref.getBoolean("is_guest", false) }
+            if (isGuest) {
+                LaunchedEffect(Unit) {
+                    Toast.makeText(context, "Please sign in to use Chat.", Toast.LENGTH_LONG).show()
+                    navController.popBackStack()
+                }
+            } else {
+                ChatListScreen(navController, isDarkMode)
+            }
         }
 
         composable(
@@ -100,13 +122,21 @@ fun NavGraph(
                 navArgument("friendUid") { type = NavType.StringType }
             )
         ) { backStackEntry ->
-            val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
-            val friendUid = backStackEntry.arguments?.getString("friendUid") ?: ""
-            ChatRoomScreen(chatId, friendUid, navController, isDarkMode)
+            val isGuest = remember { sharedPref.getBoolean("is_guest", false) }
+            if (isGuest) {
+                LaunchedEffect(Unit) {
+                    Toast.makeText(context, "Please sign in to use Chat.", Toast.LENGTH_LONG).show()
+                    navController.popBackStack()
+                }
+            } else {
+                val chatId = backStackEntry.arguments?.getString("chatId") ?: ""
+                val friendUid = backStackEntry.arguments?.getString("friendUid") ?: ""
+                ChatRoomScreen(chatId, friendUid, navController, isDarkMode)
+            }
         }
 
         composable(Screen.AiChat.route) {
-            AiChatScreen(navController, isDarkMode)
+            AiChatScreen(navController, isDarkMode, assistantViewModel = assistantViewModel)
         }
 
         composable(Screen.AiSettings.route) {
@@ -144,7 +174,17 @@ fun NavGraph(
         composable(Screen.Goals.route) { GoalsScreen(navController, isDarkMode, assistantViewModel) }
         composable(Screen.SavingPlanner.route) { com.enosh.fincalc.ui.screens.AutoSavingPlannerScreen(navController, isDarkMode, assistantViewModel) }
         
-        composable(Screen.SmartTravel.route) { SmartTravelScreen(navController, isDarkMode, assistantViewModel) }
+        composable(Screen.SmartTravel.route) { 
+            val isGuest = remember { sharedPref.getBoolean("is_guest", false) }
+            if (isGuest) {
+                LaunchedEffect(Unit) {
+                    Toast.makeText(context, "Please sign in to use Smart Travel.", Toast.LENGTH_LONG).show()
+                    navController.popBackStack()
+                }
+            } else {
+                SmartTravelScreen(navController, isDarkMode, assistantViewModel) 
+            }
+        }
         composable(
             route = Screen.Friends.route,
             arguments = listOf(navArgument("search") { 
@@ -153,8 +193,16 @@ fun NavGraph(
                 defaultValue = null 
             })
         ) { backStackEntry ->
-            val initialSearch = backStackEntry.arguments?.getString("search")
-            com.enosh.fincalc.ui.screens.FriendsScreen(navController, isDarkMode, initialSearch = initialSearch)
+            val isGuest = remember { sharedPref.getBoolean("is_guest", false) }
+            if (isGuest) {
+                LaunchedEffect(Unit) {
+                    Toast.makeText(context, "Please sign in to use Friends.", Toast.LENGTH_LONG).show()
+                    navController.popBackStack()
+                }
+            } else {
+                val initialSearch = backStackEntry.arguments?.getString("search")
+                com.enosh.fincalc.ui.screens.FriendsScreen(navController, isDarkMode, initialSearch = initialSearch)
+            }
         }
         composable(
             route = Screen.TripDetail.route,

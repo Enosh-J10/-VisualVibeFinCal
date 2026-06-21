@@ -5,6 +5,12 @@
 # For more details, see
 #   http://developer.android.com/guide/developing/tools/proguard.html
 
+# Project Models for Firestore and Serialization
+-keep class com.enosh.fincalc.data.model.** { *; }
+-keepclassmembers class * {
+    <init>();
+}
+
 # Firebase
 -keep class com.google.firebase.** { *; }
 

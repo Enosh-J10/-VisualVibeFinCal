@@ -4,7 +4,7 @@ import android.net.Uri
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.enosh.fincalc.data.model.Chat
+import com.enosh.fincalc.data.model.ChatRoom
 import com.enosh.fincalc.data.model.Message
 import com.enosh.fincalc.data.model.User
 import com.google.firebase.auth.FirebaseAuth
@@ -24,8 +24,8 @@ class ChatViewModel : ViewModel() {
     private val db = FirebaseFirestore.getInstance()
     private val storage = FirebaseStorage.getInstance()
 
-    private val _chats = MutableStateFlow<List<Chat>>(emptyList())
-    val chats: StateFlow<List<Chat>> = _chats
+    private val _chats = MutableStateFlow<List<ChatRoom>>(emptyList())
+    val chats: StateFlow<List<ChatRoom>> = _chats
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     val messages: StateFlow<List<Message>> = _messages
@@ -35,16 +35,62 @@ class ChatViewModel : ViewModel() {
 
     private var chatsListener: ListenerRegistration? = null
     private var messagesListener: ListenerRegistration? = null
+    private var statusListener: ListenerRegistration? = null
+
+    private val _friendStatus = MutableStateFlow<String?>(null) // "Online", "Typing...", or null
+    val friendStatus: StateFlow<String?> = _friendStatus
 
     init {
         listenToChats()
     }
 
+    fun setTypingStatus(chatId: String, isTyping: Boolean) {
+        val currentUid = auth.currentUser?.uid ?: return
+        if (chatId.isBlank()) return
+        
+        db.collection("chats").document(chatId)
+            .collection("status").document(currentUid)
+            .set(mapOf(
+                "isTyping" to isTyping,
+                "lastActive" to FieldValue.serverTimestamp()
+            ))
+    }
+
+    fun listenToFriendStatus(chatId: String, friendUid: String) {
+        if (chatId.isBlank() || friendUid.isBlank()) return
+        
+        statusListener?.remove()
+        statusListener = db.collection("chats").document(chatId)
+            .collection("status").document(friendUid)
+            .addSnapshotListener { snapshot, _ ->
+                if (snapshot != null && snapshot.exists()) {
+                    val isTyping = snapshot.getBoolean("isTyping") ?: false
+                    val lastActive = snapshot.getTimestamp("lastActive")
+                    
+                    if (isTyping) {
+                        _friendStatus.value = "Typing..."
+                    } else if (lastActive != null) {
+                        val diff = System.currentTimeMillis() - lastActive.toDate().time
+                        if (diff < 60000) { // 1 minute
+                            _friendStatus.value = "Online"
+                        } else {
+                            _friendStatus.value = null
+                        }
+                    } else {
+                        _friendStatus.value = null
+                    }
+                } else {
+                    _friendStatus.value = null
+                }
+            }
+    }
+
     suspend fun getUserProfile(uid: String): User? {
+        if (uid.isBlank()) return null
         return try {
             db.collection("users").document(uid).get().await().toObject(User::class.java)
         } catch (e: Exception) {
-            Log.e("ChatDebug", "Failed to fetch user profile for $uid", e)
+            Log.e("ChatViewModel", "Failed to fetch user profile for $uid", e)
             null
         }
     }
@@ -53,6 +99,7 @@ class ChatViewModel : ViewModel() {
         super.onCleared()
         chatsListener?.remove()
         messagesListener?.remove()
+        statusListener?.remove()
     }
 
     private fun listenToChats() {
@@ -63,27 +110,25 @@ class ChatViewModel : ViewModel() {
             .orderBy("lastMessageAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
-                    Log.e("ChatViewModel", "Listen chats failed", e)
                     return@addSnapshotListener
                 }
-                val chatList = snapshot?.documents?.mapNotNull { it.toObject(Chat::class.java) } ?: emptyList()
+                val chatList = snapshot?.documents?.mapNotNull { it.toObject(ChatRoom::class.java) } ?: emptyList()
                 _chats.value = chatList
             }
     }
 
     fun listenToMessages(chatId: String) {
-        Log.d("ChatDebug", "Listening to messages for chatId: $chatId")
+        if (chatId.isBlank()) return
+        
         messagesListener?.remove()
         messagesListener = db.collection("chats").document(chatId)
             .collection("messages")
             .orderBy("createdAt", Query.Direction.ASCENDING)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
-                    Log.e("ChatDebug", "Listen messages failed for $chatId", e)
                     return@addSnapshotListener
                 }
                 val msgList = snapshot?.documents?.mapNotNull { it.toObject(Message::class.java) } ?: emptyList()
-                Log.d("ChatDebug", "Messages received for $chatId: ${msgList.size} messages")
                 _messages.value = msgList
                 
                 // Mark as read
@@ -98,84 +143,66 @@ class ChatViewModel : ViewModel() {
             }
     }
 
-    fun sendMessage(chatId: String, text: String, receiverUid: String, onResult: (Boolean, String?) -> Unit = { _, _ -> }) {
-        val authUser = auth.currentUser
-        val currentUid = authUser?.uid ?: ""
-        
-        Log.d("ChatDebug", "auth uid = $currentUid")
-        
-        if (authUser == null) {
-            Log.e("ChatDebug", "Send failed: user is not authenticated")
-            onResult(false, "User not authenticated")
-            return
-        }
-
-        if (receiverUid.isBlank()) {
-            Log.e("ChatDebug", "Send failed: receiverUid is blank")
-            onResult(false, "Receiver UID is blank")
-            return
-        }
-        
-        val trimmedText = text.trim()
-        if (trimmedText.isEmpty()) {
-            Log.d("ChatDebug", "Send skipped: empty message")
-            return
-        }
-
+    fun sendMessage(chatId: String, text: String, receiverUid: String, replyTo: Message? = null, onResult: (Boolean, String?) -> Unit = { _, _ -> }) {
+        val currentUid = auth.currentUser?.uid ?: ""
         val messageId = UUID.randomUUID().toString()
-        val chatDocPath = "chats/$chatId"
-        val messageDocPath = "chats/$chatId/messages/$messageId"
         
-        val message = Message(
-            messageId = messageId,
-            chatId = chatId,
-            senderUid = currentUid,
-            receiverUid = receiverUid,
-            text = trimmedText,
-            type = "text",
-            createdAt = null,
-            readBy = listOf(currentUid)
+        if (currentUid.isBlank() || receiverUid.isBlank() || chatId.isBlank() || text.isBlank() || messageId.isBlank()) {
+            onResult(false, "Invalid message parameters")
+            return
+        }
+
+        if (chatId.contains("/") || messageId.contains("/")) {
+            onResult(false, "Invalid ID format")
+            return
+        }
+
+        val messageData = mapOf(
+            "messageId" to messageId,
+            "chatId" to chatId,
+            "senderUid" to currentUid,
+            "receiverUid" to receiverUid,
+            "text" to text.trim(),
+            "type" to "text",
+            "createdAt" to FieldValue.serverTimestamp(),
+            "readBy" to listOf(currentUid),
+            "deletedFor" to emptyList<String>(),
+            "replyToId" to replyTo?.messageId,
+            "replyToText" to replyTo?.text
         )
 
-        Log.d("ChatDebug", "send clicked: currentUid=$currentUid, receiverUid=$receiverUid, chatId=$chatId")
-        Log.d("ChatDebug", "chat path = $chatDocPath")
-        Log.d("ChatDebug", "message path = $messageDocPath")
+        val chatData = mapOf(
+            "chatId" to chatId,
+            "memberUids" to listOf(currentUid, receiverUid).sorted(),
+            "updatedAt" to FieldValue.serverTimestamp(),
+            "lastMessage" to text.trim(),
+            "lastMessageAt" to FieldValue.serverTimestamp(),
+            "lastMessageSenderUid" to currentUid
+        )
 
         viewModelScope.launch {
             try {
-                // Ensure chat exists with proper metadata before sending
-                ensureChatExists(chatId, receiverUid)
-
+                val batch = db.batch()
                 val chatRef = db.collection("chats").document(chatId)
                 val msgRef = chatRef.collection("messages").document(messageId)
 
-                db.runTransaction { transaction ->
-                    transaction.set(msgRef, message)
-                    transaction.update(msgRef, "createdAt", FieldValue.serverTimestamp())
-                    
-                    transaction.update(chatRef, mapOf(
-                        "lastMessage" to trimmedText,
-                        "lastMessageAt" to FieldValue.serverTimestamp(),
-                        "lastMessageSenderUid" to currentUid,
-                        "updatedAt" to FieldValue.serverTimestamp(),
-                        "memberUids" to listOf(currentUid, receiverUid).sorted()
-                    ))
-                }.await()
-
-                Log.d("ChatDebug", "Firestore write success: ID=$messageId")
+                batch.set(chatRef, chatData, com.google.firebase.firestore.SetOptions.merge())
+                batch.set(msgRef, messageData)
+                batch.commit().await()
+                
                 onResult(true, null)
             } catch (e: com.google.firebase.firestore.FirebaseFirestoreException) {
-                Log.e("ChatDebug", "Firestore error code=${e.code}, message=${e.message}", e)
-                onResult(false, "Firestore error: ${e.code}")
+                onResult(false, "${e.code} - ${e.message}")
             } catch (e: Exception) {
-                Log.e("ChatDebug", "Firestore write failure: ${e.message}", e)
-                onResult(false, e.message)
+                onResult(false, e.message ?: e.toString())
             }
         }
     }
 
     fun uploadFile(chatId: String, receiverUid: String, uri: Uri, type: String, fileName: String) {
         val currentUid = auth.currentUser?.uid ?: return
+        if (chatId.isBlank()) return
+        
         val messageId = UUID.randomUUID().toString()
         val path = "chat_uploads/$chatId/$messageId/$fileName"
         val storageRef = storage.getReference(path)
@@ -188,35 +215,41 @@ class ChatViewModel : ViewModel() {
             _uploadProgress.value = progress / 100f
         }.addOnSuccessListener {
             storageRef.downloadUrl.addOnSuccessListener { downloadUri ->
-                val message = Message(
-                    messageId = messageId,
-                    senderUid = currentUid,
-                    receiverUid = receiverUid,
-                    type = type,
-                    text = "Sent a $type",
-                    fileUrl = downloadUri.toString(),
-                    fileName = fileName,
-                    createdAt = null
+                val messageData = mapOf(
+                    "messageId" to messageId,
+                    "chatId" to chatId,
+                    "senderUid" to currentUid,
+                    "receiverUid" to receiverUid,
+                    "type" to type,
+                    "text" to "Sent a $type",
+                    "fileUrl" to downloadUri.toString(),
+                    "fileName" to fileName,
+                    "createdAt" to FieldValue.serverTimestamp(),
+                    "readBy" to listOf(currentUid),
+                    "deletedFor" to emptyList<String>()
                 )
                 
+                val chatData = mapOf(
+                    "chatId" to chatId,
+                    "memberUids" to listOf(currentUid, receiverUid).sorted(),
+                    "updatedAt" to FieldValue.serverTimestamp(),
+                    "lastMessage" to "Sent a $type",
+                    "lastMessageAt" to FieldValue.serverTimestamp(),
+                    "lastMessageSenderUid" to currentUid
+                )
+
                 viewModelScope.launch {
                     try {
                         val batch = db.batch()
                         val chatRef = db.collection("chats").document(chatId)
                         val msgRef = chatRef.collection("messages").document(messageId)
 
-                        batch.set(msgRef, message)
-                        batch.update(msgRef, "createdAt", FieldValue.serverTimestamp())
-                        batch.update(chatRef, mapOf(
-                            "lastMessage" to "Sent a $type",
-                            "lastMessageAt" to FieldValue.serverTimestamp(),
-                            "lastMessageSenderUid" to currentUid,
-                            "updatedAt" to FieldValue.serverTimestamp()
-                        ))
+                        batch.set(chatRef, chatData, com.google.firebase.firestore.SetOptions.merge())
+                        batch.set(msgRef, messageData)
                         batch.commit().await()
                         _uploadProgress.value = null
                     } catch (e: Exception) {
-                        Log.e("ChatViewModel", "Save file message failed", e)
+                        Log.e("ChatViewModel", "Upload commit failed", e)
                         _uploadProgress.value = null
                     }
                 }
@@ -227,50 +260,42 @@ class ChatViewModel : ViewModel() {
         }
     }
 
-    suspend fun getOrCreateChatId(friendUid: String): String {
-        val currentUid = auth.currentUser?.uid ?: return ""
-        val uids = listOf(currentUid, friendUid).sorted()
-        val chatId = uids.joinToString("_")
-        ensureChatExists(chatId, friendUid)
-        return chatId
+    fun deleteMessage(chatId: String, messageId: String) {
+        if (chatId.isBlank() || messageId.isBlank()) return
+        db.collection("chats").document(chatId)
+            .collection("messages").document(messageId)
+            .delete()
+    }
+
+    fun editMessage(chatId: String, messageId: String, newText: String) {
+        if (chatId.isBlank() || messageId.isBlank()) return
+        db.collection("chats").document(chatId)
+            .collection("messages").document(messageId)
+            .update("text", newText, "updatedAt", FieldValue.serverTimestamp())
     }
 
     suspend fun ensureChatExists(chatId: String, friendUid: String) {
         val currentUid = auth.currentUser?.uid ?: return
-        val uids = listOf(currentUid, friendUid).sorted()
-        
-        Log.d("ChatDebug", "ensureChatExists: currentUid=$currentUid, friendUid=$friendUid, chatId=$chatId")
+        if (chatId.isBlank() || friendUid.isBlank()) return
         
         try {
             val chatRef = db.collection("chats").document(chatId)
             val doc = chatRef.get().await()
             
-            Log.d("ChatDebug", "Chat document exists at ${chatRef.path}: ${doc.exists()}")
-            
             if (!doc.exists()) {
-                val chatData = Chat(
-                    chatId = chatId,
-                    memberUids = uids,
-                    lastMessage = "Chat started",
-                    lastMessageAt = null,
-                    lastMessageSenderUid = "",
-                    createdAt = null,
-                    updatedAt = null
+                val chatData = mapOf(
+                    "chatId" to chatId,
+                    "memberUids" to listOf(currentUid, friendUid).sorted(),
+                    "lastMessage" to "Chat started",
+                    "lastMessageAt" to FieldValue.serverTimestamp(),
+                    "createdAt" to FieldValue.serverTimestamp(),
+                    "updatedAt" to FieldValue.serverTimestamp(),
+                    "lastMessageSenderUid" to ""
                 )
                 chatRef.set(chatData).await()
-                chatRef.update(
-                    mapOf(
-                        "createdAt" to FieldValue.serverTimestamp(),
-                        "updatedAt" to FieldValue.serverTimestamp(),
-                        "lastMessageAt" to FieldValue.serverTimestamp()
-                    )
-                ).await()
-                Log.d("ChatDebug", "Chat document created successfully: $chatId")
             }
-        } catch (e: com.google.firebase.firestore.FirebaseFirestoreException) {
-            Log.e("ChatDebug", "ensureChatExists Firestore error code=${e.code}, message=${e.message}", e)
         } catch (e: Exception) {
-            Log.e("ChatDebug", "Failed to ensure chat exists for $chatId", e)
+            Log.e("ChatViewModel", "Failed to ensure chat exists for $chatId", e)
         }
     }
 }

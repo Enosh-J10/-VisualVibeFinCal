@@ -40,6 +40,9 @@ fun SmartBusinessScreen(
     var editingIncome by remember { mutableStateOf<BusinessIncome?>(null) }
     var showTargetDialog by remember { mutableStateOf(false) }
     var selectedFilterCategory by remember { mutableStateOf("All") }
+    
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val tabs = listOf("Records", "Reports")
 
     val filteredIncomes = remember(incomes, selectedFilterCategory) {
         if (selectedFilterCategory == "All") incomes
@@ -55,57 +58,77 @@ fun SmartBusinessScreen(
         navController = navController,
         isDarkMode = isDarkMode
     ) { innerPadding ->
-        LazyColumn(
-            modifier = Modifier.fillMaxSize().padding(innerPadding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            item {
-                TargetProgressCard(totalIncome, targetAmount, progress, isDarkMode) {
-                    showTargetDialog = true
+        Column(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = Color.Transparent,
+                contentColor = Color(0xFF00D1B2)
+            ) {
+                tabs.forEachIndexed { index, title ->
+                    Tab(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        text = { Text(title) }
+                    )
                 }
             }
 
-            item {
-                val categories = listOf("All", "Product Sales", "Repairs", "Services", "Commission", "Freelance", "Other")
-                androidx.compose.foundation.lazy.LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(vertical = 8.dp)
+            if (selectedTab == 0) {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize().padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    items(categories) { cat ->
-                        FilterChip(
-                            selected = selectedFilterCategory == cat,
-                            onClick = { selectedFilterCategory = cat },
-                            label = { Text(cat) }
-                        )
+                    item {
+                        TargetProgressCard(totalIncome, targetAmount, progress, isDarkMode) {
+                            showTargetDialog = true
+                        }
                     }
-                }
-            }
 
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Income Records", fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                    TextButton(onClick = { showAddDialog = true }) {
-                        Icon(Icons.Default.Add, null)
-                        Text("Add Income")
+                    item {
+                        val categories = listOf("All", "Product Sales", "Repairs", "Services", "Commission", "Freelance", "Other")
+                        androidx.compose.foundation.lazy.LazyRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(vertical = 8.dp)
+                        ) {
+                            items(categories) { cat ->
+                                FilterChip(
+                                    selected = selectedFilterCategory == cat,
+                                    onClick = { selectedFilterCategory = cat },
+                                    label = { Text(cat) }
+                                )
+                            }
+                        }
                     }
-                }
-            }
 
-            if (filteredIncomes.isEmpty()) {
-                item {
-                    Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                        Text("No income records found.", color = Color.Gray)
+                    item {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text("Income Records", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            TextButton(onClick = { showAddDialog = true }) {
+                                Icon(Icons.Default.Add, null)
+                                Text("Add Income")
+                            }
+                        }
+                    }
+
+                    if (filteredIncomes.isEmpty()) {
+                        item {
+                            Box(Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
+                                Text("No income records found.", color = Color.Gray)
+                            }
+                        }
+                    } else {
+                        items(filteredIncomes, key = { it.incomeId }) { income ->
+                            IncomeItem(
+                                income = income, 
+                                isDarkMode = isDarkMode, 
+                                onEdit = { editingIncome = income },
+                                onDelete = { viewModel.deleteIncome(income.incomeId) }
+                            )
+                        }
                     }
                 }
             } else {
-                items(filteredIncomes, key = { it.incomeId }) { income ->
-                    IncomeItem(
-                        income = income, 
-                        isDarkMode = isDarkMode, 
-                        onEdit = { editingIncome = income },
-                        onDelete = { viewModel.deleteIncome(income.incomeId) }
-                    )
-                }
+                BusinessReportsTab(incomes, isDarkMode)
             }
         }
     }
@@ -237,8 +260,19 @@ fun AddIncomeDialog(existingIncome: BusinessIncome? = null, onDismiss: () -> Uni
         title = { Text(if (existingIncome == null) "Add Income" else "Edit Income") },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                ValidatedTextField(value = amount, onValueChange = { amount = it }, label = "Amount", keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
-                ValidatedTextField(value = source, onValueChange = { source = it }, label = "Customer / Source")
+                ValidatedTextField(
+                    value = amount, 
+                    onValueChange = { amount = it }, 
+                    label = "Amount", 
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                )
+                ValidatedTextField(
+                    value = source, 
+                    onValueChange = { source = it }, 
+                    label = "Customer / Source",
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                    capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
+                )
                 
                 Text("Category", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Box {
@@ -264,7 +298,13 @@ fun AddIncomeDialog(existingIncome: BusinessIncome? = null, onDismiss: () -> Uni
                     }
                 }
 
-                ValidatedTextField(value = notes, onValueChange = { notes = it }, label = "Notes (Optional)")
+                ValidatedTextField(
+                    value = notes, 
+                    onValueChange = { notes = it }, 
+                    label = "Notes (Optional)",
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                    capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
+                )
             }
         },
         confirmButton = {
@@ -301,3 +341,64 @@ fun SetTargetDialog(currentTarget: Double, onDismiss: () -> Unit, onSave: (Doubl
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
     )
 }
+
+@Composable
+fun BusinessReportsTab(incomes: List<BusinessIncome>, isDarkMode: Boolean) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val categoryTotals = incomes.groupBy { it.category }.mapValues { it.value.sumOf { inc -> inc.amount } }
+    val total = incomes.sumOf { it.amount }
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Text("Category Breakdown", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+        }
+
+        item {
+            com.enosh.fincalc.ui.screens.CalculatorCard(isDarkMode = isDarkMode) {
+                if (incomes.isEmpty()) {
+                    Text("No data available for charts", color = Color.Gray)
+                } else {
+                    categoryTotals.forEach { (cat, amount) ->
+                        val catProgress = (amount / total).toFloat()
+                        Column {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(cat, fontSize = 14.sp)
+                                Text(com.enosh.fincalc.utils.CurrencyUtils.formatCurrency(context, amount), fontWeight = FontWeight.Bold)
+                            }
+                            LinearProgressIndicator(
+                                progress = { catProgress },
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                color = Color(0xFF00D1B2)
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Text("Monthly Summary", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+        }
+
+        val monthlyTotals = incomes.groupBy { 
+            SimpleDateFormat("MMMM yyyy", Locale.getDefault()).format(Date(it.date))
+        }.mapValues { it.value.sumOf { inc -> inc.amount } }
+
+        items(monthlyTotals.toList().sortedByDescending { it.first }) { (month, amount) ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = if (isDarkMode) Color.White.copy(alpha = 0.05f) else Color.White)
+            ) {
+                Row(Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                    Text(month, fontWeight = FontWeight.Medium)
+                    Text(com.enosh.fincalc.utils.CurrencyUtils.formatCurrency(context, amount), fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
+                }
+            }
+        }
+    }
+}
+

@@ -9,6 +9,7 @@ data class User(
     val finCalcId: String = "",
     val searchableName: String = "",
     val searchableEmail: String = "",
-    val profilePic: String? = null,
+    val profilePic: String? = null, // Deprecated
+    val profilePictureUrl: String? = null,
     val updatedAt: Timestamp? = null
 )

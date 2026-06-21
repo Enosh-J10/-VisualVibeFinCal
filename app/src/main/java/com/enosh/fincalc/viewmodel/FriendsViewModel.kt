@@ -5,11 +5,13 @@ import androidx.lifecycle.viewModelScope
 import android.util.Log
 import com.enosh.fincalc.data.model.User
 import com.enosh.fincalc.data.model.FriendRequest
+import com.enosh.fincalc.data.model.Friendship
 import com.enosh.fincalc.utils.UserUtils
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
+import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -137,10 +139,9 @@ class FriendsViewModel : ViewModel() {
                 if (existingOut.exists()) {
                     val status = existingOut.getString("status") ?: "pending"
                     if (status == "pending") {
-                        _errorMessage.value = "Request already sent."
+                        _errorMessage.value = "Friend request already sent."
                         return@launch
                     } else if (status == "accepted") {
-                        // Auto-repair if friendship doc missing but request accepted
                         repairFriendship(fromUid, toUid)
                         _errorMessage.value = "You are already friends."
                         return@launch
@@ -174,12 +175,18 @@ class FriendsViewModel : ViewModel() {
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
 
+                Log.d("FriendsDebug", "Sending request: fromUid=$fromUid, toUid=$toUid, requestId=$requestId")
+                Log.d("FriendsDebug", "Request keys: ${requestData.keys}")
 
                 db.collection("friendRequests").document(requestId).set(requestData).await()
                 _errorMessage.value = "Friend request sent!"
+            } catch (e: FirebaseFirestoreException) {
+                val msg = "Friend request failed: ${e.code} - ${e.message}"
+                Log.e("FriendRequestError", msg, e)
+                _errorMessage.value = msg
             } catch (e: Exception) {
-                Log.e("FriendRequestError", "Failed to send request", e)
-                _errorMessage.value = "Failed to send request. Please try again."
+                Log.e("FriendRequestError", "General failure", e)
+                _errorMessage.value = "Failed to send friend request. Please try again later."
             }
         }
     }
@@ -187,15 +194,12 @@ class FriendsViewModel : ViewModel() {
     private suspend fun repairFriendship(uid1: String, uid2: String) {
         val sortedUids = listOf(uid1, uid2).sorted()
         val friendshipId = "${sortedUids[0]}_${sortedUids[1]}"
-        val friendshipData = mapOf(
-            "friendshipId" to friendshipId,
-            "memberUids" to sortedUids,
-            "user1Uid" to sortedUids[0],
-            "user2Uid" to sortedUids[1],
-            "createdAt" to FieldValue.serverTimestamp(),
-            "updatedAt" to FieldValue.serverTimestamp()
+        val friendship = Friendship(
+            friendshipId = friendshipId,
+            memberUids = sortedUids,
+            createdAt = com.google.firebase.Timestamp.now()
         )
-        db.collection("friends").document(friendshipId).set(friendshipData).await()
+        db.collection("friends").document(friendshipId).set(friendship).await()
     }
 
     fun clearError() {
@@ -205,14 +209,12 @@ class FriendsViewModel : ViewModel() {
     fun fetchPendingRequests() {
         val currentUid = auth.currentUser?.uid ?: return
         
-        // Incoming requests
         pendingListener?.remove()
         pendingListener = db.collection("friendRequests")
             .whereEqualTo("toUid", currentUid)
             .whereEqualTo("status", "pending")
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
-                    Log.e("FriendRequestError", "Listen failed", e)
                     return@addSnapshotListener
                 }
                 try {
@@ -225,14 +227,12 @@ class FriendsViewModel : ViewModel() {
                 }
             }
 
-        // Outgoing requests
         sentListener?.remove()
         sentListener = db.collection("friendRequests")
             .whereEqualTo("fromUid", currentUid)
             .whereEqualTo("status", "pending")
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
-                    Log.e("FriendRequestError", "Listen failed", e)
                     return@addSnapshotListener
                 }
                 try {
@@ -255,19 +255,15 @@ class FriendsViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                // 1. Update request status
                 db.collection("friendRequests").document(request.requestId)
                     .update(mapOf(
                         "status" to "accepted",
                         "updatedAt" to FieldValue.serverTimestamp()
                     )).await()
                 
-                // 2. Create friendship record
                 repairFriendship(request.fromUid, request.toUid)
-                
                 _errorMessage.value = "Friend request accepted!"
             } catch (e: Exception) {
-                Log.e("FriendRequestError", "Accept failed", e)
                 _errorMessage.value = "Accept failed. Please try again."
             }
         }
@@ -283,7 +279,6 @@ class FriendsViewModel : ViewModel() {
                     )).await()
                 _errorMessage.value = "Request rejected."
             } catch (e: Exception) {
-                Log.e("FriendRequestError", "Reject failed", e)
                 _errorMessage.value = "Reject failed. Please try again."
             }
         }
@@ -296,7 +291,6 @@ class FriendsViewModel : ViewModel() {
             .whereArrayContains("memberUids", currentUid)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
-                    Log.e("FriendsError", "Listen failed", e)
                     return@addSnapshotListener
                 }
                 
@@ -325,7 +319,6 @@ class FriendsViewModel : ViewModel() {
                         }
                         _friends.value = users
                     } catch (ex: Exception) {
-                        Log.e("FriendsError", "Failed to fetch friend profiles", ex)
                         _errorMessage.value = "Some friends could not be loaded."
                     }
                 }
@@ -351,7 +344,6 @@ class FriendsViewModel : ViewModel() {
             .addSnapshotListener { snapshot, _ ->
                 val blocked = snapshot?.documents?.map { it.id }?.toSet() ?: emptySet()
                 _blockedUsers.value = blocked
-                // Re-filter friends if blocked users change
                 fetchFriends()
             }
     }
@@ -381,7 +373,6 @@ class FriendsViewModel : ViewModel() {
                 
                 db.collection("friends").document(friendshipId).delete().await()
                 
-                // Also remove any pending/accepted requests
                 db.collection("friendRequests").document("${currentUid}_$friendUid").delete().await()
                 db.collection("friendRequests").document("${friendUid}_$currentUid").delete().await()
                 
@@ -396,10 +387,8 @@ class FriendsViewModel : ViewModel() {
         val currentUid = auth.currentUser?.uid ?: return
         viewModelScope.launch {
             try {
-                // 1. Remove friendship if exists
                 removeFriend(blockedUid)
                 
-                // 2. Add to blocked list
                 db.collection("users").document(currentUid)
                     .collection("blockedUsers").document(blockedUid)
                     .set(mapOf(

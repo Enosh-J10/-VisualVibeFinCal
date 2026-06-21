@@ -209,20 +209,29 @@ fun FriendsListTab(viewModel: FriendsViewModel, isDarkMode: Boolean) {
     }
 
     if (showQRDialog) {
+        val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""
+        val userName = sharedPref.getString("name", "User") ?: "User"
+        val qrText = "fincalc://add-friend?id=$finCalcId"
+
         AlertDialog(
             onDismissRequest = { showQRDialog = false },
-            title = { Text("My QR Code") },
+            title = { Text("My FinID Card") },
             text = {
                 Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-                    val qrBitmap = remember { QRUtils.generateQRCode("fincalc://add-friend?id=$finCalcId") }
+                    val cardBitmap = remember(finCalcId) { 
+                        QRUtils.createFinCalcCard(context, userName, finCalcId, qrText)
+                    }
                     Image(
-                        bitmap = qrBitmap.asImageBitmap(),
-                        contentDescription = "QR Code",
-                        modifier = Modifier.size(200.dp).background(Color.White).padding(8.dp)
+                        bitmap = cardBitmap.asImageBitmap(),
+                        contentDescription = "My FinID Card",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(800f / 1200f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color.White)
                     )
                     Spacer(Modifier.height(16.dp))
                     Text("FinCalc ID: $finCalcId", fontWeight = FontWeight.Bold)
-                    Text("Let others scan this to add you.", fontSize = 12.sp, color = Color.Gray)
                     
                     Spacer(Modifier.height(16.dp))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -243,27 +252,28 @@ fun FriendsListTab(viewModel: FriendsViewModel, isDarkMode: Boolean) {
                         
                         Button(
                             onClick = {
-                                val sendIntent: Intent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    val shareMessage = """
-                                        Hey 👋 Add me on FinCalc!
-                                        
-                                        My FinCalc ID: $finCalcId
-                                        
-                                        Open FinCalc → Settings → Friends / Add Friends → search my ID and send a request.
-                                    """.trimIndent()
-                                    putExtra(Intent.EXTRA_TEXT, shareMessage)
-                                    type = "text/plain"
+                                val cardBitmap = QRUtils.createFinCalcCard(context, userName, finCalcId, qrText)
+                                val uri = QRUtils.saveBitmapAndGetUri(context, cardBitmap)
+                                if (uri != null) {
+                                    val sendIntent: Intent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_STREAM, uri)
+                                        putExtra(Intent.EXTRA_TEXT, "Add me on FinCalc! My ID: $finCalcId")
+                                        type = "image/png"
+                                        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                    }
+                                    val shareIntent = Intent.createChooser(sendIntent, "Share My FinID Card")
+                                    context.startActivity(shareIntent)
+                                } else {
+                                    Toast.makeText(context, "Failed to generate card image", Toast.LENGTH_SHORT).show()
                                 }
-                                val shareIntent = Intent.createChooser(sendIntent, null)
-                                context.startActivity(shareIntent)
                             },
                             modifier = Modifier.weight(1f),
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))
                         ) {
                             Icon(Icons.Default.Share, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Share", fontSize = 12.sp)
+                            Text("Share Card", fontSize = 12.sp)
                         }
                     }
                 }
@@ -297,11 +307,20 @@ fun FriendItem(
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(40.dp).background(Color(0xFF00D1B2).copy(alpha = 0.1f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2))
+            if (!user.profilePic.isNullOrBlank()) {
+                coil.compose.AsyncImage(
+                    model = user.profilePic,
+                    contentDescription = null,
+                    modifier = Modifier.size(40.dp).clip(CircleShape),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                )
+            } else {
+                Box(
+                    Modifier.size(40.dp).background(Color(0xFF00D1B2).copy(alpha = 0.1f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2))
+                }
             }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
@@ -530,7 +549,7 @@ fun SentRequestItem(request: FriendRequest, isDarkMode: Boolean) {
 @Composable
 fun AddFriendTab(viewModel: FriendsViewModel, isDarkMode: Boolean, initialSearch: String? = null) {
     val context = LocalContext.current
-    var searchQuery by remember { mutableStateOf(if (initialSearch == "{search}") "" else initialSearch ?: "") }
+    var searchQuery by remember { mutableStateOf(if (initialSearch == null || initialSearch == "{search}") "" else initialSearch) }
     val searchResults by viewModel.searchResults.collectAsState()
     val isSearching by viewModel.isSearching.collectAsState()
 
@@ -538,6 +557,7 @@ fun AddFriendTab(viewModel: FriendsViewModel, isDarkMode: Boolean, initialSearch
     LaunchedEffect(initialSearch) {
         if (initialSearch != null && initialSearch != "{search}") {
             searchQuery = initialSearch
+            viewModel.searchUsers(initialSearch)
         }
     }
 

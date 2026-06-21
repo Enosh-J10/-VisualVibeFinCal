@@ -61,7 +61,8 @@ fun HomeScreen(
     onNavigateToChat: () -> Unit,
     onNavigateToTool: (String) -> Unit,
     assistantViewModel: AssistantViewModel,
-    financialViewModel: FinancialViewModel = viewModel()
+    financialViewModel: FinancialViewModel = viewModel(),
+    onLogout: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val sharedPref = remember { context.getSharedPreferences(UserUtils.PREFS_NAME, Context.MODE_PRIVATE) }
@@ -90,7 +91,7 @@ fun HomeScreen(
     val currentMonth = financialViewModel.getCurrentMonth()
     val budget by financialViewModel.getBudgetForMonth(currentMonth).collectAsState(initial = null)
 
-    val allTools = remember {
+    val allTools = remember(isGuest) {
         listOf(
             Tool("ai_chat", "FinCalc AI", R.drawable.ic_calc),
             Tool("curr", "Currency", R.drawable.ic_currency),
@@ -111,7 +112,9 @@ fun HomeScreen(
             Tool("saving_planner", "Auto Saving Planner", R.drawable.ic_salary),
             Tool("smart_travel", "Smart Travel", R.drawable.ic_tip),
             Tool("smart_business", "Smart Business", R.drawable.ic_tax)
-        )
+        ).filter { 
+            if (isGuest) it.id !in listOf("smart_travel", "friends", "ai_chat") else true
+        }
     }
 
     val favoritesState = remember(favoriteToolsKey) {
@@ -220,12 +223,22 @@ fun HomeScreen(
                 CenterAlignedTopAppBar(
                     title = { Text(stringResource(R.string.fincalc), fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black) },
                     navigationIcon = {
-                        IconButton(onClick = onNavigateToChat) {
-                            Icon(
-                                Icons.Default.Chat,
-                                contentDescription = "Chat",
-                                tint = Color(0xFF00D1B2)
-                            )
+                        if (isGuest) {
+                            IconButton(onClick = onLogout) {
+                                Icon(
+                                    Icons.Default.Logout,
+                                    contentDescription = "Logout",
+                                    tint = Color(0xFF00D1B2)
+                                )
+                            }
+                        } else {
+                            IconButton(onClick = onNavigateToChat) {
+                                Icon(
+                                    Icons.Default.Chat,
+                                    contentDescription = "Chat",
+                                    tint = Color(0xFF00D1B2)
+                                )
+                            }
                         }
                     },
                     actions = {

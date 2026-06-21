@@ -42,6 +42,7 @@ import com.enosh.fincalc.R
 fun SettingsItem(
     title: String,
     value: String? = null,
+    subtitle: String? = null,
     onClick: (() -> Unit)? = null,
     trailing: @Composable (() -> Unit)? = null
 ) {
@@ -53,7 +54,12 @@ fun SettingsItem(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(title, fontSize = 16.sp)
+        Column(Modifier.weight(1f)) {
+            Text(title, fontSize = 16.sp)
+            if (subtitle != null) {
+                Text(subtitle, fontSize = 12.sp, color = Color.Gray)
+            }
+        }
         if (trailing != null) {
             trailing()
         } else if (value != null) {
@@ -204,14 +210,16 @@ fun CalculatorScreenScaffold(
     title: String,
     navController: NavController,
     isDarkMode: Boolean,
+    navigationIcon: @Composable (() -> Unit)? = null,
     content: @Composable (PaddingValues) -> Unit
 ) {
     Scaffold(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier.fillMaxSize()
+            .safeDrawingPadding(),
         topBar = {
             TopAppBar(
                 title = { Text(title, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
+                navigationIcon = navigationIcon ?: {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
@@ -237,8 +245,6 @@ fun CalculatorScreenScaffold(
                         Brush.verticalGradient(listOf(Color(0xFFFFFFFF), Color(0xFFF0F4F8)))
                     }
                 )
-                .navigationBarsPadding()
-                .imePadding()
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 Box(modifier = Modifier.weight(1f)) {
@@ -258,7 +264,7 @@ fun CalculatorScreenScaffold(
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(horizontal = 24.dp)
-                            .padding(top = 8.dp, bottom = 16.dp)
+                            .padding(top = 8.dp, bottom = 8.dp)
                     )
                 }
             }

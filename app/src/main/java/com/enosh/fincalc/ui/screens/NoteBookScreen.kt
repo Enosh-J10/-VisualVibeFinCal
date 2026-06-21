@@ -23,6 +23,8 @@ import androidx.navigation.NavController
 import androidx.core.content.edit
 import java.text.SimpleDateFormat
 import java.util.*
+import com.enosh.fincalc.data.model.Note
+import com.enosh.fincalc.data.model.ChecklistItem
 import com.enosh.fincalc.ui.components.ValidatedTextField
 import com.enosh.fincalc.utils.ValidationUtils
 import com.enosh.fincalc.utils.UserUtils
@@ -54,7 +56,27 @@ fun NoteBookScreen(
                     2 -> Triple(parts[0], parts[1], "TEXT")
                     else -> Triple("No Title", parts[0], "TEXT")
                 }
-                Note(key, title, content, key.toLongOrNull() ?: 0L, type == "CHECKLIST") 
+                
+                val isChecklist = type == "CHECKLIST"
+                val checklistItems = if (isChecklist) {
+                    content.split("\n").filter { it.isNotBlank() }.map { line ->
+                        if (line.contains("::::")) {
+                            val lineParts = line.split("::::")
+                            ChecklistItem(lineParts[0], lineParts[1].toBoolean())
+                        } else {
+                            ChecklistItem(line, false)
+                        }
+                    }
+                } else emptyList()
+
+                Note(
+                    id = key, 
+                    title = title, 
+                    content = if (isChecklist) "" else content, 
+                    timestamp = key.toLongOrNull() ?: 0L, 
+                    isChecklist = isChecklist,
+                    checklistItems = checklistItems
+                )
             }.sortedByDescending { it.timestamp }
         )
     }
@@ -70,7 +92,11 @@ fun NoteBookScreen(
     LaunchedEffect(editingNote) {
         if (editingNote != null) {
             noteTitle = editingNote!!.title
-            noteText = editingNote!!.content
+            noteText = if (editingNote!!.isChecklist) {
+                editingNote!!.checklistItems.joinToString("\n") { it.text }
+            } else {
+                editingNote!!.content
+            }
             isChecklistMode = editingNote!!.isChecklist
             showAddDialog = true
         }
@@ -106,6 +132,18 @@ fun NoteBookScreen(
                             },
                             onEdit = {
                                 editingNote = note
+                            },
+                            onCheckChanged = { itemIndex, isChecked ->
+                                val updatedNote = note.copy(
+                                    checklistItems = note.checklistItems.toMutableList().apply {
+                                        this[itemIndex] = this[itemIndex].copy(checked = isChecked)
+                                    }
+                                )
+                                val newContent = updatedNote.checklistItems.joinToString("\n") { "${it.text}::::${it.checked}" }
+                                val combinedData = "${updatedNote.title}::::$newContent::::CHECKLIST"
+                                sharedPref.edit { putString(updatedNote.id, combinedData) }
+                                
+                                notes = notes.map { if (it.id == updatedNote.id) updatedNote else it }
                             }
                         )
                     }
@@ -187,9 +225,11 @@ fun NoteBookScreen(
                             val id = editingNote?.id ?: System.currentTimeMillis().toString()
                             val type = if (isChecklistMode) "CHECKLIST" else "TEXT"
                             
-                            // If switching to checklist for the first time, format items
-                            val contentToSave = if (isChecklistMode && !noteText.contains(":false") && !noteText.contains(":true")) {
-                                noteText.lines().filter { it.isNotBlank() }.joinToString(",") { "$it:false" }
+                            val contentToSave = if (isChecklistMode) {
+                                noteText.lines().filter { it.isNotBlank() }.joinToString("\n") { line ->
+                                    val existingItem = editingNote?.checklistItems?.find { it.text == line }
+                                    "$line::::${existingItem?.checked ?: false}"
+                                }
                             } else {
                                 noteText
                             }
@@ -197,7 +237,20 @@ fun NoteBookScreen(
                             val combinedData = "$noteTitle::::$contentToSave::::$type"
                             sharedPref.edit { putString(id, combinedData) }
                             
-                            val newNote = Note(id, noteTitle, contentToSave, id.toLongOrNull() ?: System.currentTimeMillis(), isChecklistMode)
+                            val newNote = Note(
+                                id = id, 
+                                title = noteTitle, 
+                                content = if (isChecklistMode) "" else contentToSave, 
+                                timestamp = id.toLongOrNull() ?: System.currentTimeMillis(), 
+                                isChecklist = isChecklistMode,
+                                checklistItems = if (isChecklistMode) {
+                                    contentToSave.split("\n").filter { it.isNotBlank() }.map { 
+                                        val p = it.split("::::")
+                                        ChecklistItem(p[0], p[1].toBoolean())
+                                    }
+                                } else emptyList()
+                            )
+
                             if (editingNote == null) {
                                 notes = (listOf(newNote) + notes).sortedByDescending { it.timestamp }
                                 assistantViewModel.showMessage("Note saved!", AssistantState.HAPPY)
@@ -232,10 +285,16 @@ fun NoteBookScreen(
     }
 }
 
-data class Note(val id: String, val title: String, val content: String, val timestamp: Long, val isChecklist: Boolean = false)
+// data class Note removed as it is now in com.enosh.fincalc.data.model
 
 @Composable
-fun NoteItem(note: Note, isDarkMode: Boolean, onDelete: () -> Unit, onEdit: () -> Unit) {
+fun NoteItem(
+    note: Note, 
+    isDarkMode: Boolean, 
+    onDelete: () -> Unit, 
+    onEdit: () -> Unit,
+    onCheckChanged: (Int, Boolean) -> Unit
+) {
     val context = LocalContext.current
     val uid = UserUtils.getEffectiveUid(context)
     val sharedPref = remember(uid) { context.getSharedPreferences("NotesPrefs_$uid", Context.MODE_PRIVATE) }
@@ -273,35 +332,23 @@ fun NoteItem(note: Note, isDarkMode: Boolean, onDelete: () -> Unit, onEdit: () -
             }
             
             if (note.isChecklist) {
-                val items = note.content.split(",").filter { it.contains(":") }
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    items.forEachIndexed { index, itemStr ->
-                        val parts = itemStr.split(":")
-                        val text = parts[0]
-                        val checked = parts[1].toBoolean()
-                        
+                    note.checklistItems.forEachIndexed { index, item ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(
-                                checked = checked,
+                                checked = item.checked,
                                 onCheckedChange = { isChecked ->
-                                    val newItems = items.toMutableList()
-                                    newItems[index] = "$text:$isChecked"
-                                    val newContent = newItems.joinToString(",")
-                                    val combinedData = "${note.title}::::$newContent::::CHECKLIST"
-                                    sharedPref.edit { putString(note.id, combinedData) }
-                                    // Note: This won't trigger a recompose of the list unless 'notes' state is updated in NoteBookScreen.
-                                    // For a quick fix, we can use a local state or rely on the user re-opening the screen.
-                                    // Better: The caller should handle updates.
+                                    onCheckChanged(index, isChecked)
                                 },
                                 colors = CheckboxDefaults.colors(checkedColor = Color(0xFF00D1B2)),
                                 modifier = Modifier.size(24.dp)
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                text,
+                                item.text,
                                 fontSize = 15.sp,
                                 color = (if (isDarkMode) Color.White else Color.Black).copy(alpha = 0.8f),
-                                textDecoration = if (checked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
+                                textDecoration = if (item.checked) androidx.compose.ui.text.style.TextDecoration.LineThrough else null
                             )
                         }
                     }

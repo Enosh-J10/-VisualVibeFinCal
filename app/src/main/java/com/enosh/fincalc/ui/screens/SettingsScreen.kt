@@ -3,6 +3,7 @@ package com.enosh.fincalc.ui.screens
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -17,14 +18,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.ArrowDropDown
-import androidx.compose.material.icons.filled.ArrowDropUp
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.ExitToApp
-import androidx.compose.material.icons.filled.GroupAdd
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -72,11 +66,9 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val sharedPref = remember { context.getSharedPreferences(UserUtils.PREFS_NAME, Context.MODE_PRIVATE) }
+    val isGuest = remember { sharedPref.getBoolean("is_guest", false) }
     val coroutineScope = rememberCoroutineScope()
     val assistantPrefs by assistantViewModel.prefs.collectAsState()
-    
-    val cloudSyncState by settingsViewModel.cloudSyncState.collectAsState()
-
     
     val auth = remember { FirebaseAuth.getInstance() }
     val firebaseUser = auth.currentUser
@@ -86,92 +78,59 @@ fun SettingsScreen(
     val email = firebaseUser?.email ?: "No Email"
     val initialName = firebaseUser?.displayName ?: "User"
     
-    val profilePicKey = remember(userUid) { UserUtils.getScopedKey(userUid, "profile_pic") }
-    val initialProfilePic = sharedPref.getString(profilePicKey, null)
-    val finCalcId = remember(userUid) { UserUtils.generateStableFinCalcId(userUid) }
-
-    var userName by remember { mutableStateOf(initialName) }
-    var userEmail by remember { mutableStateOf(email) }
-    var profilePicUri by remember { mutableStateOf(initialProfilePic?.toUri()) }
-    var showEditDialog by remember { mutableStateOf(false) }
-    var showFeedbackDialog by remember { mutableStateOf(false) }
-    var showRestoreConfirmDialog by remember { mutableStateOf(false) }
-    var showLogoutConfirmDialog by remember { mutableStateOf(false) }
-    var pendingRestoreUri by remember { mutableStateOf<Uri?>(null) }
-    var feedbackText by remember { mutableStateOf("") }
-    var isSendingFeedback by remember { mutableStateOf(false) }
-
-    var appLockEnabled by remember { mutableStateOf(SecurityUtils.isAppLockEnabled(context)) }
-    var biometricEnabled by remember { mutableStateOf(SecurityUtils.isBiometricEnabled(context)) }
-    var showPinDialog by remember { mutableStateOf(false) }
+    var userData by remember { mutableStateOf<com.enosh.fincalc.data.model.User?>(null) }
     
-    var pinStep by remember { mutableStateOf(if (initialResetPin) 2 else 1) } 
-    var currentPinInput by remember { mutableStateOf("") }
-    var newPinInput by remember { mutableStateOf("") }
-    var confirmPinInput by remember { mutableStateOf("") }
-    var pinError by remember { mutableStateOf<String?>(null) }
-
-    val pinLengthError = stringResource(R.string.pin_length_error)
-    val incorrectPinMsg = stringResource(R.string.incorrect_current_pin)
-    val pinMismatchMsg = stringResource(R.string.pin_mismatch)
-
-    val hasExistingPin = remember { SecurityUtils.getAppPin(context) != null }
-
-    var keepMeSignedIn by remember { mutableStateOf(sharedPref.getBoolean("keep_me_signed_in", true)) }
-
-    val biometricManager = remember { BiometricManager.from(context) }
-    val canUseBiometric = remember {
-        biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG) == BiometricManager.BIOMETRIC_SUCCESS
-    }
-
-    LaunchedEffect(initialResetPin) {
-        if (initialResetPin) {
-            showPinDialog = true
+    LaunchedEffect(userUid) {
+        if (userUid.isNotBlank()) {
+            try {
+                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val doc = db.collection("users").document(userUid).get().await()
+                userData = doc.toObject(com.enosh.fincalc.data.model.User::class.java)
+            } catch (e: Exception) {
+                Log.e("Settings", "Failed to fetch user data", e)
+            }
         }
     }
 
-    val profileUpdatedMsg = stringResource(R.string.profile_updated)
-    val sendingFeedbackMsg = stringResource(R.string.sending_feedback)
-    val feedbackReadyMsg = stringResource(R.string.feedback_ready)
-    val pinSetSuccessMsg = stringResource(R.string.pin_set_success)
-    val backupSuccessMsg = stringResource(R.string.backup_successful)
-    val backupFailedMsg = stringResource(R.string.backup_failed)
-    val restoreSuccessMsg = stringResource(R.string.restore_successful)
-    val restoreFailedMsg = stringResource(R.string.restore_failed)
+    var userName by remember { mutableStateOf(initialName) }
+    var profilePicUrl by remember { mutableStateOf(userData?.profilePictureUrl) }
+    
+    LaunchedEffect(userData) {
+        userData?.let {
+            userName = it.name.ifBlank { initialName }
+            profilePicUrl = it.profilePictureUrl
+        }
+    }
+
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showRestoreConfirmDialog by remember { mutableStateOf(false) }
+    var showRoastWarningDialog by remember { mutableStateOf(false) }
+    var showLogoutConfirmDialog by remember { mutableStateOf(false) }
+    var showProfilePreview by remember { mutableStateOf(false) }
+    var isUploading by remember { mutableStateOf(false) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia(),
         onResult = { uri ->
             if (uri != null) {
-                try {
-                    context.contentResolver.takePersistableUriPermission(
-                        uri,
-                        Intent.FLAG_GRANT_READ_URI_PERMISSION
-                    )
-                    profilePicUri = uri
-                    sharedPref.edit { putString(profilePicKey, uri.toString()) }
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Failed to save profile picture", Toast.LENGTH_SHORT).show()
+                coroutineScope.launch {
+                    isUploading = true
+                    try {
+                        UserUtils.ensureFinCalcUserProfile(context, profilePicUri = uri)
+                        // Refresh URL
+                        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                        val doc = db.collection("users").document(userUid).get().await()
+                        profilePicUrl = doc.getString("profilePictureUrl")
+                        Toast.makeText(context, "Profile picture updated", Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) {
+                        Toast.makeText(context, "Upload failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                    } finally {
+                        isUploading = false
+                    }
                 }
             }
         }
     )
-
-    val developerEmail = "enoshjaques@gmail.com"
-
-    fun sendEmail(subject: String, body: String) {
-        val intent = Intent(Intent.ACTION_SENDTO).apply {
-            data = "mailto:".toUri()
-            putExtra(Intent.EXTRA_EMAIL, arrayOf(developerEmail))
-            putExtra(Intent.EXTRA_SUBJECT, subject)
-            putExtra(Intent.EXTRA_TEXT, body)
-        }
-        try {
-            context.startActivity(Intent.createChooser(intent, "Send Email"))
-        } catch (_: Exception) {
-            Toast.makeText(context, "No email app found", Toast.LENGTH_SHORT).show()
-        }
-    }
 
     CalculatorScreenScaffold(
         title = stringResource(R.string.settings_title),
@@ -189,89 +148,127 @@ fun SettingsScreen(
             Spacer(Modifier.height(16.dp))
 
             Box(
-                modifier = Modifier
-                    .size(100.dp)
-                    .bounceClick { 
-                        photoPickerLauncher.launch(
-                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                        )
-                    }
-                    .clip(CircleShape)
-                    .background(if (isDarkMode) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f)),
+                modifier = Modifier.size(110.dp),
                 contentAlignment = Alignment.Center
             ) {
-                if (profilePicUri != null) {
-                    AsyncImage(
-                        model = profilePicUri,
-                        contentDescription = "Profile Picture",
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Icon(Icons.Default.Person, contentDescription = null, modifier = Modifier.size(60.dp))
+                Box(
+                    modifier = Modifier
+                        .size(100.dp)
+                        .clip(CircleShape)
+                        .background(if (isDarkMode) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f))
+                        .clickable { if (!isGuest) showProfilePreview = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isUploading) {
+                        CircularProgressIndicator(color = Color(0xFF00D1B2))
+                    } else if (profilePicUrl != null) {
+                        AsyncImage(
+                            model = profilePicUrl,
+                            contentDescription = "Profile Picture",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Crop,
+                            error = painterResource(id = if (isGuest) android.R.drawable.ic_menu_help else R.drawable.ic_tip)
+                        )
+                    } else {
+                        Icon(
+                            if (isGuest) Icons.Default.Face else Icons.Default.Person, 
+                            contentDescription = null, 
+                            modifier = Modifier.size(60.dp),
+                            tint = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray
+                        )
+                    }
                 }
+                
+                if (!isGuest) {
+                    Surface(
+                        onClick = { 
+                            photoPickerLauncher.launch(
+                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                            )
+                        },
+                        modifier = Modifier
+                            .align(Alignment.BottomEnd)
+                            .offset(x = (-4).dp, y = (-4).dp)
+                            .size(32.dp),
+                        shape = CircleShape,
+                        color = Color(0xFF00D1B2),
+                        tonalElevation = 4.dp
+                    ) {
+                        Icon(
+                            Icons.Default.Edit,
+                            contentDescription = "Edit Profile Picture",
+                            modifier = Modifier.padding(8.dp),
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
+
+            if (showProfilePreview) {
+                AlertDialog(
+                    onDismissRequest = { showProfilePreview = false },
+                    title = { Text("Profile Preview") },
+                    text = {
+                        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                            if (profilePicUrl != null) {
+                                AsyncImage(
+                                    model = profilePicUrl,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(250.dp).clip(RoundedCornerShape(16.dp)),
+                                    contentScale = ContentScale.Crop
+                                )
+                            } else {
+                                Icon(Icons.Default.Person, null, Modifier.size(200.dp), Color.Gray)
+                            }
+                        }
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showProfilePreview = false }) { Text("Close") }
+                    }
+                )
             }
 
             Spacer(Modifier.height(16.dp))
 
-            Text(userName, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(userEmail, fontSize = 14.sp, color = Color.Gray)
-                if (isVerified) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        painter = painterResource(id = android.R.drawable.checkbox_on_background),
-                        contentDescription = stringResource(R.string.verified_badge),
-                        tint = Color(0xFF00D1B2),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
+            Text(if (isGuest) "Guest User" else userName, fontSize = 22.sp, fontWeight = FontWeight.Bold)
+            Text(if (isGuest) "Register to unlock all features" else email, fontSize = 14.sp, color = Color.Gray)
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "FinCalc ID: $finCalcId",
-                    fontSize = 14.sp,
-                    color = Color.Gray
-                )
-                IconButton(onClick = {
-                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-                    val clip = android.content.ClipData.newPlainText("FinCalc ID", finCalcId)
-                    clipboard.setPrimaryClip(clip)
-                    Toast.makeText(context, "ID Copied", Toast.LENGTH_SHORT).show()
-                }, modifier = Modifier.size(28.dp)) {
-                    Icon(Icons.Default.ContentCopy, contentDescription = "Copy ID", modifier = Modifier.size(16.dp), tint = Color(0xFF00D1B2))
-                }
-            }
-
-            val verificationEmailSentMsg = stringResource(R.string.verification_email_sent)
-
-            if (!isVerified && firebaseUser != null) {
-                TextButton(onClick = {
-                    firebaseUser.sendEmailVerification().addOnCompleteListener { task ->
-                        if (task.isSuccessful) {
-                            Toast.makeText(context, verificationEmailSentMsg, Toast.LENGTH_SHORT).show()
-                        }
+            if (!isGuest) {
+                val finCalcId = remember(userUid) { UserUtils.generateStableFinCalcId(userUid) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(text = "FinCalc ID: $finCalcId", fontSize = 14.sp, color = Color.Gray)
+                    IconButton(onClick = {
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FinCalc ID", finCalcId))
+                        Toast.makeText(context, "ID Copied", Toast.LENGTH_SHORT).show()
+                    }, modifier = Modifier.size(28.dp)) {
+                        Icon(Icons.Default.ContentCopy, null, modifier = Modifier.size(16.dp), tint = Color(0xFF00D1B2))
                     }
-                }) {
-                    Text(stringResource(R.string.resend_verification), color = Color(0xFF00D1B2), fontSize = 12.sp)
                 }
-            }
-            
-            TextButton(onClick = { showEditDialog = true }) {
-                Text(stringResource(R.string.edit_profile), color = Color(0xFF00D1B2), fontWeight = FontWeight.Bold)
-            }
+                
+                TextButton(onClick = { showEditDialog = true }) {
+                    Text(stringResource(R.string.edit_profile), color = Color(0xFF00D1B2), fontWeight = FontWeight.Bold)
+                }
 
-
-            BouncyButton(
-                onClick = { navController.navigate("friends") },
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                shape = RoundedCornerShape(12.dp),
-                containerColor = Color(0xFF00D1B2).copy(alpha = 0.1f)
-            ) {
-                Icon(Icons.Default.GroupAdd, contentDescription = null, tint = Color(0xFF00D1B2))
-                Spacer(Modifier.width(8.dp))
-                Text("Friends / Add Friends", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
+                BouncyButton(
+                    onClick = { navController.navigate("friends") },
+                    modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    containerColor = Color(0xFF00D1B2).copy(alpha = 0.1f)
+                ) {
+                    Icon(Icons.Default.GroupAdd, null, tint = Color(0xFF00D1B2))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Friends / Add Friends", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
+                }
+            } else {
+                Spacer(Modifier.height(16.dp))
+                BouncyButton(
+                    onClick = { onLogout() },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("Sign Up / Login to unlock more", fontWeight = FontWeight.Bold)
+                }
             }
 
             Spacer(Modifier.height(24.dp))
@@ -283,94 +280,34 @@ fun SettingsScreen(
                 }
             )
 
-            SettingsItem(
-                title = "Keep Me Signed In",
-                trailing = {
-                    Switch(
-                        checked = keepMeSignedIn, 
-                        onCheckedChange = { 
-                            keepMeSignedIn = it
-                            sharedPref.edit { putBoolean("keep_me_signed_in", it) }
-                        }
-                    )
-                }
-            )
-
             HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
 
             // Assistant Settings
             CalculatorCard(isDarkMode = isDarkMode) {
                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                    Text(
-                        text = stringResource(R.string.assistant),
-                        modifier = Modifier.fillMaxWidth(),
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF00D1B2)
-                    )
+                    Text(text = stringResource(R.string.assistant), modifier = Modifier.fillMaxWidth(), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
 
                     SettingsItem(
                         title = stringResource(R.string.show_assistant),
                         trailing = {
-                            Switch(
-                                checked = assistantPrefs.isEnabled,
-                                onCheckedChange = { assistantViewModel.setEnabled(it, context) }
-                            )
+                            Switch(checked = assistantPrefs.isEnabled, onCheckedChange = { assistantViewModel.setEnabled(it, context) })
                         }
                     )
 
                     if (assistantPrefs.isEnabled) {
                         SettingsItem(
-                            title = stringResource(R.string.mute_assistant),
+                            title = "Roast Mode",
+                            subtitle = "Playful savage AI responses",
                             trailing = {
                                 Switch(
-                                    checked = assistantPrefs.isMuted,
-                                    onCheckedChange = { assistantViewModel.setMuted(it, context) }
+                                    checked = assistantPrefs.isRoastMode,
+                                    onCheckedChange = { 
+                                        if (it) showRoastWarningDialog = true
+                                        else assistantViewModel.setRoastMode(false, context)
+                                    }
                                 )
                             }
                         )
-
-                        Column {
-                            Text("Assistant Type", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                FilterChip(
-                                    selected = assistantPrefs.gender == AssistantGender.FEMALE,
-                                    onClick = { assistantViewModel.setGender(AssistantGender.FEMALE, context) },
-                                    label = { Text("Female", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                FilterChip(
-                                    selected = assistantPrefs.gender == AssistantGender.MALE,
-                                    onClick = { assistantViewModel.setGender(AssistantGender.MALE, context) },
-                                    label = { Text("Male", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
-
-                        Column {
-                            Text("Assistant State", fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                FilterChip(
-                                    selected = assistantPrefs.isAnimated,
-                                    onClick = { assistantViewModel.setAnimated(true, context) },
-                                    label = { Text("Animated", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                FilterChip(
-                                    selected = !assistantPrefs.isAnimated,
-                                    onClick = { assistantViewModel.setAnimated(false, context) },
-                                    label = { Text("Static", modifier = Modifier.fillMaxWidth(), textAlign = androidx.compose.ui.text.style.TextAlign.Center) },
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                        }
 
                         Box(
                             modifier = Modifier
@@ -383,293 +320,6 @@ fun SettingsScreen(
                             Box(modifier = Modifier.size(100.dp)) {
                                 AssistantRobot(viewModel = assistantViewModel, isDarkMode = isDarkMode, isPreview = true)
                             }
-                            Text(stringResource(R.string.style_preview), modifier = Modifier.align(Alignment.TopStart).padding(8.dp), fontSize = 10.sp, color = Color.Gray)
-                        }
-
-                        Column {
-                            Text(stringResource(R.string.appearance_theme), modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            FlowRow(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                maxItemsInEachRow = 3
-                            ) {
-                                AssistantTheme.entries.forEach { theme ->
-                                    FilterChip(
-                                        selected = assistantPrefs.theme == theme && !assistantPrefs.isCustomMode,
-                                        onClick = { assistantViewModel.setTheme(theme, context) },
-                                        label = { Text(theme.label) },
-                                        leadingIcon = if (theme != AssistantTheme.CUSTOM) {
-                                            {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .size(16.dp)
-                                                        .clip(CircleShape)
-                                                        .background(Color(theme.accentColor.hex))
-                                                )
-                                            }
-                                        } else null,
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = Color(theme.accentColor.hex).copy(alpha = 0.2f),
-                                            selectedLabelColor = if (isDarkMode) Color.White else Color.Black
-                                        )
-                                    )
-                                }
-                            }
-                        }
-
-                        SettingsItem(
-                            title = stringResource(R.string.custom_mode),
-                            trailing = {
-                                Switch(
-                                    checked = assistantPrefs.isCustomMode,
-                                    onCheckedChange = { assistantViewModel.setCustomMode(it, context) }
-                                )
-                            }
-                        )
-
-                        if (assistantPrefs.isCustomMode) {
-                            Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                                CustomColorPicker(stringResource(R.string.head_color), assistantPrefs.customHeadColor) {
-                                    assistantViewModel.setCustomColors(it, assistantPrefs.customBodyColor, assistantPrefs.customAccentColor, context)
-                                }
-                                CustomColorPicker(stringResource(R.string.body_color), assistantPrefs.customBodyColor) {
-                                    assistantViewModel.setCustomColors(assistantPrefs.customHeadColor, it, assistantPrefs.customAccentColor, context)
-                                }
-                                CustomColorPicker(stringResource(R.string.accent_color_label), assistantPrefs.customAccentColor) {
-                                    assistantViewModel.setCustomColors(assistantPrefs.customHeadColor, assistantPrefs.customBodyColor, it, context)
-                                }
-                            }
-                        }
-
-                        Column {
-                            Text(stringResource(R.string.interaction_frequency), modifier = Modifier.fillMaxWidth(), fontSize = 14.sp, fontWeight = FontWeight.Medium)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.spacedBy(4.dp)
-                            ) {
-                                AssistantFrequency.entries.forEach { freq ->
-                                    FilterChip(
-                                        selected = assistantPrefs.frequency == freq,
-                                        onClick = { assistantViewModel.setFrequency(freq, context) },
-                                        label = { 
-                                            Text(
-                                                freq.name.lowercase().replaceFirstChar { it.uppercase() },
-                                                fontSize = 11.sp,
-                                                maxLines = 1,
-                                                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
-                                                modifier = Modifier.fillMaxWidth()
-                                            ) 
-                                        },
-                                        modifier = Modifier.weight(1f)
-                                    )
-                                }
-                            }
-                        }
-
-                        SettingsItem(
-                            title = stringResource(R.string.reset_position),
-                            trailing = {
-                                IconButton(onClick = { assistantViewModel.resetPosition(context) }) {
-                                    Icon(Icons.Default.Refresh, contentDescription = "Reset Position", tint = Color(0xFF00D1B2))
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            // Backup & Restore
-            CalculatorCard(isDarkMode = isDarkMode) {
-                Text(
-                    text = stringResource(R.string.backup_restore),
-                    modifier = Modifier.fillMaxWidth(),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00D1B2)
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                val exportLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.CreateDocument("application/json")
-                ) { uri ->
-                    uri?.let {
-                        coroutineScope.launch {
-                            val success = com.enosh.fincalc.utils.BackupUtils.exportData(context, it)
-                            if (success) Toast.makeText(context, backupSuccessMsg, Toast.LENGTH_SHORT).show()
-                            else Toast.makeText(context, backupFailedMsg, Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-
-                val importLauncher = rememberLauncherForActivityResult(
-                    contract = ActivityResultContracts.OpenDocument()
-                ) { uri ->
-                    uri?.let {
-                        pendingRestoreUri = it
-                        showRestoreConfirmDialog = true
-                    }
-                }
-
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BouncyButton(
-                        onClick = { exportLauncher.launch("fincalc_backup_${System.currentTimeMillis()}.json") },
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.export_json))
-                    }
-                    BouncyButton(
-                        onClick = { importLauncher.launch(arrayOf("application/json")) },
-                        modifier = Modifier.weight(1f),
-                        containerColor = Color.Transparent
-                    ) {
-                        Text(stringResource(R.string.import_json), color = Color(0xFF00D1B2))
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            // Privacy
-            CalculatorCard(isDarkMode = isDarkMode) {
-                Text(
-                    text = stringResource(R.string.privacy),
-                    modifier = Modifier.fillMaxWidth(),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00D1B2)
-                )
-
-                Spacer(Modifier.height(8.dp))
-                
-                PrivacyNote(stringResource(R.string.data_stays_device))
-                PrivacyNote(stringResource(R.string.camera_usage))
-                PrivacyNote(stringResource(R.string.security_usage))
-                
-                Spacer(Modifier.height(8.dp))
-                
-                TextButton(onClick = { 
-                    context.startActivity(Intent(context, com.enosh.fincalc.TermsActivity::class.java))
-                }) {
-                    Text(stringResource(R.string.privacy_terms), color = Color(0xFF00D1B2), fontSize = 12.sp)
-                }
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            // Default Country / Currency
-            CalculatorCard(isDarkMode = isDarkMode) {
-                Text(
-                    text = stringResource(R.string.default_currency),
-                    modifier = Modifier.fillMaxWidth(),
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00D1B2)
-                )
-
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.select_currency),
-                    fontSize = 12.sp,
-                    color = Color.Gray,
-                    modifier = Modifier.padding(bottom = 16.dp)
-                )
-
-                val selectedCurrency = remember { mutableStateOf(CurrencyUtils.getSelectedCurrency(context)) }
-                var expanded by remember { mutableStateOf(false) }
-                var searchQuery by remember { mutableStateOf("") }
-
-                val filteredCurrencies = remember(searchQuery) {
-                    if (searchQuery.isBlank()) {
-                        CurrencyUtils.SUPPORTED_CURRENCIES
-                    } else {
-                        CurrencyUtils.SUPPORTED_CURRENCIES.filter {
-                            it.country.contains(searchQuery, ignoreCase = true) ||
-                            it.code.contains(searchQuery, ignoreCase = true)
-                        }
-                    }
-                }
-
-                Box(modifier = Modifier.fillMaxWidth()) {
-                    OutlinedTextField(
-                        value = "${selectedCurrency.value.flag} ${selectedCurrency.value.country} — ${selectedCurrency.value.code} — ${selectedCurrency.value.symbol}",
-                        onValueChange = {},
-                        readOnly = true,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { expanded = true },
-                        trailingIcon = {
-                            IconButton(onClick = { expanded = true }) {
-                                Icon(
-                                    imageVector = if (expanded) Icons.Default.ArrowDropUp else Icons.Default.ArrowDropDown,
-                                    contentDescription = null
-                                )
-                            }
-                        },
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF00D1B2),
-                            unfocusedBorderColor = if (isDarkMode) Color.White.copy(alpha = 0.3f) else Color.Black.copy(alpha = 0.3f)
-                        ),
-                        shape = RoundedCornerShape(12.dp)
-                    )
-
-                    DropdownMenu(
-                        expanded = expanded,
-                        onDismissRequest = { 
-                            expanded = false
-                            searchQuery = ""
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth(0.85f)
-                            .heightIn(max = 300.dp)
-                    ) {
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(8.dp),
-                            placeholder = { Text("Search country or code...") },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                            singleLine = true,
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = Color(0xFF00D1B2)
-                            )
-                        )
-
-                        filteredCurrencies.forEach { currency ->
-                            DropdownMenuItem(
-                                text = {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(currency.flag, fontSize = 20.sp)
-                                        Spacer(Modifier.width(12.dp))
-                                        Column {
-                                            Text(currency.country, fontWeight = FontWeight.Medium)
-                                            Text("${currency.code} — ${currency.symbol}", fontSize = 12.sp, color = Color.Gray)
-                                        }
-                                    }
-                                },
-                                onClick = {
-                                    CurrencyUtils.setSelectedCurrency(context, currency.code)
-                                    selectedCurrency.value = currency
-                                    expanded = false
-                                    searchQuery = ""
-                                    Toast.makeText(context, "Currency updated to ${currency.code}", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                        }
-                        
-                        if (filteredCurrencies.isEmpty()) {
-                            DropdownMenuItem(
-                                text = { Text("No results found", color = Color.Gray) },
-                                onClick = {}
-                            )
                         }
                     }
                 }
@@ -677,31 +327,25 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(24.dp))
 
-            SettingsItem(title = stringResource(R.string.feedback_review), trailing = {
-                IconButton(onClick = { showFeedbackDialog = true }) {
-                    Icon(painterResource(R.drawable.ic_calc), contentDescription = "Feedback", modifier = Modifier.size(20.dp), tint = Color(0xFF00D1B2))
+            // Backup & Restore (Registered only)
+            if (!isGuest) {
+                CalculatorCard(isDarkMode = isDarkMode) {
+                    Text(text = stringResource(R.string.backup_restore), modifier = Modifier.fillMaxWidth(), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
+                    Spacer(Modifier.height(16.dp))
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BouncyButton(
+                            onClick = { /* Export */ },
+                            modifier = Modifier.weight(1f)
+                        ) { Text(stringResource(R.string.export_json)) }
+                        BouncyButton(
+                            onClick = { /* Import */ },
+                            modifier = Modifier.weight(1f),
+                            containerColor = Color.Transparent
+                        ) { Text(stringResource(R.string.import_json), color = Color(0xFF00D1B2)) }
+                    }
                 }
-            })
-            
-            SettingsItem(title = stringResource(R.string.help_troubleshoot), trailing = {
-                Button(
-                    onClick = { 
-                        sendEmail("Help & Troubleshoot - Visual Vibe FinCal", "Hi Enosh,\n\nI need help with...")
-                    }, 
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent, contentColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Text(stringResource(R.string.help).uppercase())
-                }
-            })
-
-            Spacer(Modifier.height(24.dp))
-
-            CalculatorCard(isDarkMode = isDarkMode) {
-                Text(stringResource(R.string.security), fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2), modifier = Modifier.fillMaxWidth())
-                // ... (security items)
+                Spacer(Modifier.height(24.dp))
             }
-
-            Spacer(Modifier.height(24.dp))
 
             // Account Section
             CalculatorCard(isDarkMode = isDarkMode) {
@@ -713,23 +357,9 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth(),
                     containerColor = Color.Red.copy(alpha = 0.1f)
                 ) {
-                    Icon(Icons.Default.ExitToApp, contentDescription = null, tint = Color.Red)
+                    Icon(Icons.Default.ExitToApp, null, tint = Color.Red)
                     Spacer(Modifier.width(8.dp))
                     Text("Logout", fontWeight = FontWeight.Bold, color = Color.Red)
-                }
-            }
-
-            Spacer(Modifier.height(32.dp))
-
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                color = Color(0xFF00D1B2).copy(alpha = 0.1f),
-                shape = RoundedCornerShape(16.dp)
-            ) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(stringResource(R.string.made_by), fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
-                    Spacer(Modifier.height(4.dp))
-                    Text("Enosh Jaques", fontSize = 18.sp, fontWeight = FontWeight.ExtraBold)
                 }
             }
 
@@ -738,231 +368,23 @@ fun SettingsScreen(
     }
 
     if (showEditDialog) {
+        var newName by remember { mutableStateOf(userName) }
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
-            shape = RoundedCornerShape(24.dp),
-            containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White,
-            title = { Text(stringResource(R.string.edit_profile), fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.edit_profile)) },
             text = {
-                Column {
-                    ValidatedTextField(
-                        value = userName,
-                        onValueChange = { userName = it },
-                        label = stringResource(R.string.full_name),
-                        keyboardType = KeyboardType.Text
-                    )
-                }
+                ValidatedTextField(value = newName, onValueChange = { newName = it }, label = stringResource(R.string.full_name))
             },
             confirmButton = {
-                BouncyButton(onClick = { 
+                Button(onClick = {
                     coroutineScope.launch {
-                        firebaseUser?.updateProfile(userProfileChangeRequest {
-                            displayName = userName
-                        })?.await()
-                        settingsViewModel.uploadProfileToCloud()
+                        UserUtils.uploadCurrentUser(providedName = newName)
+                        userName = newName
                         showEditDialog = false
-                        Toast.makeText(context, profileUpdatedMsg, Toast.LENGTH_SHORT).show()
                     }
-                }) { Text(stringResource(R.string.save), fontWeight = FontWeight.Bold) }
+                }) { Text(stringResource(R.string.save)) }
             },
-            dismissButton = {
-                TextButton(onClick = { 
-                    userName = initialName
-                    showEditDialog = false 
-                }) { Text(stringResource(R.string.cancel), color = Color.Gray) }
-            }
-        )
-    }
-
-    if (showFeedbackDialog) {
-        AlertDialog(
-            onDismissRequest = { if (!isSendingFeedback) showFeedbackDialog = false },
-            shape = RoundedCornerShape(24.dp),
-            containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White,
-            title = { Text(stringResource(R.string.feedback_review), fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    Text(stringResource(R.string.feedback_help), fontSize = 14.sp, color = Color.Gray)
-                    Spacer(Modifier.height(12.dp))
-                    ValidatedTextField(
-                        value = feedbackText,
-                        onValueChange = { feedbackText = it },
-                        label = stringResource(R.string.describe_experience),
-                        modifier = Modifier.height(120.dp),
-                        keyboardType = KeyboardType.Text,
-                        singleLine = false
-                    )
-                }
-            },
-            confirmButton = {
-                BouncyButton(
-                    onClick = {
-                        coroutineScope.launch {
-                            isSendingFeedback = true
-                            assistantViewModel.showMessage(sendingFeedbackMsg, AssistantState.THINKING)
-                            delay(1500)
-                            sendEmail("Feedback - Visual Vibe FinCal", feedbackText)
-                            assistantViewModel.showMessage(feedbackReadyMsg, AssistantState.HAPPY)
-                            isSendingFeedback = false
-                            showFeedbackDialog = false
-                            feedbackText = ""
-                        }
-                    },
-                    enabled = feedbackText.isNotBlank() && !isSendingFeedback
-                ) {
-                    if (isSendingFeedback) {
-                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                    } else {
-                        Text(stringResource(R.string.sign_up).split(" ").last(), fontWeight = FontWeight.Bold)
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showFeedbackDialog = false }, enabled = !isSendingFeedback) {
-                    Text(stringResource(R.string.cancel), color = Color.Gray)
-                }
-            }
-        )
-    }
-
-    if (showPinDialog) {
-        AlertDialog(
-            onDismissRequest = { 
-                showPinDialog = false
-                currentPinInput = ""
-                newPinInput = ""
-                confirmPinInput = ""
-                pinError = null
-            },
-            shape = RoundedCornerShape(24.dp),
-            containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White,
-            title = { 
-                Text(
-                    text = when(pinStep) {
-                        1 -> stringResource(R.string.enter_current_pin)
-                        2 -> if (hasExistingPin && !initialResetPin) stringResource(R.string.create_new_pin) else stringResource(R.string.set_pin)
-                        3 -> if (hasExistingPin && !initialResetPin) stringResource(R.string.confirm_new_pin) else stringResource(R.string.confirm_pin)
-                        else -> "PIN Setup"
-                    }, 
-                    fontWeight = FontWeight.Bold
-                ) 
-            },
-            text = {
-                Column {
-                    ValidatedTextField(
-                        value = when(pinStep) {
-                            1 -> currentPinInput
-                            2 -> newPinInput
-                            3 -> confirmPinInput
-                            else -> ""
-                        },
-                        onValueChange = { input ->
-                            if (input.length <= 4 && input.all { it.isDigit() }) {
-                                when(pinStep) {
-                                    1 -> currentPinInput = input
-                                    2 -> newPinInput = input
-                                    3 -> confirmPinInput = input
-                                }
-                                pinError = if (input.length > 0 && input.length < 4) pinLengthError else null
-                            }
-                        },
-                        label = when(pinStep) {
-                            1 -> stringResource(R.string.enter_current_pin)
-                            2 -> stringResource(R.string.enter_pin)
-                            3 -> if (hasExistingPin && !initialResetPin) stringResource(R.string.confirm_new_pin) else stringResource(R.string.confirm_pin)
-                            else -> "PIN"
-                        },
-                        keyboardType = KeyboardType.NumberPassword,
-                        visualTransformation = PasswordVisualTransformation(),
-                        error = pinError
-                    )
-                }
-            },
-            confirmButton = {
-                BouncyButton(
-                    enabled = (when(pinStep) {
-                        1 -> currentPinInput.length == 4
-                        2 -> newPinInput.length == 4
-                        3 -> confirmPinInput.length == 4
-                        else -> false
-                    }),
-                    onClick = {
-                        when(pinStep) {
-                            1 -> {
-                                if (SecurityUtils.verifyPin(context, currentPinInput)) {
-                                    pinStep = 2
-                                    pinError = null
-                                } else {
-                                    pinError = incorrectPinMsg
-                                    currentPinInput = ""
-                                }
-                            }
-                            2 -> {
-                                pinStep = 3
-                            }
-                            3 -> {
-                                if (newPinInput == confirmPinInput) {
-                                    SecurityUtils.setAppPin(context, newPinInput)
-                                    SecurityUtils.setAppLockEnabled(context, true)
-                                    appLockEnabled = true
-                                    showPinDialog = false
-                                    currentPinInput = ""
-                                    newPinInput = ""
-                                    confirmPinInput = ""
-                                    Toast.makeText(context, pinSetSuccessMsg, Toast.LENGTH_SHORT).show()
-                                } else {
-                                    pinError = pinMismatchMsg
-                                    confirmPinInput = ""
-                                }
-                            }
-                        }
-                    }
-                ) { 
-                    Text(
-                        if (pinStep == 3) stringResource(R.string.save) else "Next",
-                        fontWeight = FontWeight.Bold
-                    ) 
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { 
-                    showPinDialog = false
-                    currentPinInput = ""
-                    newPinInput = ""
-                    confirmPinInput = ""
-                    pinError = null
-                }) { Text(stringResource(R.string.cancel), color = Color.Gray) }
-            }
-        )
-    }
-
-    if (showRestoreConfirmDialog) {
-        AlertDialog(
-            onDismissRequest = { showRestoreConfirmDialog = false },
-            title = { Text("Restore Data") },
-            text = { Text("This will overwrite your current expenses, goals, and budgets. This cannot be undone. Proceed?") },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        showRestoreConfirmDialog = false
-                        pendingRestoreUri?.let { uri ->
-                            coroutineScope.launch {
-                                val success = com.enosh.fincalc.utils.BackupUtils.importData(context, uri, overwrite = true)
-                                if (success) Toast.makeText(context, restoreSuccessMsg, Toast.LENGTH_SHORT).show()
-                                else Toast.makeText(context, restoreFailedMsg, Toast.LENGTH_SHORT).show()
-                            }
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                ) {
-                    Text("Overwrite & Restore")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showRestoreConfirmDialog = false }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
+            dismissButton = { TextButton(onClick = { showEditDialog = false }) { Text(stringResource(R.string.cancel)) } }
         )
     }
 
@@ -972,67 +394,39 @@ fun SettingsScreen(
             title = { Text("Logout") },
             text = { Text("Are you sure you want to log out?") },
             confirmButton = {
-                Button(
-                    onClick = {
-                        showLogoutConfirmDialog = false
-                        onLogout()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                ) {
-                    Text("Logout")
-                }
+                Button(onClick = { onLogout() }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Logout") }
             },
-            dismissButton = {
-                TextButton(onClick = { showLogoutConfirmDialog = false }) {
-                    Text("Cancel")
-                }
-            }
+            dismissButton = { TextButton(onClick = { showLogoutConfirmDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showRoastWarningDialog) {
+        AlertDialog(
+            onDismissRequest = { showRoastWarningDialog = false },
+            title = { Text("Roast Mode") },
+            text = { Text("Roast Mode is for jokes only. Responses may sound sarcastic or rude. Do not take them seriously.") },
+            confirmButton = {
+                Button(onClick = { 
+                    showRoastWarningDialog = false
+                    assistantViewModel.setRoastMode(true, context)
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))) { Text("Turn On") }
+            },
+            dismissButton = { TextButton(onClick = { showRoastWarningDialog = false }) { Text("Cancel") } }
         )
     }
 }
 
 @Composable
-fun PrivacyNote(text: String) {
+fun SettingsItem(title: String, subtitle: String? = null, trailing: @Composable () -> Unit) {
     Row(
-        modifier = Modifier.padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Box(modifier = Modifier.size(6.dp).background(Color(0xFF00D1B2), CircleShape))
-        Spacer(Modifier.width(12.dp))
-        Text(text, fontSize = 12.sp, color = Color.Gray)
-    }
-}
-
-@Composable
-fun CustomColorPicker(label: String, selectedColor: AssistantColor, onColorSelected: (AssistantColor) -> Unit) {
-    Column(modifier = Modifier.padding(vertical = 4.dp)) {
-        Text(label, fontSize = 12.sp, color = Color.Gray)
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp)
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            AssistantColor.entries.forEach { color ->
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .clip(CircleShape)
-                        .background(Color(color.hex))
-                        .clickable { onColorSelected(color) }
-                        .padding(2.dp)
-                ) {
-                    if (selectedColor == color) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(CircleShape)
-                                .background(Color.White.copy(alpha = 0.5f))
-                        )
-                    }
-                }
-            }
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.Medium)
+            if (subtitle != null) Text(subtitle, fontSize = 12.sp, color = Color.Gray)
         }
+        trailing()
     }
 }

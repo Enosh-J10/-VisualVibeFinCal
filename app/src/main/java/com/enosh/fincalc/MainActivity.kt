@@ -30,13 +30,26 @@ class MainActivity : AppCompatActivity() {
         val tvTip = findViewById<TextView>(R.id.tv_tagline)
         val handler = Handler(Looper.getMainLooper())
         
+        fun showNextTip() {
+            tvTip.animate().alpha(0f).setDuration(200).withEndAction {
+                tvTip.text = tips.random()
+                tvTip.animate().alpha(1f).setDuration(200).start()
+            }.start()
+        }
+
         val updateTipRunnable = object : Runnable {
             override fun run() {
-                tvTip.text = tips.random()
-                handler.postDelayed(this, 3000) // Change to 3 seconds for better readability
+                showNextTip()
+                handler.postDelayed(this, 3000) 
             }
         }
         handler.post(updateTipRunnable)
+
+        tvTip.setOnClickListener {
+            handler.removeCallbacks(updateTipRunnable)
+            showNextTip()
+            handler.postDelayed(updateTipRunnable, 3000)
+        }
 
         // Wait 3 seconds then go to login or home
         handler.postDelayed({

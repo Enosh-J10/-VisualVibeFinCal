@@ -11,7 +11,7 @@ class AiViewModelFactory(private val context: Context) : ViewModelProvider.Facto
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(AiViewModel::class.java)) {
             val database = AppDatabase.getDatabase(context)
-            val repository = AiRepositoryImpl(AiApiServiceFactory.geminiApiService, database.aiChatDao())
+            val repository = AiRepositoryImpl(AiApiServiceFactory.geminiApiService, database.aiChatDao(), context.applicationContext)
             @Suppress("UNCHECKED_CAST")
             return AiViewModel(repository) as T
         }

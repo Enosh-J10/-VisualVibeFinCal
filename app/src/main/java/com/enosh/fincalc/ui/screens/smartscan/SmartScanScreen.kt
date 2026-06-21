@@ -924,8 +924,8 @@ private fun preprocessImage(bitmap: Bitmap): Bitmap {
 private fun detectTotal(lines: List<Line>): Pair<Double, Boolean> {
     val candidates = mutableListOf<Triple<Double, Int, Int>>() 
     
-    val totalKeywords = listOf("TOTAL", "GRAND TOTAL", "AMOUNT", "BALANCE DUE", "NET", "SUM", "TOTAL DUE", "PAYABLE", "TOTAL TO PAY")
-    val ignoreKeywords = listOf("TAX", "VAT", "CASH", "CHANGE", "SAVED", "DISCOUNT", "SUBTOTAL", "ITEMS", "QTY")
+    val totalKeywords = listOf("TOTAL", "GRAND TOTAL", "NET PAYABLE", "AMOUNT DUE", "TOTAL DUE", "PAYABLE", "TOTAL TO PAY", "AMOUNT", "BALANCE DUE", "SUM")
+    val ignoreKeywords = listOf("TAX", "VAT", "CASH", "CHANGE", "SAVED", "DISCOUNT", "SUBTOTAL", "ITEMS", "QTY", "METER", "ACCOUNT", "CUSTOMER")
 
     lines.forEachIndexed { index, line ->
         val text = line.text.uppercase()
@@ -946,12 +946,13 @@ private fun detectTotal(lines: List<Line>): Pair<Double, Boolean> {
             candidates.add(Triple(amount, priority, index))
         } else {
             if (totalKeywords.any { text.contains(it) } && !ignoreKeywords.any { text.contains(it) }) {
-                for (i in 1..2) {
+                // Check following lines for the amount
+                for (i in 1..3) {
                     if (index + i < lines.size) {
                         val nextText = lines[index + i].text.uppercase()
                         val nextAmount = extractAmount(nextText)
                         if (nextAmount != null) {
-                            candidates.add(Triple(nextAmount, 8, index + i))
+                            candidates.add(Triple(nextAmount, 9, index + i))
                             break
                         }
                     }
@@ -964,7 +965,7 @@ private fun detectTotal(lines: List<Line>): Pair<Double, Boolean> {
 
     return if (sorted.isNotEmpty()) {
         val best = sorted.first()
-        Pair(best.first, best.second < 5)
+        Pair(best.first, best.second < 6)
     } else {
         Pair(0.0, true)
     }
@@ -1013,8 +1014,10 @@ private fun extractAmount(text: String): Double? {
 }
 
 private fun extractMerchant(lines: List<Line>): String {
-    val ignore = listOf("RECEIPT", "INVOICE", "THANK YOU", "TAX", "WELCOME", "ORDER", "CASHIER", "DATE", "TIME", "TEL", "PHONE", "ADDRESS", "VAT")
-    for (line in lines.take(8)) {
+    val ignore = listOf("RECEIPT", "INVOICE", "THANK YOU", "TAX", "WELCOME", "ORDER", "CASHIER", "DATE", "TIME", "TEL", "PHONE", "ADDRESS", "VAT", "ACCOUNT", "METER", "CUSTOMER")
+    
+    // Most likely merchant is at the very top
+    for (line in lines.take(5)) {
         val text = line.text.trim()
         if (text.length > 2 && 
             !text.any { it.isDigit() } && 
@@ -1023,12 +1026,16 @@ private fun extractMerchant(lines: List<Line>): String {
             return text
         }
     }
-    for (line in lines.take(5)) {
+    
+    // Fallback: search for company keywords
+    val companyKeywords = listOf("LTD", "INC", "CORP", "CO.", "PLC", "LIMITED", "SERVICES", "SHOP", "STORE", "RESTAURANT")
+    for (line in lines.take(10)) {
         val text = line.text.trim()
-        if (text.length > 2 && !ignore.any { text.uppercase().contains(it) }) {
+        if (companyKeywords.any { text.uppercase().contains(it) }) {
             return text
         }
     }
+
     return lines.firstOrNull()?.text ?: "Unknown Merchant"
 }
 
@@ -1065,7 +1072,7 @@ private fun detectCategory(text: String): String {
         "Food & Dining" to listOf("restaurant", "cafe", "food", "takeaway", "pizza", "burger", "coffee", "mcdonald", "starbucks", "eat", "grocery", "bakery", "deli"),
         "Fuel / Transport" to listOf("petrol", "fuel", "diesel", "station", "shell", "bp", "esso", "texaco", "uber", "train", "bus", "transport", "parking", "garage"),
         "Shopping" to listOf("store", "mart", "supermarket", "shop", "tesco", "asda", "sainsbury", "lidl", "aldi", "amazon", "retail", "clothing", "fashion", "electronics"),
-        "Bills" to listOf("electricity", "water", "gas", "internet", "bill", "invoice", "utility", "phone", "mobile", "rent", "insurance", "subscription"),
+        "Bills & Utilities" to listOf("electricity", "water", "gas", "internet", "bill", "invoice", "utility", "phone", "mobile", "rent", "insurance", "subscription", "telecom"),
         "Health" to listOf("pharmacy", "medical", "clinic", "boots", "hospital", "doctor", "dentist", "health", "gym", "fitness"),
         "Travel" to listOf("hotel", "flight", "airline", "booking", "holiday", "resort")
     )

@@ -253,7 +253,7 @@ fun CalculatorScreen(
                 onClearHistory = { historyViewModel.clearHistory("calc") }
             )
             
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(80.dp)) // Extra padding for disclaimer and system bars
         }
     }
 }

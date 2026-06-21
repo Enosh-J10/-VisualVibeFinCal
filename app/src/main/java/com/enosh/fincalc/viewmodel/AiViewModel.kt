@@ -93,6 +93,13 @@ class AiViewModel(private val repository: AiRepository) : ViewModel() {
             }
         }
     }
+
+    fun renameConversation(conversation: Conversation, newTitle: String) {
+        if (newTitle.isBlank()) return
+        viewModelScope.launch {
+            repository.updateConversationTitle(conversation.id, newTitle)
+        }
+    }
     
     fun clearAllChats() {
         viewModelScope.launch {

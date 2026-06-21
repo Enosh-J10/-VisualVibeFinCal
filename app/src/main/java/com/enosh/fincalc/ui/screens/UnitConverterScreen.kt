@@ -189,6 +189,15 @@ fun UnitConverterScreen(
                         onValueChange = {
                             inputValue = ValidationUtils.formatNumericInput(it, allowNegative = (selectedCategory == "Temp"))
                             inputValueError = if (inputValue.isEmpty()) enterValueMsg else null
+                            
+                            // Automatically clear results if input is empty
+                            if (inputValue.isEmpty()) {
+                                outputValue = null
+                                resultValue = ""
+                                resultFrom = ""
+                                resultTo = ""
+                                resultCategory = ""
+                            }
                         },
                         label = stringResource(R.string.value),
                         error = inputValueError,
@@ -229,43 +238,65 @@ fun UnitConverterScreen(
 
                     Spacer(Modifier.height(32.dp))
 
-                    BouncyButton(
-                        onClick = {
-                            scope.launch {
-                                isConverting = true
-                                outputValue = null
-                                assistantViewModel.showMessage(convertingMsg, AssistantState.THINKING, AssistantMessageType.THOUGHT)
-                                delay(600) // Simulate processing time
-                                val v = inputValue.toDoubleOrNull() ?: 0.0
-                                resultValue = inputValue
-                                resultFrom = fromUnit
-                                resultTo = toUnit
-                                resultCategory = selectedCategory
-                                val calculatedOutput = convertUnits(v, fromUnit, toUnit, selectedCategory)
-                                outputValue = calculatedOutput
-                                isConverting = false
-
-                                assistantViewModel.showMessage("Done! ${String.format(Locale.getDefault(), "%.2f", calculatedOutput)} $toUnit", AssistantState.HAPPY)
-
-                                historyViewModel.addToHistory(
-                                    "unit",
-                                    HistoryItem(
-                                        title = "$selectedCategory Conversion",
-                                        result = "${String.format(Locale.getDefault(), "%.4f", calculatedOutput)} $toUnit",
-                                        details = "${String.format(Locale.getDefault(), "%.2f", v)} $fromUnit"
-                                    )
-                                )
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth().height(56.dp).semantics {
-                            contentDescription = "Perform unit conversion"
-                        },
-                        enabled = !isConverting && inputValue.isNotEmpty() && inputValueError == null
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        if (isConverting) {
-                            CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
-                        } else {
-                            Text(stringResource(R.string.convert), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        BouncyButton(
+                            onClick = {
+                                scope.launch {
+                                    isConverting = true
+                                    outputValue = null
+                                    assistantViewModel.showMessage(convertingMsg, AssistantState.THINKING, AssistantMessageType.THOUGHT)
+                                    delay(600) // Simulate processing time
+                                    val v = inputValue.toDoubleOrNull() ?: 0.0
+                                    resultValue = inputValue
+                                    resultFrom = fromUnit
+                                    resultTo = toUnit
+                                    resultCategory = selectedCategory
+                                    val calculatedOutput = convertUnits(v, fromUnit, toUnit, selectedCategory)
+                                    outputValue = calculatedOutput
+                                    isConverting = false
+
+                                    assistantViewModel.showMessage("Done! ${String.format(Locale.getDefault(), "%.2f", calculatedOutput)} $toUnit", AssistantState.HAPPY)
+
+                                    historyViewModel.addToHistory(
+                                        "unit",
+                                        HistoryItem(
+                                            title = "$selectedCategory Conversion",
+                                            result = "${String.format(Locale.getDefault(), "%.4f", calculatedOutput)} $toUnit",
+                                            details = "${String.format(Locale.getDefault(), "%.2f", v)} $fromUnit"
+                                        )
+                                    )
+                                }
+                            },
+                            modifier = Modifier.weight(1f).height(56.dp).semantics {
+                                contentDescription = "Perform unit conversion"
+                            },
+                            enabled = !isConverting && inputValue.isNotEmpty() && inputValueError == null
+                        ) {
+                            if (isConverting) {
+                                CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
+                            } else {
+                                Text(stringResource(R.string.convert), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        BouncyButton(
+                            onClick = {
+                                inputValue = ""
+                                outputValue = null
+                                resultValue = ""
+                                resultFrom = ""
+                                resultTo = ""
+                                resultCategory = ""
+                                assistantViewModel.showMessage("Reset complete", AssistantState.IDLE)
+                            },
+                            modifier = Modifier.weight(0.4f).height(56.dp),
+                            containerColor = Color.Gray.copy(alpha = 0.2f),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                            Text("Reset", color = if (isDarkMode) Color.White else Color.Black)
                         }
                     }
 

@@ -20,6 +20,9 @@ interface AiChatDao {
     @Query("SELECT * FROM ai_messages WHERE chatId = :chatId ORDER BY timestamp ASC")
     fun getMessagesForChat(chatId: String): Flow<List<MessageEntity>>
 
+    @Query("SELECT * FROM ai_messages WHERE chatId = :chatId ORDER BY timestamp ASC")
+    suspend fun getMessagesForChatOnce(chatId: String): List<MessageEntity>
+
     @Query("SELECT * FROM ai_messages WHERE chatId = :chatId ORDER BY timestamp ASC LIMIT :limit")
     suspend fun getRecentMessages(chatId: String, limit: Int): List<MessageEntity>
 

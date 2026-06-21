@@ -55,9 +55,13 @@ fun BMIScreen(
         isLoadingHistory = false
     }
 
+    val assistantPrefs by assistantViewModel.prefs.collectAsState()
+    val isRoastMode = assistantPrefs.isRoastMode
+
     val isInputValid = ValidationUtils.isValidPositiveNumeric(weight) && 
                      ValidationUtils.isValidPositiveNumeric(height) &&
-                     ValidationUtils.isValidPositiveNumeric(age)
+                     age.toIntOrNull()?.let { it in 1..120 } == true &&
+                     ageError == null
 
     val coroutineScope = rememberCoroutineScope()
 
@@ -85,6 +89,7 @@ fun BMIScreen(
                             weightError = if (weight.isEmpty()) emptyError 
                                           else if (!ValidationUtils.isValidPositiveNumeric(weight)) invalidError
                                           else null
+                            bmiResult = null
                         },
                         label = stringResource(R.string.weight_kg),
                         error = weightError,
@@ -102,6 +107,7 @@ fun BMIScreen(
                             heightError = if (height.isEmpty()) emptyError
                                           else if (!ValidationUtils.isValidPositiveNumeric(height)) invalidError
                                           else null
+                            bmiResult = null
                         },
                         label = stringResource(R.string.height_cm),
                         error = heightError,
@@ -114,14 +120,20 @@ fun BMIScreen(
 
                     ValidatedTextField(
                         value = age,
-                        onValueChange = { 
-                            age = ValidationUtils.formatNumericInput(it, allowNegative = false)
-                            ageError = if (age.isEmpty()) emptyError
-                                       else if (!ValidationUtils.isValidPositiveNumeric(age)) invalidError
-                                       else null
+                        onValueChange = { input ->
+                            val filtered = input.filter { it.isDigit() }
+                            age = filtered
+                            val ageInt = filtered.toIntOrNull()
+                            ageError = when {
+                                filtered.isEmpty() -> emptyError
+                                ageInt == null || ageInt < 1 || ageInt > 120 -> "Please enter a valid age between 1 and 120."
+                                else -> null
+                            }
+                            bmiResult = null
                         },
                         label = stringResource(R.string.age),
                         error = ageError,
+                        keyboardType = KeyboardType.Number,
                         modifier = Modifier.semantics {
                             contentDescription = "Enter your age. Currently: $age"
                         }
@@ -131,15 +143,23 @@ fun BMIScreen(
 
                     BouncyButton(
                         onClick = {
+                            val w = weight.toDoubleOrNull() ?: 0.0
+                            val h = (height.toDoubleOrNull() ?: 0.0) / 100 // convert cm to meters
+                            val ageInt = age.toIntOrNull() ?: 0
+
+                            // Manual check in case button was enabled but state is somehow off
+                            if (ageInt < 1 || ageInt > 120) {
+                                ageError = if (isRoastMode) "Are you a vampire? 🧛 Enter a real age (1-120)." else "Please enter a valid age between 1 and 120."
+                                return@BouncyButton
+                            }
+
                             if (!isInputValid) {
                                 if (weight.isEmpty()) weightError = requiredError
                                 if (height.isEmpty()) heightError = requiredError
                                 if (age.isEmpty()) ageError = requiredError
                                 return@BouncyButton
                             }
-                            val w = weight.toDoubleOrNull() ?: 0.0
-                            val h = (height.toDoubleOrNull() ?: 0.0) / 100 // convert cm to meters
-                            val a = age.toIntOrNull() ?: 0
+                            
                             if (w > 0 && h > 0) {
                                 val bmi = w / (h * h)
                                 bmiResult = bmi
@@ -152,24 +172,34 @@ fun BMIScreen(
                                     else -> "Obese"
                                 }
 
-                                assistantViewModel.showMessage("Checking your BMI for age $a...", AssistantState.THINKING, AssistantMessageType.THOUGHT, durationMs = 1500)
+                                val thinkMsg = if (isRoastMode) "Calculating your stats, human... 🤖" else "Checking your BMI for age $ageInt..."
+                                assistantViewModel.showMessage(thinkMsg, AssistantState.THINKING, AssistantMessageType.THOUGHT, durationMs = 1500)
                                 
                                 coroutineScope.launch {
                                     delay(1500)
-                                    val msg = when (bmiCategory) {
-                                        "Healthy weight" -> "You're in the healthy range! 🌟"
-                                        "Underweight" -> "You might need a more balanced diet to reach a healthy weight. 🍎"
-                                        "Overweight" -> "Small changes in diet and activity can make a big difference! 🏃‍♂️"
-                                        else -> "It's worth chatting with a doctor about your health goals. ❤️"
+                                    val msg = if (isRoastMode) {
+                                        when (bmiCategory) {
+                                            "Healthy weight" -> "Healthy weight? Boring. Where's the drama? 🥗"
+                                            "Underweight" -> "A strong breeze might take you away. Eat something! 🍕"
+                                            "Overweight" -> "Maybe the scale is just having a bad day? 📉"
+                                            else -> "Obese. Time to treat stairs like a side quest. 🏃‍♂️"
+                                        }
+                                    } else {
+                                        when (bmiCategory) {
+                                            "Healthy weight" -> "You're in the healthy range! 🌟"
+                                            "Underweight" -> "You might need a more balanced diet to reach a healthy weight. 🍎"
+                                            "Overweight" -> "Small changes in diet and activity can make a big difference! 🏃‍♂️"
+                                            else -> "It's worth chatting with a doctor about your health goals. ❤️"
+                                        }
                                     }
-                                    assistantViewModel.showMessage(msg, AssistantState.HAPPY)
+                                    assistantViewModel.showMessage(msg, if (isRoastMode) AssistantState.WAVING else AssistantState.HAPPY)
                                 }
 
                                 historyViewModel.addToHistory(
                                     "bmi",
                                     HistoryItem(
                                         title = "BMI: ${String.format(Locale.getDefault(), "%.1f", bmi)}",
-                                        result = "$bmiCategory (Age: $a)",
+                                        result = "$bmiCategory (Age: $ageInt)",
                                         details = "Weight: $w kg | Height: ${height} cm"
                                     )
                                 )

@@ -1,5 +1,8 @@
 package com.enosh.fincalc.ui.screens
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -16,6 +19,7 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -23,12 +27,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
+import coil.compose.AsyncImage
 import com.enosh.fincalc.data.model.TravelExpense
 import com.enosh.fincalc.data.model.TravelTrip
 import com.enosh.fincalc.data.model.User
 import com.enosh.fincalc.viewmodel.SmartTravelViewModel
 import com.enosh.fincalc.ui.components.ValidatedTextField
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
@@ -421,6 +428,34 @@ fun AddTravelExpenseDialog(
     var titleError by remember { mutableStateOf<String?>(null) }
     var amountError by remember { mutableStateOf<String?>(null) }
 
+    var isDifferentCurrency by remember { mutableStateOf(expense?.originalCurrency?.isNotEmpty() == true) }
+    var originalAmount by remember { mutableStateOf(expense?.originalAmount?.toString() ?: "") }
+    var originalCurrency by remember { mutableStateOf(expense?.originalCurrency ?: "") }
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var isUploading by remember { mutableStateOf(false) }
+    var receiptUrl by remember { mutableStateOf(expense?.receiptUrl) }
+
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            coroutineScope.launch {
+                isUploading = true
+                val storage = com.google.firebase.storage.FirebaseStorage.getInstance()
+                val ref = storage.reference.child("receipts/${UUID.randomUUID()}.jpg")
+                try {
+                    ref.putFile(it).await()
+                    receiptUrl = ref.downloadUrl.await().toString()
+                    Toast.makeText(context, "Image uploaded!", Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(context, "Upload failed", Toast.LENGTH_SHORT).show()
+                } finally {
+                    isUploading = false
+                }
+            }
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (expense == null) "Add Expense" else "Edit Expense") },
@@ -438,6 +473,31 @@ fun AddTravelExpenseDialog(
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
                 )
                 
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("Paid in different currency?", fontSize = 12.sp, color = Color.Gray)
+                    Checkbox(checked = isDifferentCurrency, onCheckedChange = { isDifferentCurrency = it })
+                }
+
+                if (isDifferentCurrency) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ValidatedTextField(
+                            value = originalAmount,
+                            onValueChange = { originalAmount = it },
+                            label = "Amount",
+                            modifier = Modifier.weight(1f),
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                        )
+                        ValidatedTextField(
+                            value = originalCurrency,
+                            onValueChange = { originalCurrency = it.uppercase() },
+                            label = "Currency (e.g. USD)",
+                            modifier = Modifier.weight(1f),
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
+                        )
+                    }
+                    Text("Enter final amount in ${trip.currencyCode} below:", fontSize = 11.sp, color = Color(0xFF00D1B2))
+                }
+
                 ValidatedTextField(
                     value = amount, 
                     onValueChange = { input ->
@@ -451,7 +511,7 @@ fun AddTravelExpenseDialog(
                             else -> null
                         }
                     }, 
-                    label = "Amount", 
+                    label = "Final Amount (${trip.currencyCode})", 
                     modifier = Modifier.fillMaxWidth(),
                     error = amountError,
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
@@ -475,6 +535,22 @@ fun AddTravelExpenseDialog(
                         )
                     }
                 }
+
+                Spacer(Modifier.height(8.dp))
+                
+                if (receiptUrl != null) {
+                    AsyncImage(model = receiptUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(8.dp)), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+                    TextButton(onClick = { receiptUrl = null }) { Text("Remove Image", color = Color.Red) }
+                } else {
+                    OutlinedButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), enabled = !isUploading) {
+                        if (isUploading) CircularProgressIndicator(Modifier.size(20.dp))
+                        else {
+                            Icon(Icons.Default.PhotoCamera, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Attach Receipt / Image")
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -486,7 +562,10 @@ fun AddTravelExpenseDialog(
                             title = title,
                             amount = finalAmount,
                             category = selectedCategory,
-                            updatedAt = System.currentTimeMillis()
+                            updatedAt = System.currentTimeMillis(),
+                            originalAmount = if (isDifferentCurrency) originalAmount.toDoubleOrNull() ?: 0.0 else 0.0,
+                            originalCurrency = if (isDifferentCurrency) originalCurrency else "",
+                            receiptUrl = receiptUrl
                         ) ?: TravelExpense(
                             title = title,
                             amount = finalAmount,
@@ -495,11 +574,14 @@ fun AddTravelExpenseDialog(
                             category = selectedCategory,
                             tripId = effectiveTripId,
                             currencyCode = trip.currencyCode,
-                            currencySymbol = trip.currencySymbol
+                            currencySymbol = trip.currencySymbol,
+                            originalAmount = if (isDifferentCurrency) originalAmount.toDoubleOrNull() ?: 0.0 else 0.0,
+                            originalCurrency = if (isDifferentCurrency) originalCurrency else "",
+                            receiptUrl = receiptUrl
                         )
                     )
                 },
-                enabled = title.isNotBlank() && amount.isNotBlank() && titleError == null && amountError == null,
+                enabled = title.isNotBlank() && amount.isNotBlank() && titleError == null && amountError == null && !isUploading,
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))
             ) { Text(if (expense == null) "Add" else "Save") }
         },

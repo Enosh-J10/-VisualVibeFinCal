@@ -92,9 +92,13 @@ fun AssistantRobot(
 
     val coroutineScope = rememberCoroutineScope()
 
-    val headColor = Color(if (prefs.isCustomMode) prefs.customHeadColor.hex else prefs.theme.headColor.hex)
-    val bodyColor = Color(if (prefs.isCustomMode) prefs.customBodyColor.hex else prefs.theme.bodyColor.hex)
-    val accentColor = Color(if (prefs.isCustomMode) prefs.customAccentColor.hex else prefs.theme.accentColor.hex)
+    val isRoastMode = prefs.isRoastMode
+    val roastAccent = Color(0xFF9C27B0) // Purple for roast mode
+    val roastGlow = Color(0xFFFF5252) // Reddish for roast glow
+
+    val headColor = if (isRoastMode) Color(0xFF212121) else Color(if (prefs.isCustomMode) prefs.customHeadColor.hex else prefs.theme.headColor.hex)
+    val bodyColor = if (isRoastMode) Color(0xFF303030) else Color(if (prefs.isCustomMode) prefs.customBodyColor.hex else prefs.theme.bodyColor.hex)
+    val accentColor = if (isRoastMode) roastAccent else Color(if (prefs.isCustomMode) prefs.customAccentColor.hex else prefs.theme.accentColor.hex)
 
     // Floating and breathing animations
     val infiniteTransition = rememberInfiniteTransition(label = "robot_idle")
@@ -216,7 +220,8 @@ fun AssistantRobot(
                     isTyping = isTyping,
                     type = messageType,
                     isDarkMode = isDarkMode,
-                    alignment = bubbleAlignment
+                    alignment = bubbleAlignment,
+                    isRoastMode = isRoastMode
                 )
             }
 
@@ -237,7 +242,7 @@ fun AssistantRobot(
                         showAiChatPopup = false
                         onOpenAiChat()
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2)),
+                    colors = ButtonDefaults.buttonColors(containerColor = if (isRoastMode) roastAccent else Color(0xFF00D1B2)),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.height(32.dp)
@@ -345,7 +350,7 @@ fun AssistantRobot(
                     }
                     .background(
                         Brush.radialGradient(
-                            listOf(accentColor, Color.Transparent)
+                            listOf(if (isRoastMode) roastGlow else accentColor, Color.Transparent)
                         ),
                         CircleShape
                     )
@@ -370,7 +375,7 @@ fun AssistantRobot(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    RobotHead(robotState, headColor, accentColor, prefs.gender)
+                    RobotHead(robotState, headColor, accentColor, prefs.gender, isRoastMode)
                     RobotBody(bodyColor, accentColor, prefs.gender)
                 }
             }
@@ -465,7 +470,7 @@ fun RobotHand(modifier: Modifier, color: Color) {
 }
 
 @Composable
-fun RobotHead(state: AssistantState, headColor: Color, accentColor: Color, gender: AssistantGender) {
+fun RobotHead(state: AssistantState, headColor: Color, accentColor: Color, gender: AssistantGender, isRoastMode: Boolean = false) {
     Box(
         modifier = Modifier
             .size(50.dp)
@@ -478,8 +483,27 @@ fun RobotHead(state: AssistantState, headColor: Color, accentColor: Color, gende
             .shadow(2.dp, RoundedCornerShape(18.dp)),
         contentAlignment = Alignment.Center
     ) {
+        if (isRoastMode) {
+            // Devil Horns
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val hornPath = Path().apply {
+                    // Left Horn
+                    moveTo(size.width * 0.2f, size.height * 0.2f)
+                    lineTo(size.width * 0.1f, size.height * 0.05f)
+                    lineTo(size.width * 0.35f, size.height * 0.15f)
+                    close()
+                    // Right Horn
+                    moveTo(size.width * 0.8f, size.height * 0.2f)
+                    lineTo(size.width * 0.9f, size.height * 0.05f)
+                    lineTo(size.width * 0.65f, size.height * 0.15f)
+                    close()
+                }
+                drawPath(hornPath, color = Color(0xFFFF5252))
+            }
+        }
+
         // Accessory
-        if (gender == AssistantGender.FEMALE) {
+        if (gender == AssistantGender.FEMALE && !isRoastMode) {
              Box(
                 modifier = Modifier
                     .align(Alignment.TopEnd)
@@ -495,10 +519,10 @@ fun RobotHead(state: AssistantState, headColor: Color, accentColor: Color, gende
             modifier = Modifier
                 .size(38.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(Color.White.copy(alpha = 0.9f)),
+                .background(if (isRoastMode) Color(0xFF1A1A1A) else Color.White.copy(alpha = 0.9f)),
             contentAlignment = Alignment.Center
         ) {
-            RobotFace(state, accentColor)
+            RobotFace(state, if (isRoastMode) Color(0xFFFF5252) else accentColor, isRoastMode)
         }
     }
 }
@@ -543,14 +567,15 @@ fun MessageBubble(
     isTyping: Boolean,
     type: AssistantMessageType,
     isDarkMode: Boolean,
-    alignment: Alignment
+    alignment: Alignment,
+    isRoastMode: Boolean = false
 ) {
     val bubbleColor = when (type) {
-        AssistantMessageType.SPEECH -> if (isDarkMode) Color(0xFF2C2C2E) else Color.White
-        AssistantMessageType.THOUGHT -> if (isDarkMode) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
+        AssistantMessageType.SPEECH -> if (isRoastMode) Color(0xFF2E1B33) else if (isDarkMode) Color(0xFF2C2C2E) else Color.White
+        AssistantMessageType.THOUGHT -> if (isRoastMode) Color(0xFF1B1B1B) else if (isDarkMode) Color(0xFF1C1C1E) else Color(0xFFF2F2F7)
     }
 
-    val textColor = if (isDarkMode) Color.White else Color.Black
+    val textColor = if (isRoastMode || isDarkMode) Color.White else Color.Black
 
     Surface(
         color = bubbleColor,
@@ -598,57 +623,86 @@ fun TypingIndicator(isDarkMode: Boolean) {
 }
 
 @Composable
-fun RobotFace(state: AssistantState, color: Color) {
+fun RobotFace(state: AssistantState, color: Color, isRoastMode: Boolean = false) {
     Canvas(modifier = Modifier.fillMaxSize()) {
         val eyeColor = color
         val eyeY = size.height * 0.4f
         
-        when (state) {
-            AssistantState.HAPPY, AssistantState.EXCITED -> {
-                // Arched Eyes
-                drawArc(eyeColor, -180f, 180f, false, Offset(size.width * 0.25f, eyeY), size = androidx.compose.ui.geometry.Size(12f, 12f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
-                drawArc(eyeColor, -180f, 180f, false, Offset(size.width * 0.55f, eyeY), size = androidx.compose.ui.geometry.Size(12f, 12f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
-                // Smile
-                drawArc(eyeColor, 0f, 180f, false, Offset(size.width * 0.35f, size.height * 0.6f), size = androidx.compose.ui.geometry.Size(12f, 8f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+        if (isRoastMode) {
+            // Cheeky Devil Eyes
+            val eyePathLeft = Path().apply {
+                moveTo(size.width * 0.2f, eyeY + 5f)
+                lineTo(size.width * 0.4f, eyeY)
+                lineTo(size.width * 0.4f, eyeY + 10f)
+                close()
             }
-            AssistantState.WAVING -> {
-                // Wider Eyes + Glow
-                drawCircle(eyeColor, radius = 5f, center = Offset(size.width * 0.35f, eyeY + 4f))
-                drawCircle(eyeColor, radius = 5f, center = Offset(size.width * 0.65f, eyeY + 4f))
-                drawCircle(eyeColor.copy(alpha = 0.3f), radius = 8f, center = Offset(size.width * 0.35f, eyeY + 4f))
-                drawCircle(eyeColor.copy(alpha = 0.3f), radius = 8f, center = Offset(size.width * 0.65f, eyeY + 4f))
-                // Smile
-                drawArc(eyeColor, 0f, 180f, false, Offset(size.width * 0.35f, size.height * 0.65f), size = androidx.compose.ui.geometry.Size(8f, 4f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+            val eyePathRight = Path().apply {
+                moveTo(size.width * 0.8f, eyeY + 5f)
+                lineTo(size.width * 0.6f, eyeY)
+                lineTo(size.width * 0.6f, eyeY + 10f)
+                close()
             }
-            AssistantState.THINKING -> {
-                // Dot Eyes
-                drawCircle(eyeColor, radius = 3f, center = Offset(size.width * 0.35f, eyeY + 4f))
-                drawCircle(eyeColor, radius = 3f, center = Offset(size.width * 0.65f, eyeY + 4f))
-                // Straight Mouth
-                drawLine(eyeColor, Offset(size.width * 0.4f, size.height * 0.7f), Offset(size.width * 0.6f, size.height * 0.7f), strokeWidth = 2f)
-            }
-            AssistantState.ERROR -> {
-                // X Eyes
-                drawLine(eyeColor, Offset(size.width * 0.3f, eyeY), Offset(size.width * 0.4f, eyeY + 8f), strokeWidth = 2f)
-                drawLine(eyeColor, Offset(size.width * 0.4f, eyeY), Offset(size.width * 0.3f, eyeY + 8f), strokeWidth = 2f)
-                drawLine(eyeColor, Offset(size.width * 0.6f, eyeY), Offset(size.width * 0.7f, eyeY + 8f), strokeWidth = 2f)
-                drawLine(eyeColor, Offset(size.width * 0.7f, eyeY), Offset(size.width * 0.6f, eyeY + 8f), strokeWidth = 2f)
-                // O Mouth
-                drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.5f, size.height * 0.75f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
-            }
-            AssistantState.SHUSH -> {
-                 // Dot Eyes
-                drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.35f, eyeY + 4f))
-                drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.65f, eyeY + 4f))
-                // Shush Mouth (O)
-                drawCircle(eyeColor, radius = 3f, center = Offset(size.width * 0.5f, size.height * 0.7f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
-            }
-            else -> {
-                // Default Eyes
-                drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.35f, eyeY + 4f))
-                drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.65f, eyeY + 4f))
-                // Small Smile
-                drawArc(eyeColor, 0f, 180f, false, Offset(size.width * 0.4f, size.height * 0.65f), size = androidx.compose.ui.geometry.Size(8f, 4f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+            drawPath(eyePathLeft, color = eyeColor)
+            drawPath(eyePathRight, color = eyeColor)
+            
+            // Smirk
+            drawArc(
+                color = eyeColor,
+                startAngle = 10f,
+                sweepAngle = 160f,
+                useCenter = false,
+                topLeft = Offset(size.width * 0.35f, size.height * 0.6f),
+                size = androidx.compose.ui.geometry.Size(12f, 6f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(2f)
+            )
+        } else {
+            when (state) {
+                AssistantState.HAPPY, AssistantState.EXCITED -> {
+                    // Arched Eyes
+                    drawArc(eyeColor, -180f, 180f, false, Offset(size.width * 0.25f, eyeY), size = androidx.compose.ui.geometry.Size(12f, 12f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+                    drawArc(eyeColor, -180f, 180f, false, Offset(size.width * 0.55f, eyeY), size = androidx.compose.ui.geometry.Size(12f, 12f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+                    // Smile
+                    drawArc(eyeColor, 0f, 180f, false, Offset(size.width * 0.35f, size.height * 0.6f), size = androidx.compose.ui.geometry.Size(12f, 8f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+                }
+                AssistantState.WAVING -> {
+                    // Wider Eyes + Glow
+                    drawCircle(eyeColor, radius = 5f, center = Offset(size.width * 0.35f, eyeY + 4f))
+                    drawCircle(eyeColor, radius = 5f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    drawCircle(eyeColor.copy(alpha = 0.3f), radius = 8f, center = Offset(size.width * 0.35f, eyeY + 4f))
+                    drawCircle(eyeColor.copy(alpha = 0.3f), radius = 8f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    // Smile
+                    drawArc(eyeColor, 0f, 180f, false, Offset(size.width * 0.35f, size.height * 0.65f), size = androidx.compose.ui.geometry.Size(8f, 4f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+                }
+                AssistantState.THINKING -> {
+                    // Dot Eyes
+                    drawCircle(eyeColor, radius = 3f, center = Offset(size.width * 0.35f, eyeY + 4f))
+                    drawCircle(eyeColor, radius = 3f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    // Straight Mouth
+                    drawLine(eyeColor, Offset(size.width * 0.4f, size.height * 0.7f), Offset(size.width * 0.6f, size.height * 0.7f), strokeWidth = 2f)
+                }
+                AssistantState.ERROR -> {
+                    // X Eyes
+                    drawLine(eyeColor, Offset(size.width * 0.3f, eyeY), Offset(size.width * 0.4f, eyeY + 8f), strokeWidth = 2f)
+                    drawLine(eyeColor, Offset(size.width * 0.4f, eyeY), Offset(size.width * 0.3f, eyeY + 8f), strokeWidth = 2f)
+                    drawLine(eyeColor, Offset(size.width * 0.6f, eyeY), Offset(size.width * 0.7f, eyeY + 8f), strokeWidth = 2f)
+                    drawLine(eyeColor, Offset(size.width * 0.7f, eyeY), Offset(size.width * 0.6f, eyeY + 8f), strokeWidth = 2f)
+                    // O Mouth
+                    drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.5f, size.height * 0.75f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+                }
+                AssistantState.SHUSH -> {
+                     // Dot Eyes
+                    drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.35f, eyeY + 4f))
+                    drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    // Shush Mouth (O)
+                    drawCircle(eyeColor, radius = 3f, center = Offset(size.width * 0.5f, size.height * 0.7f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+                }
+                else -> {
+                    // Default Eyes
+                    drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.35f, eyeY + 4f))
+                    drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    // Small Smile
+                    drawArc(eyeColor, 0f, 180f, false, Offset(size.width * 0.4f, size.height * 0.65f), size = androidx.compose.ui.geometry.Size(8f, 4f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+                }
             }
         }
     }

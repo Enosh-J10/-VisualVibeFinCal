@@ -5,6 +5,7 @@ import com.enosh.fincalc.data.model.User
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
+import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.tasks.await
 import java.security.MessageDigest
 
@@ -68,29 +69,46 @@ object UserUtils {
     suspend fun ensureFinCalcUserProfile(
         context: Context,
         providedName: String? = null,
-        providedEmail: String? = null
+        providedEmail: String? = null,
+        profilePicUri: android.net.Uri? = null
     ) {
-        uploadCurrentUser(providedName, providedEmail)
-        
         val auth = FirebaseAuth.getInstance()
         val firebaseUser = auth.currentUser ?: return
         val uid = firebaseUser.uid
         val finCalcId = generateStableFinCalcId(uid)
+        
+        var finalProfilePicUrl: String? = null
+        if (profilePicUri != null) {
+            try {
+                val ref = FirebaseStorage.getInstance().getReference("profile_pictures/$uid/profile.jpg")
+                ref.putFile(profilePicUri).await()
+                finalProfilePicUrl = ref.downloadUrl.await().toString()
+            } catch (e: Exception) {
+                android.util.Log.e("UserUtils", "Profile pic upload failed", e)
+            }
+        }
 
+        uploadCurrentUser(providedName, providedEmail, finalProfilePicUrl)
+        
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(getFinCalcIdKey(uid), finCalcId)
             .apply()
     }
 
-    suspend fun uploadCurrentUser(providedName: String? = null, providedEmail: String? = null) {
+    suspend fun uploadCurrentUser(
+        providedName: String? = null, 
+        providedEmail: String? = null,
+        profilePicUrl: String? = null
+    ) {
         val auth = FirebaseAuth.getInstance()
         val firebaseUser = auth.currentUser ?: return
         val uid = firebaseUser.uid
         val name = providedName ?: firebaseUser.displayName ?: "User"
         val email = providedEmail ?: firebaseUser.email ?: ""
         val finCalcId = generateStableFinCalcId(uid)
+        val photoUrl = profilePicUrl ?: firebaseUser.photoUrl?.toString()
 
-        val userMap = mapOf(
+        val userMap = mutableMapOf(
             "uid" to uid,
             "email" to email,
             "searchableEmail" to email.lowercase().trim(),
@@ -99,16 +117,19 @@ object UserUtils {
             "finCalcId" to finCalcId.uppercase().trim(),
             "updatedAt" to FieldValue.serverTimestamp()
         )
+        
+        if (photoUrl != null) {
+            userMap["profilePictureUrl"] = photoUrl
+        }
 
         try {
             FirebaseFirestore.getInstance()
                 .collection("users")
                 .document(uid)
-                .set(userMap)
+                .set(userMap, com.google.firebase.firestore.SetOptions.merge())
                 .await()
         } catch (e: Exception) {
             android.util.Log.e("UserUtils", "Failed to upload user profile: ${e.message}")
-            // Don't rethrow, just log. Profile sync is non-critical for main app functionality.
         }
     }
 
@@ -119,28 +140,36 @@ object UserUtils {
         val trimmedQuery = query.trim()
         if (trimmedQuery.isEmpty()) return emptyList()
 
-        // Email search
-        val emailSnap = db.collection("users")
-            .whereEqualTo("searchableEmail", trimmedQuery.lowercase())
-            .get()
-            .await()
-        results.addAll(emailSnap.documents.mapNotNull { it.toObject(User::class.java) })
+        val lowerQuery = trimmedQuery.lowercase()
+        val upperQuery = trimmedQuery.uppercase()
 
-        // FinCalc ID search
-        val idSnap = db.collection("users")
-            .whereEqualTo("finCalcId", trimmedQuery.uppercase())
-            .get()
-            .await()
-        results.addAll(idSnap.documents.mapNotNull { it.toObject(User::class.java) })
+        try {
+            // 1. Email search (Exact match)
+            val emailSnap = db.collection("users")
+                .whereEqualTo("searchableEmail", lowerQuery)
+                .get()
+                .await()
+            results.addAll(emailSnap.documents.mapNotNull { it.toObject(User::class.java) })
 
-        // Name search
-        val nameSnap = db.collection("users")
-            .orderBy("searchableName")
-            .startAt(trimmedQuery.lowercase())
-            .endAt(trimmedQuery.lowercase() + "\uf8ff")
-            .get()
-            .await()
-        results.addAll(nameSnap.documents.mapNotNull { it.toObject(User::class.java) })
+            // 2. FinCalc ID search (Exact match)
+            val idSnap = db.collection("users")
+                .whereEqualTo("finCalcId", upperQuery)
+                .get()
+                .await()
+            results.addAll(idSnap.documents.mapNotNull { it.toObject(User::class.java) })
+
+            // 3. Name prefix search
+            val nameSnap = db.collection("users")
+                .whereGreaterThanOrEqualTo("searchableName", lowerQuery)
+                .whereLessThanOrEqualTo("searchableName", lowerQuery + "\uf8ff")
+                .limit(20)
+                .get()
+                .await()
+            results.addAll(nameSnap.documents.mapNotNull { it.toObject(User::class.java) })
+
+        } catch (e: Exception) {
+            android.util.Log.e("UserUtils", "Search failed: query=$trimmedQuery", e)
+        }
 
         return results.distinctBy { it.uid }
     }

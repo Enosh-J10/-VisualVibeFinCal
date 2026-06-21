@@ -40,7 +40,7 @@ class SmartTravelViewModel : ViewModel() {
             .whereArrayContains("memberUids", uid)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
-                    Log.e("SmartTravelError", "Listen failed", e)
+                    Log.e("SmartTravelError", "Listen failed: collection=trips, uid=$uid", e)
                     return@addSnapshotListener
                 }
                 
@@ -102,8 +102,9 @@ class SmartTravelViewModel : ViewModel() {
                 )
 
                 tripRef.set(tripData).await()
+                _errorMessage.value = "Trip Created"
             } catch (e: Exception) {
-                Log.e("SmartTravelError", "Failed to create trip", e)
+                Log.e("SmartTravelError", "Failed to create trip: collection=trips, uid=$uid", e)
                 _errorMessage.value = "Failed to create trip: ${e.message}"
             }
         }
@@ -125,8 +126,12 @@ class SmartTravelViewModel : ViewModel() {
                 db.collection("trips").document(tripId).update(
                     "memberUids", newMembers,
                     "memberDetails", newDetails
-                )
+                ).addOnFailureListener { e ->
+                    Log.e("SmartTravelError", "Add member failed: collection=trips, doc=$tripId", e)
+                }
             }
+        }.addOnFailureListener { e ->
+            Log.e("SmartTravelError", "Get trip failed: collection=trips, doc=$tripId", e)
         }
     }
 
