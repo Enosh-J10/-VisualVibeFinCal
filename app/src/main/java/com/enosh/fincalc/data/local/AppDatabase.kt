@@ -45,6 +45,10 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
+        fun resetInstance() {
+            INSTANCE = null
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             val prefs = context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
             val isGuest = prefs.getBoolean("is_guest", false)

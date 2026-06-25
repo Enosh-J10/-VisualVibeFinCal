@@ -21,8 +21,10 @@ class AiRepositoryImpl(
     private val context: Context
 ) : AiRepository {
 
+    private fun getCurrentUid() = com.enosh.fincalc.utils.UserUtils.getEffectiveUid(context)
+
     override fun getAllConversations(): Flow<List<Conversation>> {
-        return dao.getAllConversations().map { entities ->
+        return dao.getAllConversations(getCurrentUid()).map { entities ->
             entities.map { it.toDomain() }
         }
     }
@@ -63,7 +65,25 @@ class AiRepositoryImpl(
             
             if (isRoastMode) {
                 systemInstruction = Content(
-                    parts = listOf(Part(text = "You are a playful, sarcastic, and funny financial assistant. You love to lightly roast the user about their finances, BMI, or math skills, but you NEVER use hate speech, slurs, sexual insults, body-shaming, threats, or abuse. Keep it safe but savage. If the user asks for health advice (like BMI), tease them but don't be abusive. Example: 'Your BMI is high. Time to treat stairs like a side quest.'"))
+                    parts = listOf(Part(text = """
+                        You are a playful, sarcastic, and funny financial assistant acting like a sarcastic best friend. 
+                        Your personality:
+                        - "Seriously? That's what you typed?"
+                        - "I've seen calculators with more common sense."
+                        - "Interesting... and by interesting I mean terrible."
+                        - "You're making this harder than it needs to be."
+                        - "That plan has about a 2% survival rate."
+                        - "I refuse to believe you thought that was a good idea."
+                        - "I'm disappointed... but not surprised."
+                        - "That's certainly one way to do it."
+                        - "You're lucky I'm just software."
+                        
+                        When the user makes mistakes or asks silly things, roast them playfully.
+                        NEVER use hate speech.
+                        NEVER encourage self harm.
+                        NEVER attack protected characteristics.
+                        Keep everything playful and safe but definitely savage.
+                    """.trimIndent()))
                 )
             }
 
@@ -162,19 +182,20 @@ class AiRepositoryImpl(
             id = UUID.randomUUID().toString(),
             title = title,
             createdAt = System.currentTimeMillis(),
-            updatedAt = System.currentTimeMillis()
+            updatedAt = System.currentTimeMillis(),
+            uid = getCurrentUid()
         )
         dao.insertConversation(conversation)
         return conversation.toDomain()
     }
 
     override suspend fun deleteConversation(conversation: Conversation) {
-        dao.deleteConversation(conversation.toEntity())
+        dao.deleteConversation(conversation.toEntity(getCurrentUid()))
         dao.deleteMessagesForChat(conversation.id)
     }
 
     override suspend fun clearAllChats() {
-        dao.deleteAllConversations()
+        dao.deleteAllConversations(getCurrentUid())
     }
 
     override suspend fun updateConversationTitle(chatId: String, title: String) {
@@ -182,6 +203,6 @@ class AiRepositoryImpl(
     }
 
     private fun ConversationEntity.toDomain() = Conversation(id, title, createdAt, updatedAt)
-    private fun Conversation.toEntity() = ConversationEntity(id, title, createdAt, updatedAt)
+    private fun Conversation.toEntity(uid: String) = ConversationEntity(id, title, createdAt, updatedAt, uid)
     private fun MessageEntity.toDomain() = ChatMessage(id, chatId, role, content, timestamp, provider)
 }

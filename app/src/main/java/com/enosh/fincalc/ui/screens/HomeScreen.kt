@@ -166,7 +166,10 @@ fun HomeScreen(
             .mapNotNull { id -> allTools.find { it.id == id } }
     }
 
-    val userName = remember { sharedPref.getString("name", if (isGuest) "Guest" else "User") ?: "User" }
+    val userName = remember(isGuest) { 
+        if (isGuest) "Guest" 
+        else sharedPref.getString("name", "User") ?: "User" 
+    }
     val greeting = remember {
         val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
         when (hour) {

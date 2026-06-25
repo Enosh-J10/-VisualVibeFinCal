@@ -121,12 +121,19 @@ class HomeActivity : ComponentActivity() {
                     if (openSettings) {
                         navController.navigate(Screen.Settings.route + "?resetPin=$resetPin")
                     }
+
+                    val navigateTo = intent.getStringExtra("navigate_to")
+                    val notificationChatId = intent.getStringExtra("chatId")
+                    val notificationFriendUid = intent.getStringExtra("friendUid")
+                    if (navigateTo == "chat_room" && notificationChatId != null && notificationFriendUid != null) {
+                        navController.navigate("chat_room/$notificationChatId/$notificationFriendUid")
+                    }
                     
                     deepLinkUri?.let { uri ->
                         if (uri.scheme == "fincalc" && uri.host == "add-friend") {
                             val friendId = uri.getQueryParameter("id")
                             if (friendId != null) {
-                                navController.navigate(Screen.Friends.route + "?search=$friendId")
+                                navController.navigate(Screen.Friends.createRoute(friendId))
                             }
                         }
                     }

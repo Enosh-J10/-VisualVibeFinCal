@@ -95,10 +95,12 @@ fun AssistantRobot(
     val isRoastMode = prefs.isRoastMode
     val roastAccent = Color(0xFF9C27B0) // Purple for roast mode
     val roastGlow = Color(0xFFFF5252) // Reddish for roast glow
+    val roastAura = Color(0xFF4A148C) // Dark purple for aura
 
-    val headColor = if (isRoastMode) Color(0xFF212121) else Color(if (prefs.isCustomMode) prefs.customHeadColor.hex else prefs.theme.headColor.hex)
-    val bodyColor = if (isRoastMode) Color(0xFF303030) else Color(if (prefs.isCustomMode) prefs.customBodyColor.hex else prefs.theme.bodyColor.hex)
-    val accentColor = if (isRoastMode) roastAccent else Color(if (prefs.isCustomMode) prefs.customAccentColor.hex else prefs.theme.accentColor.hex)
+    val headColor by animateColorAsState(if (isRoastMode) Color(0xFF1A1A1A) else Color(if (prefs.isCustomMode) prefs.customHeadColor.hex else prefs.theme.headColor.hex), label = "headColor")
+    val bodyColor by animateColorAsState(if (isRoastMode) Color(0xFF212121) else Color(if (prefs.isCustomMode) prefs.customBodyColor.hex else prefs.theme.bodyColor.hex), label = "bodyColor")
+    val accentColor by animateColorAsState(if (isRoastMode) roastAccent else Color(if (prefs.isCustomMode) prefs.customAccentColor.hex else prefs.theme.accentColor.hex), label = "accentColor")
+    val eyeColor by animateColorAsState(if (isRoastMode) Color(0xFFFF1744) else accentColor, label = "eyeColor")
 
     // Floating and breathing animations
     val infiniteTransition = rememberInfiniteTransition(label = "robot_idle")
@@ -119,6 +121,20 @@ fun AssistantRobot(
             animation = tween(2000, easing = EaseInOutSine),
             repeatMode = RepeatMode.Reverse
         ), label = "breathing"
+    ) else remember { mutableStateOf(1f) }
+
+    val blinkAnim by if (prefs.isAnimated) infiniteTransition.animateFloat(
+        initialValue = 1f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = keyframes {
+                durationMillis = 4000
+                1f at 0
+                1f at 3800
+                0f at 3900
+                1f at 4000
+            }
+        ), label = "blink"
     ) else remember { mutableStateOf(1f) }
 
     val armIdleAnim by if (prefs.isAnimated) infiniteTransition.animateFloat(
@@ -340,21 +356,40 @@ fun AssistantRobot(
                     .background(Color.Black.copy(alpha = 0.5f), CircleShape)
             )
 
-            // Glow Effect
+            // Glow Effect / Aura
             Box(
                 modifier = Modifier
                     .align(Alignment.Center)
-                    .size(60.dp)
+                    .size(if (isRoastMode) 100.dp else 60.dp)
                     .graphicsLayer {
-                        alpha = 0.15f + (breathingAnim - 1f) * 5f
+                        alpha = if (isRoastMode) 0.3f + (breathingAnim - 1f) * 10f else 0.15f + (breathingAnim - 1f) * 5f
                     }
                     .background(
                         Brush.radialGradient(
-                            listOf(if (isRoastMode) roastGlow else accentColor, Color.Transparent)
+                            if (isRoastMode) listOf(roastAura, Color.Transparent)
+                            else listOf(accentColor, Color.Transparent)
                         ),
                         CircleShape
                     )
             )
+
+            // Roast Mode Tail
+            if (isRoastMode) {
+                Canvas(modifier = Modifier.size(width = 40.dp, height = 60.dp).offset(x = (-25).dp, y = 40.dp)) {
+                    val tailPath = Path().apply {
+                        moveTo(size.width, size.height * 0.2f)
+                        quadraticBezierTo(
+                            0f, size.height * 0.5f,
+                            size.width * 0.2f, size.height * 0.9f
+                        )
+                        // Arrow head
+                        lineTo(0f, size.height)
+                        lineTo(size.width * 0.4f, size.height * 0.85f)
+                        close()
+                    }
+                    drawPath(tailPath, color = roastAccent, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f))
+                }
+            }
 
             // Full Body Character
             Box(
@@ -375,7 +410,7 @@ fun AssistantRobot(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.fillMaxSize()
                 ) {
-                    RobotHead(robotState, headColor, accentColor, prefs.gender, isRoastMode)
+                    RobotHead(robotState, headColor, accentColor, prefs.gender, isRoastMode, eyeColor, blinkAnim)
                     RobotBody(bodyColor, accentColor, prefs.gender)
                 }
             }
@@ -470,7 +505,7 @@ fun RobotHand(modifier: Modifier, color: Color) {
 }
 
 @Composable
-fun RobotHead(state: AssistantState, headColor: Color, accentColor: Color, gender: AssistantGender, isRoastMode: Boolean = false) {
+fun RobotHead(state: AssistantState, headColor: Color, accentColor: Color, gender: AssistantGender, isRoastMode: Boolean = false, eyeColor: Color = Color.Cyan, blinkAnim: Float = 1f) {
     Box(
         modifier = Modifier
             .size(50.dp)
@@ -484,21 +519,20 @@ fun RobotHead(state: AssistantState, headColor: Color, accentColor: Color, gende
         contentAlignment = Alignment.Center
     ) {
         if (isRoastMode) {
-            // Devil Horns
-            Canvas(modifier = Modifier.fillMaxSize()) {
+            // Better Devil Horns
+            Canvas(modifier = Modifier.fillMaxSize().offset(y = (-4).dp)) {
                 val hornPath = Path().apply {
-                    // Left Horn
-                    moveTo(size.width * 0.2f, size.height * 0.2f)
-                    lineTo(size.width * 0.1f, size.height * 0.05f)
-                    lineTo(size.width * 0.35f, size.height * 0.15f)
-                    close()
-                    // Right Horn
-                    moveTo(size.width * 0.8f, size.height * 0.2f)
-                    lineTo(size.width * 0.9f, size.height * 0.05f)
-                    lineTo(size.width * 0.65f, size.height * 0.15f)
-                    close()
+                    // Left Horn (Curved)
+                    moveTo(size.width * 0.25f, size.height * 0.15f)
+                    quadraticBezierTo(size.width * 0.05f, size.height * -0.1f, size.width * -0.1f, size.height * 0.1f)
+                    quadraticBezierTo(size.width * 0.1f, size.height * 0.05f, size.width * 0.25f, size.height * 0.25f)
+                    
+                    // Right Horn (Curved)
+                    moveTo(size.width * 0.75f, size.height * 0.15f)
+                    quadraticBezierTo(size.width * 0.95f, size.height * -0.1f, size.width * 1.1f, size.height * 0.1f)
+                    quadraticBezierTo(size.width * 0.9f, size.height * 0.05f, size.width * 0.75f, size.height * 0.25f)
                 }
-                drawPath(hornPath, color = Color(0xFFFF5252))
+                drawPath(hornPath, color = Color(0xFFFF1744))
             }
         }
 
@@ -519,10 +553,10 @@ fun RobotHead(state: AssistantState, headColor: Color, accentColor: Color, gende
             modifier = Modifier
                 .size(38.dp)
                 .clip(RoundedCornerShape(12.dp))
-                .background(if (isRoastMode) Color(0xFF1A1A1A) else Color.White.copy(alpha = 0.9f)),
+                .background(if (isRoastMode) Color(0xFF0A0A0A) else Color.White.copy(alpha = 0.9f)),
             contentAlignment = Alignment.Center
         ) {
-            RobotFace(state, if (isRoastMode) Color(0xFFFF5252) else accentColor, isRoastMode)
+            RobotFace(state, eyeColor, isRoastMode, blinkAnim)
         }
     }
 }
@@ -623,51 +657,78 @@ fun TypingIndicator(isDarkMode: Boolean) {
 }
 
 @Composable
-fun RobotFace(state: AssistantState, color: Color, isRoastMode: Boolean = false) {
+fun RobotFace(state: AssistantState, color: Color, isRoastMode: Boolean = false, blinkAnim: Float = 1f) {
+    val infiniteTransition = rememberInfiniteTransition(label = "face_anim")
+    val eyeGlow by infiniteTransition.animateFloat(
+        initialValue = 0.6f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ), label = "eye_glow"
+    )
+
     Canvas(modifier = Modifier.fillMaxSize()) {
         val eyeColor = color
         val eyeY = size.height * 0.4f
         
         if (isRoastMode) {
-            // Cheeky Devil Eyes
+            // Evil Glowing Eyes
             val eyePathLeft = Path().apply {
-                moveTo(size.width * 0.2f, eyeY + 5f)
-                lineTo(size.width * 0.4f, eyeY)
-                lineTo(size.width * 0.4f, eyeY + 10f)
+                moveTo(size.width * 0.2f, eyeY + 2f)
+                lineTo(size.width * 0.45f, eyeY - 2f)
+                lineTo(size.width * 0.45f, eyeY + 8f)
                 close()
             }
             val eyePathRight = Path().apply {
-                moveTo(size.width * 0.8f, eyeY + 5f)
-                lineTo(size.width * 0.6f, eyeY)
-                lineTo(size.width * 0.6f, eyeY + 10f)
+                moveTo(size.width * 0.8f, eyeY + 2f)
+                lineTo(size.width * 0.55f, eyeY - 2f)
+                lineTo(size.width * 0.55f, eyeY + 8f)
                 close()
             }
-            drawPath(eyePathLeft, color = eyeColor)
-            drawPath(eyePathRight, color = eyeColor)
             
-            // Smirk
-            drawArc(
-                color = eyeColor,
-                startAngle = 10f,
-                sweepAngle = 160f,
-                useCenter = false,
-                topLeft = Offset(size.width * 0.35f, size.height * 0.6f),
-                size = androidx.compose.ui.geometry.Size(12f, 6f),
-                style = androidx.compose.ui.graphics.drawscope.Stroke(2f)
-            )
+            // Draw glow
+            drawPath(eyePathLeft, color = eyeColor.copy(alpha = 0.3f * eyeGlow))
+            drawPath(eyePathRight, color = eyeColor.copy(alpha = 0.3f * eyeGlow))
+            
+            // Draw eyes with blink
+            if (blinkAnim > 0.2f) {
+                drawPath(eyePathLeft, color = eyeColor)
+                drawPath(eyePathRight, color = eyeColor)
+            } else {
+                drawLine(eyeColor, Offset(size.width * 0.2f, eyeY + 4f), Offset(size.width * 0.45f, eyeY + 4f), strokeWidth = 2f)
+                drawLine(eyeColor, Offset(size.width * 0.55f, eyeY + 4f), Offset(size.width * 0.8f, eyeY + 4f), strokeWidth = 2f)
+            }
+            
+            // Evil Smirk
+            val smirkPath = Path().apply {
+                moveTo(size.width * 0.3f, size.height * 0.7f)
+                quadraticBezierTo(
+                    size.width * 0.5f, size.height * 0.85f,
+                    size.width * 0.75f, size.height * 0.65f
+                )
+            }
+            drawPath(smirkPath, color = eyeColor, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f, cap = androidx.compose.ui.graphics.StrokeCap.Round))
         } else {
             when (state) {
                 AssistantState.HAPPY, AssistantState.EXCITED -> {
                     // Arched Eyes
-                    drawArc(eyeColor, -180f, 180f, false, Offset(size.width * 0.25f, eyeY), size = androidx.compose.ui.geometry.Size(12f, 12f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
-                    drawArc(eyeColor, -180f, 180f, false, Offset(size.width * 0.55f, eyeY), size = androidx.compose.ui.geometry.Size(12f, 12f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+                    if (blinkAnim > 0.1f) {
+                        drawArc(eyeColor, -180f, 180f, false, Offset(size.width * 0.25f, eyeY), size = androidx.compose.ui.geometry.Size(12f, 12f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+                        drawArc(eyeColor, -180f, 180f, false, Offset(size.width * 0.55f, eyeY), size = androidx.compose.ui.geometry.Size(12f, 12f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
+                    } else {
+                        drawLine(eyeColor, Offset(size.width * 0.25f, eyeY + 6f), Offset(size.width * 0.45f, eyeY + 6f), strokeWidth = 2f)
+                        drawLine(eyeColor, Offset(size.width * 0.55f, eyeY + 6f), Offset(size.width * 0.75f, eyeY + 6f), strokeWidth = 2f)
+                    }
                     // Smile
                     drawArc(eyeColor, 0f, 180f, false, Offset(size.width * 0.35f, size.height * 0.6f), size = androidx.compose.ui.geometry.Size(12f, 8f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
                 }
                 AssistantState.WAVING -> {
                     // Wider Eyes + Glow
-                    drawCircle(eyeColor, radius = 5f, center = Offset(size.width * 0.35f, eyeY + 4f))
-                    drawCircle(eyeColor, radius = 5f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    if (blinkAnim > 0.1f) {
+                        drawCircle(eyeColor, radius = 5f, center = Offset(size.width * 0.35f, eyeY + 4f))
+                        drawCircle(eyeColor, radius = 5f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    }
                     drawCircle(eyeColor.copy(alpha = 0.3f), radius = 8f, center = Offset(size.width * 0.35f, eyeY + 4f))
                     drawCircle(eyeColor.copy(alpha = 0.3f), radius = 8f, center = Offset(size.width * 0.65f, eyeY + 4f))
                     // Smile
@@ -675,8 +736,10 @@ fun RobotFace(state: AssistantState, color: Color, isRoastMode: Boolean = false)
                 }
                 AssistantState.THINKING -> {
                     // Dot Eyes
-                    drawCircle(eyeColor, radius = 3f, center = Offset(size.width * 0.35f, eyeY + 4f))
-                    drawCircle(eyeColor, radius = 3f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    if (blinkAnim > 0.1f) {
+                        drawCircle(eyeColor, radius = 3f, center = Offset(size.width * 0.35f, eyeY + 4f))
+                        drawCircle(eyeColor, radius = 3f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    }
                     // Straight Mouth
                     drawLine(eyeColor, Offset(size.width * 0.4f, size.height * 0.7f), Offset(size.width * 0.6f, size.height * 0.7f), strokeWidth = 2f)
                 }
@@ -691,15 +754,19 @@ fun RobotFace(state: AssistantState, color: Color, isRoastMode: Boolean = false)
                 }
                 AssistantState.SHUSH -> {
                      // Dot Eyes
-                    drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.35f, eyeY + 4f))
-                    drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    if (blinkAnim > 0.1f) {
+                        drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.35f, eyeY + 4f))
+                        drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    }
                     // Shush Mouth (O)
                     drawCircle(eyeColor, radius = 3f, center = Offset(size.width * 0.5f, size.height * 0.7f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
                 }
                 else -> {
                     // Default Eyes
-                    drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.35f, eyeY + 4f))
-                    drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    if (blinkAnim > 0.1f) {
+                        drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.35f, eyeY + 4f))
+                        drawCircle(eyeColor, radius = 4f, center = Offset(size.width * 0.65f, eyeY + 4f))
+                    }
                     // Small Smile
                     drawArc(eyeColor, 0f, 180f, false, Offset(size.width * 0.4f, size.height * 0.65f), size = androidx.compose.ui.geometry.Size(8f, 4f), style = androidx.compose.ui.graphics.drawscope.Stroke(2f))
                 }

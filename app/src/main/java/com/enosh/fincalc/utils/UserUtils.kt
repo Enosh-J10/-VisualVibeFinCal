@@ -6,6 +6,10 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.storage.FirebaseStorage
+import com.google.firebase.messaging.FirebaseMessaging
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.security.MessageDigest
 
@@ -47,6 +51,7 @@ object UserUtils {
     fun logout(context: Context, onComplete: () -> Unit) {
         val auth = FirebaseAuth.getInstance()
         val sharedPref = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val isGuest = sharedPref.getBoolean("is_guest", false)
         
         auth.signOut()
         
@@ -56,12 +61,40 @@ object UserUtils {
             .build()
             
         com.google.android.gms.auth.api.signin.GoogleSignIn.getClient(context, gso).signOut().addOnCompleteListener {
-            sharedPref.edit().apply {
-                SESSION_KEYS.forEach { remove(it) }
-            }.apply()
+            if (isGuest) {
+                // Nuclear clear for guest mode
+                sharedPref.edit().clear().apply()
+                context.getSharedPreferences("AssistantPrefs_guest", Context.MODE_PRIVATE).edit().clear().apply()
+                context.getSharedPreferences("NotesPrefs_guest", Context.MODE_PRIVATE).edit().clear().apply()
+                context.getSharedPreferences("BudgetPrefs_guest", Context.MODE_PRIVATE).edit().clear().apply()
+                context.getSharedPreferences("ToolPrefs_guest", Context.MODE_PRIVATE).edit().clear().apply()
+                
+                // Clear Database
+                @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+                GlobalScope.launch(Dispatchers.IO) {
+                    try {
+                        com.enosh.fincalc.data.local.AppDatabase.getDatabase(context).clearAllTables()
+                    } catch (e: Exception) {
+                        android.util.Log.e("UserUtils", "DB clear failed", e)
+                    }
+                }
+                
+                // Clear Cache & Temp Files
+                try {
+                    context.cacheDir.deleteRecursively()
+                    context.filesDir.deleteRecursively()
+                } catch (e: Exception) {
+                    android.util.Log.e("UserUtils", "File clear failed", e)
+                }
+            } else {
+                sharedPref.edit().apply {
+                    SESSION_KEYS.forEach { remove(it) }
+                }.apply()
+            }
             
             SecurityUtils.hasAuthenticatedThisSession = false
             SecurityUtils.skipNextLock = false
+            com.enosh.fincalc.data.local.AppDatabase.resetInstance()
             onComplete()
         }
     }
@@ -89,6 +122,7 @@ object UserUtils {
         }
 
         uploadCurrentUser(providedName, providedEmail, finalProfilePicUrl)
+        updateFcmToken()
         
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(getFinCalcIdKey(uid), finCalcId)
@@ -130,6 +164,17 @@ object UserUtils {
                 .await()
         } catch (e: Exception) {
             android.util.Log.e("UserUtils", "Failed to upload user profile: ${e.message}")
+        }
+    }
+
+    suspend fun updateFcmToken() {
+        try {
+            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+            val token = FirebaseMessaging.getInstance().token.await()
+            FirebaseFirestore.getInstance().collection("users").document(uid)
+                .update("fcmToken", token).await()
+        } catch (e: Exception) {
+            android.util.Log.e("UserUtils", "Failed to update FCM token", e)
         }
     }
 

@@ -21,4 +21,10 @@ interface BusinessDao {
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTarget(target: BusinessTargetEntity)
+
+    @Delete
+    suspend fun deleteTarget(target: BusinessTargetEntity)
+
+    @androidx.room.Query("SELECT * FROM business_targets WHERE uid = :uid")
+    fun getAllTargets(uid: String): kotlinx.coroutines.flow.Flow<List<BusinessTargetEntity>>
 }

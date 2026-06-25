@@ -17,4 +17,7 @@ interface BudgetExtraAmountDao {
 
     @Delete
     suspend fun delete(extraAmount: BudgetExtraAmount)
+
+    @androidx.room.Query("SELECT * FROM budget_extra_amounts")
+    fun getAllExtraAmounts(): kotlinx.coroutines.flow.Flow<List<BudgetExtraAmount>>
 }

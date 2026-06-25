@@ -99,7 +99,7 @@ object QRUtils {
             bitmap.compress(Bitmap.CompressFormat.PNG, 100, stream)
             stream.close()
             
-            FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", File(cachePath, "share_card.png"))
+            FileProvider.getUriForFile(context, "${context.packageName}.provider", File(cachePath, "share_card.png"))
         } catch (e: Exception) {
             e.printStackTrace()
             null

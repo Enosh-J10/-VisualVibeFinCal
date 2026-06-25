@@ -12,19 +12,30 @@ import com.enosh.fincalc.HomeActivity
 import com.enosh.fincalc.R
 
 object NotificationHelper {
-    private const val CHANNEL_ID = "fincal_notifications"
-    private const val CHANNEL_NAME = "Financial Reminders"
-    private const val CHANNEL_DESC = "Notifications for expense tracking and insights"
+    private const val CHAT_CHANNEL_ID = "chat_messages"
+    private const val CHAT_CHANNEL_NAME = "Chat Messages"
+    private const val GENERAL_CHANNEL_ID = "general_notifications"
+    private const val GENERAL_CHANNEL_NAME = "General Notifications"
 
     fun createNotificationChannel(context: Context) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val importance = NotificationManager.IMPORTANCE_DEFAULT
-            val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, importance).apply {
-                description = CHANNEL_DESC
-            }
             val notificationManager: NotificationManager =
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            notificationManager.createNotificationChannel(channel)
+            
+            // Chat channel (IMPORTANCE_HIGH for heads-up)
+            val chatChannel = NotificationChannel(CHAT_CHANNEL_ID, CHAT_CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Notifications for incoming chat messages"
+                enableLights(true)
+                enableVibration(true)
+            }
+            notificationManager.createNotificationChannel(chatChannel)
+            android.util.Log.d("NotificationDebug", "channelCreated: $CHAT_CHANNEL_ID")
+
+            // General channel
+            val generalChannel = NotificationChannel(GENERAL_CHANNEL_ID, GENERAL_CHANNEL_NAME, NotificationManager.IMPORTANCE_DEFAULT).apply {
+                description = "General app notifications"
+            }
+            notificationManager.createNotificationChannel(generalChannel)
         }
     }
 
@@ -32,12 +43,14 @@ object NotificationHelper {
         val intent = Intent(context, HomeActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
         }
+        
         val pendingIntent: PendingIntent = PendingIntent.getActivity(
-            context, 0, intent, PendingIntent.FLAG_IMMUTABLE
+            context, 0, intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
 
-        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info) // Use a better icon here eventually
+        val builder = NotificationCompat.Builder(context, GENERAL_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_calc)
             .setContentTitle(title)
             .setContentText(message)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
@@ -46,9 +59,53 @@ object NotificationHelper {
 
         with(NotificationManagerCompat.from(context)) {
             try {
-                notify(System.currentTimeMillis().toInt(), builder.build())
+                if (androidx.core.app.ActivityCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                    notify(title.hashCode(), builder.build())
+                }
             } catch (e: SecurityException) {
-                // If we don't have permission to show notifications
+                android.util.Log.e("NotificationDebug", "Permission denied for general notification")
+            }
+        }
+    }
+
+    fun showChatNotification(context: Context, senderName: String, messageText: String, chatId: String, friendUid: String) {
+        android.util.Log.d("NotificationDebug", "incomingMessageDetected: from $senderName")
+        val intent = Intent(context, HomeActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            putExtra("chatId", chatId)
+            putExtra("friendUid", friendUid)
+            putExtra("navigate_to", "chat_room")
+        }
+        
+        val pendingIntent: PendingIntent = PendingIntent.getActivity(
+            context, System.currentTimeMillis().toInt(), intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val builder = NotificationCompat.Builder(context, CHAT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_calc)
+            .setContentTitle(senderName)
+            .setContentText(messageText)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+            .setDefaults(NotificationCompat.DEFAULT_ALL)
+
+        with(NotificationManagerCompat.from(context)) {
+            try {
+                var granted = true
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    granted = androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.POST_NOTIFICATIONS) == android.content.pm.PackageManager.PERMISSION_GRANTED
+                }
+                
+                android.util.Log.d("NotificationDebug", "permissionGranted: $granted")
+                
+                if (granted) {
+                    notify(chatId.hashCode(), builder.build())
+                    android.util.Log.d("NotificationDebug", "notificationPosted: $chatId")
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("NotificationDebug", "Failed to post notification", e)
             }
         }
     }

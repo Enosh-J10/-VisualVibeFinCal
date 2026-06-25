@@ -5,8 +5,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AiChatDao {
-    @Query("SELECT * FROM ai_conversations ORDER BY updatedAt DESC")
-    fun getAllConversations(): Flow<List<ConversationEntity>>
+    @Query("SELECT * FROM ai_conversations WHERE uid = :uid ORDER BY updatedAt DESC")
+    fun getAllConversations(uid: String): Flow<List<ConversationEntity>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertConversation(conversation: ConversationEntity)
@@ -14,8 +14,8 @@ interface AiChatDao {
     @Delete
     suspend fun deleteConversation(conversation: ConversationEntity)
 
-    @Query("DELETE FROM ai_conversations")
-    suspend fun deleteAllConversations()
+    @Query("DELETE FROM ai_conversations WHERE uid = :uid")
+    suspend fun deleteAllConversations(uid: String)
 
     @Query("SELECT * FROM ai_messages WHERE chatId = :chatId ORDER BY timestamp ASC")
     fun getMessagesForChat(chatId: String): Flow<List<MessageEntity>>

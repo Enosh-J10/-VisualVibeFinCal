@@ -52,7 +52,14 @@ fun NavGraph(
 ) {
     val context = LocalContext.current
     val sharedPref = remember { context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE) }
-    val isOnboardingComplete = remember { mutableStateOf(sharedPref.getBoolean("onboarding_complete", false)) }
+    
+    val isGuest = remember { sharedPref.getBoolean("is_guest", false) }
+    val uid = remember(isGuest) { 
+        if (isGuest) "guest" 
+        else com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest" 
+    }
+    val onboardingKey = remember(uid) { com.enosh.fincalc.utils.UserUtils.getScopedKey(uid, "onboarding_complete") }
+    val isOnboardingComplete = remember(onboardingKey) { mutableStateOf(sharedPref.getBoolean(onboardingKey, false)) }
 
     NavHost(
         navController = navController,
@@ -146,6 +153,9 @@ fun NavGraph(
         composable(Screen.SmartBusiness.route) {
             SmartBusinessScreen(navController, isDarkMode)
         }
+        composable(Screen.BackupRestore.route) {
+            com.enosh.fincalc.ui.screens.BackupRestoreScreen(navController, isDarkMode)
+        }
         
         composable(Screen.CurrencyConverter.route) { 
             CurrencyConverterScreen(
@@ -214,7 +224,7 @@ fun NavGraph(
 
         composable(Screen.Onboarding.route) { 
             OnboardingScreen(onFinished = {
-                sharedPref.edit { putBoolean("onboarding_complete", true) }
+                sharedPref.edit { putBoolean(onboardingKey, true) }
                 isOnboardingComplete.value = true
                 navController.navigate(Screen.Home.route) {
                     popUpTo(Screen.Onboarding.route) { inclusive = true }

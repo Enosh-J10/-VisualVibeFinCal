@@ -5,6 +5,7 @@ data class BusinessIncome(
     val amount: Double = 0.0,
     val date: Long = System.currentTimeMillis(),
     val source: String = "",
+    val reason: String = "",
     val category: String = "Other",
     val paymentMethod: String = "Cash",
     val notes: String = "",

@@ -523,7 +523,7 @@ fun AiChatScreen(
                                 },
                                 modifier = Modifier.weight(1f),
                                 placeholder = { Text("Ask anything...") },
-                                maxLines = 5,
+                                maxLines = 6,
                                 shape = RoundedCornerShape(24.dp),
                                 colors = OutlinedTextFieldDefaults.colors(
                                     focusedBorderColor = Color(0xFF00D1B2),
@@ -654,7 +654,7 @@ fun AiChatMessageItem(
         horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(0.9f),
+            modifier = Modifier.fillMaxWidth(0.85f),
             horizontalArrangement = if (isUser) Arrangement.End else Arrangement.Start
         ) {
             if (!isUser) {
@@ -685,7 +685,7 @@ fun AiChatMessageItem(
                     tonalElevation = if (isUser) 0.dp else 2.dp,
                     shadowElevation = 1.dp
                 ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
+                    Column(modifier = Modifier.padding(12.dp).widthIn(max = 280.dp)) {
                         MarkdownText(
                             text = message.content,
                             color = if (isUser) Color.White else if (isDarkMode) Color.White else Color.Black

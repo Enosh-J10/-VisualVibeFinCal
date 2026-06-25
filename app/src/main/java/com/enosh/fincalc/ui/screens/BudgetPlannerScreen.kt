@@ -243,7 +243,7 @@ fun AddExtraAmountDialog(onDismiss: () -> Unit, onSave: (Double, String, String)
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 ValidatedTextField(value = amount, onValueChange = { amount = it }, label = "Amount", keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal)
-                ValidatedTextField(value = reason, onValueChange = { reason = it }, label = "Reason / Note")
+                ValidatedTextField(value = reason, onValueChange = { reason = it }, label = "Reason / Note", keyboardType = androidx.compose.ui.text.input.KeyboardType.Text, capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences)
                 
                 Text("Category", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 Box {

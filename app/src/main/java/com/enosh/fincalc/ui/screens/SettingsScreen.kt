@@ -106,6 +106,7 @@ fun SettingsScreen(
     var showRestoreConfirmDialog by remember { mutableStateOf(false) }
     var showRoastWarningDialog by remember { mutableStateOf(false) }
     var showLogoutConfirmDialog by remember { mutableStateOf(false) }
+    var showGuestLogoutConfirmDialog by remember { mutableStateOf(false) }
     var showProfilePreview by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
 
@@ -296,6 +297,13 @@ fun SettingsScreen(
 
                     if (assistantPrefs.isEnabled) {
                         SettingsItem(
+                            title = "Mute Assistant",
+                            trailing = {
+                                Switch(checked = assistantPrefs.isMuted, onCheckedChange = { assistantViewModel.setMuted(it, context) })
+                            }
+                        )
+
+                        SettingsItem(
                             title = "Roast Mode",
                             subtitle = "Playful savage AI responses",
                             trailing = {
@@ -306,6 +314,81 @@ fun SettingsScreen(
                                         else assistantViewModel.setRoastMode(false, context)
                                     }
                                 )
+                            }
+                        )
+
+                        Text("Appearance Theme", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            val themes = listOf(
+                                AssistantTheme.DEFAULT,
+                                AssistantTheme.OCEAN,
+                                AssistantTheme.BERRY,
+                                AssistantTheme.NEON_NIGHT,
+                                AssistantTheme.SUNSET,
+                                AssistantTheme.READABLE_DARK,
+                                AssistantTheme.READABLE_LIGHT,
+                                AssistantTheme.CUSTOM
+                            )
+                            themes.forEach { theme ->
+                                FilterChip(
+                                    selected = assistantPrefs.theme == theme && !assistantPrefs.isCustomMode,
+                                    onClick = { 
+                                        assistantViewModel.setCustomMode(false, context)
+                                        assistantViewModel.setTheme(theme, context) 
+                                    },
+                                    label = { Text(theme.label) }
+                                )
+                            }
+                        }
+
+                        if (assistantPrefs.theme == AssistantTheme.CUSTOM || assistantPrefs.isCustomMode) {
+                            Text("Custom Theme Colors", fontSize = 12.sp, color = Color.Gray)
+                            // Simplified color pickers for brevity in this response, 
+                            // in a real app these would be color selection dialogs or a grid
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                listOf(AssistantColor.BLUE, AssistantColor.PINK, AssistantColor.ORANGE, AssistantColor.CYAN, AssistantColor.NEON).forEach { color ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(30.dp)
+                                            .clip(CircleShape)
+                                            .background(Color(color.hex))
+                                            .clickable { 
+                                                assistantViewModel.setCustomMode(true, context)
+                                                assistantViewModel.setCustomColors(color, color, color, context) 
+                                            }
+                                    )
+                                }
+                            }
+                        }
+
+                        SettingsItem(
+                            title = "Assistant Type",
+                            trailing = {
+                                Row {
+                                    FilterChip(
+                                        selected = assistantPrefs.gender == AssistantGender.MALE,
+                                        onClick = { assistantViewModel.setGender(AssistantGender.MALE, context) },
+                                        label = { Text("Male") }
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    FilterChip(
+                                        selected = assistantPrefs.gender == AssistantGender.FEMALE,
+                                        onClick = { assistantViewModel.setGender(AssistantGender.FEMALE, context) },
+                                        label = { Text("Female") }
+                                    )
+                                }
+                            }
+                        )
+
+                        SettingsItem(
+                            title = "Assistant Animation",
+                            trailing = {
+                                Switch(checked = assistantPrefs.isAnimated, onCheckedChange = { assistantViewModel.setAnimated(it, context) })
                             }
                         )
 
@@ -327,21 +410,31 @@ fun SettingsScreen(
 
             Spacer(Modifier.height(24.dp))
 
+            // Notifications Info (Spark Plan)
+            CalculatorCard(isDarkMode = isDarkMode) {
+                Text("Notifications", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2), modifier = Modifier.fillMaxWidth())
+                Spacer(Modifier.height(8.dp))
+                Text(
+                    "Notifications work while FinCalc is running in the background. Full closed-app push notifications may be added later.",
+                    fontSize = 12.sp,
+                    color = Color.Gray
+                )
+            }
+
+            Spacer(Modifier.height(24.dp))
+
             // Backup & Restore (Registered only)
             if (!isGuest) {
                 CalculatorCard(isDarkMode = isDarkMode) {
                     Text(text = stringResource(R.string.backup_restore), modifier = Modifier.fillMaxWidth(), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
                     Spacer(Modifier.height(16.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        BouncyButton(
-                            onClick = { /* Export */ },
-                            modifier = Modifier.weight(1f)
-                        ) { Text(stringResource(R.string.export_json)) }
-                        BouncyButton(
-                            onClick = { /* Import */ },
-                            modifier = Modifier.weight(1f),
-                            containerColor = Color.Transparent
-                        ) { Text(stringResource(R.string.import_json), color = Color(0xFF00D1B2)) }
+                    BouncyButton(
+                        onClick = { navController.navigate(com.enosh.fincalc.ui.navigation.Screen.BackupRestore.route) },
+                        modifier = Modifier.fillMaxWidth()
+                    ) { 
+                        Icon(Icons.Default.Backup, null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Backup & Restore Data")
                     }
                 }
                 Spacer(Modifier.height(24.dp))
@@ -353,13 +446,16 @@ fun SettingsScreen(
                 Spacer(Modifier.height(16.dp))
                 
                 BouncyButton(
-                    onClick = { showLogoutConfirmDialog = true },
+                    onClick = { 
+                        if (isGuest) showGuestLogoutConfirmDialog = true
+                        else showLogoutConfirmDialog = true 
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     containerColor = Color.Red.copy(alpha = 0.1f)
                 ) {
                     Icon(Icons.Default.ExitToApp, null, tint = Color.Red)
                     Spacer(Modifier.width(8.dp))
-                    Text("Logout", fontWeight = FontWeight.Bold, color = Color.Red)
+                    Text(if (isGuest) "Leave Guest Mode" else "Logout", fontWeight = FontWeight.Bold, color = Color.Red)
                 }
             }
 
@@ -397,6 +493,21 @@ fun SettingsScreen(
                 Button(onClick = { onLogout() }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Logout") }
             },
             dismissButton = { TextButton(onClick = { showLogoutConfirmDialog = false }) { Text("Cancel") } }
+        )
+    }
+
+    if (showGuestLogoutConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showGuestLogoutConfirmDialog = false },
+            title = { Text("Leaving Guest Mode") },
+            text = { Text("You are using a guest account. Guest data is not saved. If you leave now, all guest notes, preferences, history, and temporary data will be permanently deleted.") },
+            confirmButton = {
+                Button(onClick = { 
+                    showGuestLogoutConfirmDialog = false
+                    onLogout() 
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Leave Guest") }
+            },
+            dismissButton = { TextButton(onClick = { showGuestLogoutConfirmDialog = false }) { Text("Cancel") } }
         )
     }
 

@@ -213,6 +213,9 @@ fun IncomeItem(income: BusinessIncome, isDarkMode: Boolean, onEdit: () -> Unit, 
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
                     Text(income.source, fontWeight = FontWeight.Bold)
+                    if (income.reason.isNotBlank()) {
+                        Text(income.reason, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    }
                     Text("${income.category} • ${income.paymentMethod}", fontSize = 12.sp, color = Color.Gray)
                     Text(sdf.format(Date(income.date)), fontSize = 10.sp, color = Color.Gray)
                 }
@@ -245,6 +248,7 @@ fun IncomeItem(income: BusinessIncome, isDarkMode: Boolean, onEdit: () -> Unit, 
 fun AddIncomeDialog(existingIncome: BusinessIncome? = null, onDismiss: () -> Unit, onSave: (BusinessIncome) -> Unit) {
     var amount by remember { mutableStateOf(existingIncome?.amount?.toString() ?: "") }
     var source by remember { mutableStateOf(existingIncome?.source ?: "") }
+    var reason by remember { mutableStateOf(existingIncome?.reason ?: "") }
     var selectedCategory by remember { mutableStateOf(existingIncome?.category ?: "Services") }
     var selectedMethod by remember { mutableStateOf(existingIncome?.paymentMethod ?: "Cash") }
     var notes by remember { mutableStateOf(existingIncome?.notes ?: "") }
@@ -269,9 +273,16 @@ fun AddIncomeDialog(existingIncome: BusinessIncome? = null, onDismiss: () -> Uni
                 ValidatedTextField(
                     value = source, 
                     onValueChange = { source = it }, 
-                    label = "Customer / Source",
+                    label = "Customer",
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
                     capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
+                )
+                ValidatedTextField(
+                    value = reason, 
+                    onValueChange = { reason = it }, 
+                    label = "Reason",
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                    capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
                 )
                 
                 Text("Category", fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -314,6 +325,7 @@ fun AddIncomeDialog(existingIncome: BusinessIncome? = null, onDismiss: () -> Uni
                         incomeId = existingIncome?.incomeId ?: "",
                         amount = amount.toDoubleOrNull() ?: 0.0, 
                         source = source, 
+                        reason = reason,
                         category = selectedCategory, 
                         paymentMethod = selectedMethod,
                         notes = notes,

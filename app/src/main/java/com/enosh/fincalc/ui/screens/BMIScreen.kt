@@ -86,9 +86,11 @@ fun BMIScreen(
                         value = weight,
                         onValueChange = { 
                             weight = ValidationUtils.formatNumericInput(it, allowNegative = false)
-                            weightError = if (weight.isEmpty()) emptyError 
-                                          else if (!ValidationUtils.isValidPositiveNumeric(weight)) invalidError
-                                          else null
+                            weightError = if (weight.isEmpty()) {
+                                if (isRoastMode) "Unless gravity stopped existing, I need your weight." else emptyError
+                            } else if (!ValidationUtils.isValidPositiveNumeric(weight)) {
+                                if (isRoastMode) "Numbers only... we're not writing poetry." else invalidError
+                            } else null
                             bmiResult = null
                         },
                         label = stringResource(R.string.weight_kg),
@@ -104,9 +106,11 @@ fun BMIScreen(
                         value = height,
                         onValueChange = { 
                             height = ValidationUtils.formatNumericInput(it, allowNegative = false)
-                            heightError = if (height.isEmpty()) emptyError
-                                          else if (!ValidationUtils.isValidPositiveNumeric(height)) invalidError
-                                          else null
+                            heightError = if (height.isEmpty()) {
+                                if (isRoastMode) "I'm good, but I can't guess your height." else emptyError
+                            } else if (!ValidationUtils.isValidPositiveNumeric(height)) {
+                                if (isRoastMode) "Numbers only... we're not writing poetry." else invalidError
+                            } else null
                             bmiResult = null
                         },
                         label = stringResource(R.string.height_cm),
@@ -125,8 +129,8 @@ fun BMIScreen(
                             age = filtered
                             val ageInt = filtered.toIntOrNull()
                             ageError = when {
-                                filtered.isEmpty() -> emptyError
-                                ageInt == null || ageInt < 1 || ageInt > 120 -> "Please enter a valid age between 1 and 120."
+                                filtered.isEmpty() -> if (isRoastMode) "I can't calculate the BMI of a mysterious immortal." else emptyError
+                                ageInt == null || ageInt < 1 || ageInt > 120 -> if (isRoastMode) "Are you a vampire? 🧛 Enter a real age (1-120)." else "Please enter a valid age between 1 and 120."
                                 else -> null
                             }
                             bmiResult = null
@@ -179,10 +183,10 @@ fun BMIScreen(
                                     delay(1500)
                                     val msg = if (isRoastMode) {
                                         when (bmiCategory) {
-                                            "Healthy weight" -> "Healthy weight? Boring. Where's the drama? 🥗"
-                                            "Underweight" -> "A strong breeze might take you away. Eat something! 🍕"
-                                            "Overweight" -> "Maybe the scale is just having a bad day? 📉"
-                                            else -> "Obese. Time to treat stairs like a side quest. 🏃‍♂️"
+                                            "Healthy weight" -> "Nice. You somehow managed to keep yourself alive."
+                                            "Underweight" -> "The wind is your biggest enemy."
+                                            "Overweight" -> "Maybe skip dessert today."
+                                            else -> "Your fridge probably cheers when you walk in."
                                         }
                                     } else {
                                         when (bmiCategory) {

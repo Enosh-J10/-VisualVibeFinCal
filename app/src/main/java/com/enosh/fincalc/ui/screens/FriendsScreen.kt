@@ -148,7 +148,9 @@ fun FriendsListTab(viewModel: FriendsViewModel, isDarkMode: Boolean) {
                                         
                                         My FinCalc ID: $finCalcId
                                         
-                                        Open FinCalc → Settings → Friends / Add Friends → search my ID and send a request.
+                                        Direct Link: fincalc://add-friend?id=$finCalcId
+                                        
+                                        Or open FinCalc → Settings → Friends / Add Friends → search my ID.
                                     """.trimIndent()
                                     putExtra(Intent.EXTRA_TEXT, shareMessage)
                                     type = "text/plain"
@@ -379,7 +381,9 @@ fun FriendItem(
                         value = newNickname,
                         onValueChange = { newNickname = it },
                         label = "Nickname",
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                        capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
                     )
                 }
             },
@@ -509,14 +513,16 @@ fun SentRequestsTab(viewModel: FriendsViewModel, isDarkMode: Boolean) {
             contentPadding = PaddingValues(bottom = 80.dp)
         ) {
             items(requests) { request ->
-                SentRequestItem(request, isDarkMode)
+                SentRequestItem(request, isDarkMode, onCancel = { viewModel.cancelFriendRequest(request) })
             }
         }
     }
 }
 
 @Composable
-fun SentRequestItem(request: FriendRequest, isDarkMode: Boolean) {
+fun SentRequestItem(request: FriendRequest, isDarkMode: Boolean, onCancel: () -> Unit) {
+    var showConfirmDialog by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -536,6 +542,11 @@ fun SentRequestItem(request: FriendRequest, isDarkMode: Boolean) {
                 Text(request.toName, fontWeight = FontWeight.Bold)
                 Text(request.toFinCalcId, fontSize = 12.sp, color = Color.Gray)
             }
+            
+            TextButton(onClick = { showConfirmDialog = true }) {
+                Text("Unsend", color = Color.Red, fontSize = 12.sp)
+            }
+            
             Surface(
                 color = Color(0xFF00D1B2).copy(alpha = 0.1f),
                 shape = RoundedCornerShape(8.dp)
@@ -543,6 +554,25 @@ fun SentRequestItem(request: FriendRequest, isDarkMode: Boolean) {
                 Text("Sent", color = Color(0xFF00D1B2), fontSize = 10.sp, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
             }
         }
+    }
+
+    if (showConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = { showConfirmDialog = false },
+            title = { Text("Cancel Request") },
+            text = { Text("Cancel this friend request?") },
+            confirmButton = {
+                Button(onClick = {
+                    onCancel()
+                    showConfirmDialog = false
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) {
+                    Text("Cancel Request")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirmDialog = false }) { Text("No") }
+            }
+        )
     }
 }
 

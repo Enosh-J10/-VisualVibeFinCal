@@ -30,6 +30,8 @@ import com.enosh.fincalc.viewmodel.ChatViewModel
 import com.enosh.fincalc.viewmodel.FriendsViewModel
 import com.google.firebase.auth.FirebaseAuth
 import coil.compose.AsyncImage
+import android.util.Log
+import androidx.activity.result.PickVisualMediaRequest
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -45,9 +47,18 @@ fun ChatRoomScreen(
 ) {
     val messages by chatViewModel.messages.collectAsState()
     val friendStatus by chatViewModel.friendStatus.collectAsState()
+    val errorMessage by chatViewModel.errorMessage.collectAsState()
     val friends by friendsViewModel.friends.collectAsState()
     val nicknames by friendsViewModel.friendNicknames.collectAsState()
     val currentUid = remember { FirebaseAuth.getInstance().currentUser?.uid ?: "" }
+    
+    val context = LocalContext.current
+    LaunchedEffect(errorMessage) {
+        errorMessage?.let {
+            Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
+            chatViewModel.clearError()
+        }
+    }
     
     var resolvedFriendName by remember { mutableStateOf("Chat") }
     
@@ -73,10 +84,10 @@ fun ChatRoomScreen(
     var editText by remember { mutableStateOf("") }
     
     val listState = rememberLazyListState()
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(chatId, friendUid) {
+        chatViewModel.currentlyOpenChatId = chatId
         chatViewModel.ensureChatExists(chatId, friendUid)
         chatViewModel.listenToMessages(chatId)
         chatViewModel.listenToFriendStatus(chatId, friendUid)
@@ -84,6 +95,7 @@ fun ChatRoomScreen(
 
     DisposableEffect(chatId) {
         onDispose {
+            chatViewModel.currentlyOpenChatId = null
             chatViewModel.setTypingStatus(chatId, false)
         }
     }
@@ -94,12 +106,54 @@ fun ChatRoomScreen(
         }
     }
 
+    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
+    
     val filePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { chatViewModel.uploadFile(chatId, friendUid, it, "document", "file_${System.currentTimeMillis()}") }
+        try {
+            uri?.let { chatViewModel.uploadFile(chatId, friendUid, it, "file", "attachment_${System.currentTimeMillis()}") }
+        } catch (e: Exception) {
+            Log.e("ChatAttachmentError", "File picker failure", e)
+            Toast.makeText(context, "Failed to select file", Toast.LENGTH_SHORT).show()
+        }
     }
 
-    val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let { chatViewModel.uploadFile(chatId, friendUid, it, "image", "img_${System.currentTimeMillis()}.jpg") }
+    val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+        try {
+            uri?.let { chatViewModel.uploadFile(chatId, friendUid, it, "image", "image_${System.currentTimeMillis()}.jpg") }
+        } catch (e: Exception) {
+            Log.e("ChatAttachmentError", "Gallery picker failure", e)
+            Toast.makeText(context, "Failed to select image", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        try {
+            if (success && tempCameraUri != null) {
+                chatViewModel.uploadFile(chatId, friendUid, tempCameraUri!!, "image", "camera_${System.currentTimeMillis()}.jpg")
+            }
+        } catch (e: Exception) {
+            Log.e("ChatAttachmentError", "Camera capture failure", e)
+            Toast.makeText(context, "Failed to capture image", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun launchCamera() {
+        try {
+            val fileName = "camera_${System.currentTimeMillis()}.jpg"
+            val values = android.content.ContentValues().apply {
+                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, fileName)
+                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
+            }
+            tempCameraUri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
+            if (tempCameraUri != null) {
+                cameraLauncher.launch(tempCameraUri!!)
+            } else {
+                Toast.makeText(context, "Could not create file for camera", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            Log.e("ChatAttachmentError", "Camera launch failure", e)
+            Toast.makeText(context, "Cannot open camera", Toast.LENGTH_SHORT).show()
+        }
     }
 
     Scaffold(
@@ -142,7 +196,14 @@ fun ChatRoomScreen(
                         }
                         if (showMore) {
                             IconButton(onClick = { filePickerLauncher.launch("*/*") }) { Icon(Icons.Default.AttachFile, null, tint = Color(0xFF00D1B2)) }
-                            IconButton(onClick = { imagePickerLauncher.launch("image/*") }) { Icon(Icons.Default.PhotoCamera, null, tint = Color(0xFF00D1B2)) }
+                            IconButton(onClick = { imagePickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Icon(Icons.Default.PhotoLibrary, null, tint = Color(0xFF00D1B2)) }
+                            IconButton(onClick = { launchCamera() }) { Icon(Icons.Default.PhotoCamera, null, tint = Color(0xFF00D1B2)) }
+                            IconButton(onClick = { chatViewModel.uploadTestFile() }) { Icon(Icons.Default.BugReport, null, tint = Color.Red) }
+                            IconButton(onClick = { 
+                                com.enosh.fincalc.utils.NotificationHelper.showChatNotification(
+                                    context, "System Test", "This is a test notification 🔔", chatId, friendUid
+                                )
+                            }) { Icon(Icons.Default.NotificationsActive, null, tint = Color(0xFFFFA500)) }
                         }
                         OutlinedTextField(
                             value = messageText,
@@ -204,7 +265,13 @@ fun ChatRoomScreen(
                 }
             }
             val progress by chatViewModel.uploadProgress.collectAsState()
-            if (progress != null) LinearProgressIndicator(progress = { progress!! }, Modifier.fillMaxWidth().align(Alignment.TopCenter), Color(0xFF00D1B2))
+            progress?.let { currentProgress ->
+                LinearProgressIndicator(
+                    progress = { currentProgress },
+                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
+                    color = Color(0xFF00D1B2)
+                )
+            }
         }
     }
 

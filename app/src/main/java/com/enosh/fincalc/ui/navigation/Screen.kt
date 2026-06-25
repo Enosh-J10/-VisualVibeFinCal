@@ -34,4 +34,5 @@ sealed class Screen(val route: String) {
     object AiChat : Screen("ai_chat")
     object AiSettings : Screen("ai_settings")
     object SmartBusiness : Screen("smart_business")
+    object BackupRestore : Screen("backup_restore")
 }
