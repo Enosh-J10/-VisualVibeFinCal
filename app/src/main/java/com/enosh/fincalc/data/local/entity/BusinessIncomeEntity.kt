@@ -9,6 +9,7 @@ data class BusinessIncomeEntity(
     val amount: Double,
     val date: Long,
     val source: String,
+    val reason: String = "",
     val category: String,
     val paymentMethod: String,
     val notes: String = "",

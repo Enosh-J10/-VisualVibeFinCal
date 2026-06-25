@@ -26,11 +26,9 @@ import java.util.UUID
 import kotlinx.coroutines.flow.map
 
 class SmartBusinessViewModel(application: Application) : AndroidViewModel(application) {
-    private val auth = FirebaseAuth.getInstance()
     private val db = AppDatabase.getDatabase(application)
     private val dao = db.businessDao()
-
-    private val currentUid = auth.currentUser?.uid ?: "guest"
+    private val currentUid = com.enosh.fincalc.utils.UserUtils.getEffectiveUid(application)
 
     val incomes = dao.getAllIncomes(currentUid).map { entities ->
         entities.map { entity ->
@@ -39,6 +37,7 @@ class SmartBusinessViewModel(application: Application) : AndroidViewModel(applic
                 amount = entity.amount,
                 date = entity.date,
                 source = entity.source,
+                reason = entity.reason,
                 category = entity.category,
                 paymentMethod = entity.paymentMethod,
                 notes = entity.notes,
@@ -67,6 +66,7 @@ class SmartBusinessViewModel(application: Application) : AndroidViewModel(applic
             amount = income.amount,
             date = income.date,
             source = income.source,
+            reason = income.reason,
             category = income.category,
             paymentMethod = income.paymentMethod,
             notes = income.notes,
@@ -92,7 +92,17 @@ class SmartBusinessViewModel(application: Application) : AndroidViewModel(applic
         viewModelScope.launch {
             // Since we need the entity to delete, and we only have ID, we might need a deleteById query.
             // Or just use a dummy entity with the same ID.
-            dao.deleteIncome(BusinessIncomeEntity(incomeId, 0.0, 0L, "", "", "", "", currentUid))
+            dao.deleteIncome(
+                BusinessIncomeEntity(
+                    incomeId = incomeId,
+                    amount = 0.0,
+                    date = 0L,
+                    source = "",
+                    category = "",
+                    paymentMethod = "",
+                    uid = currentUid
+                )
+            )
         }
     }
 }

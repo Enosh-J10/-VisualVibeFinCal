@@ -603,7 +603,11 @@ fun AddFriendTab(viewModel: FriendsViewModel, isDarkMode: Boolean, initialSearch
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
                 items(searchResults) { user ->
-                    SearchResultItem(user, isDarkMode, onSendRequest = { viewModel.sendFriendRequest(user) })
+                    SearchResultItem(
+                        user = user,
+                        isDarkMode = isDarkMode,
+                        onSendRequest = { viewModel.sendFriendRequest(user) }
+                    )
                 }
             }
         }
@@ -611,7 +615,11 @@ fun AddFriendTab(viewModel: FriendsViewModel, isDarkMode: Boolean, initialSearch
 }
 
 @Composable
-fun SearchResultItem(user: User, isDarkMode: Boolean, onSendRequest: () -> Unit) {
+fun SearchResultItem(
+    user: User, 
+    isDarkMode: Boolean, 
+    onSendRequest: () -> Unit
+) {
     var requestSent by remember { mutableStateOf(false) }
 
     Card(

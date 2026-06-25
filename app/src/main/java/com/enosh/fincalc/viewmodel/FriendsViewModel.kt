@@ -11,7 +11,6 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.ListenerRegistration
-import com.google.firebase.firestore.FirebaseFirestoreException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -89,12 +88,21 @@ class FriendsViewModel : ViewModel() {
     }
 
     fun sendFriendRequest(toUser: User) {
-        val currentUserAuth = auth.currentUser ?: run {
+        val currentUserAuth = auth.currentUser
+        val authUid = currentUserAuth?.uid
+        
+        if (authUid == null) {
             _errorMessage.value = "Please log in to add friends."
             return
         }
-        val fromUid = currentUserAuth.uid
+
+        val fromUid = authUid
         val toUid = toUser.uid
+
+        if (toUid.isBlank()) {
+            _errorMessage.value = "User not found."
+            return
+        }
 
         if (fromUid == toUid) {
             _errorMessage.value = "You cannot add yourself."
@@ -175,18 +183,11 @@ class FriendsViewModel : ViewModel() {
                     "updatedAt" to FieldValue.serverTimestamp()
                 )
 
-                Log.d("FriendsDebug", "Sending request: fromUid=$fromUid, toUid=$toUid, requestId=$requestId")
-                Log.d("FriendsDebug", "Request keys: ${requestData.keys}")
-
                 db.collection("friendRequests").document(requestId).set(requestData).await()
                 _errorMessage.value = "Friend request sent!"
-            } catch (e: FirebaseFirestoreException) {
-                val msg = "Friend request failed: ${e.code} - ${e.message}"
-                Log.e("FriendRequestError", msg, e)
-                _errorMessage.value = msg
             } catch (e: Exception) {
-                Log.e("FriendRequestError", "General failure", e)
-                _errorMessage.value = "Failed to send friend request. Please try again later."
+                Log.e("Friends", "Failed to send friend request", e)
+                _errorMessage.value = "Unable to send request. Please try again."
             }
         }
     }
@@ -255,15 +256,34 @@ class FriendsViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
-                db.collection("friendRequests").document(request.requestId)
-                    .update(mapOf(
-                        "status" to "accepted",
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )).await()
+                // Determine friendship ID (sorted UIDs)
+                val sortedUids = listOf(request.fromUid, request.toUid).sorted()
+                val friendshipId = "${sortedUids[0]}_${sortedUids[1]}"
+
+                // Data for the friends document
+                val friendship = mapOf(
+                    "friendshipId" to friendshipId,
+                    "memberUids" to sortedUids,
+                    "createdAt" to FieldValue.serverTimestamp()
+                )
+
+                // Use a batch to update request and create friendship atomically
+                val batch = db.batch()
                 
-                repairFriendship(request.fromUid, request.toUid)
+                val requestRef = db.collection("friendRequests").document(request.requestId)
+                batch.update(requestRef, mapOf(
+                    "status" to "accepted",
+                    "updatedAt" to FieldValue.serverTimestamp()
+                ))
+                
+                val friendshipRef = db.collection("friends").document(friendshipId)
+                batch.set(friendshipRef, friendship)
+                
+                batch.commit().await()
+                
                 _errorMessage.value = "Friend request accepted!"
             } catch (e: Exception) {
+                Log.e("Friends", "Accept failed", e)
                 _errorMessage.value = "Accept failed. Please try again."
             }
         }
@@ -371,13 +391,22 @@ class FriendsViewModel : ViewModel() {
                 val uids = listOf(currentUid, friendUid).sorted()
                 val friendshipId = "${uids[0]}_${uids[1]}"
                 
-                db.collection("friends").document(friendshipId).delete().await()
+                val batch = db.batch()
                 
-                db.collection("friendRequests").document("${currentUid}_$friendUid").delete().await()
-                db.collection("friendRequests").document("${friendUid}_$currentUid").delete().await()
+                val friendshipRef = db.collection("friends").document(friendshipId)
+                batch.delete(friendshipRef)
+                
+                val req1Ref = db.collection("friendRequests").document("${currentUid}_$friendUid")
+                batch.delete(req1Ref)
+                
+                val req2Ref = db.collection("friendRequests").document("${friendUid}_$currentUid")
+                batch.delete(req2Ref)
+                
+                batch.commit().await()
                 
                 _errorMessage.value = "Friend removed."
             } catch (e: Exception) {
+                Log.e("Friends", "Remove failed", e)
                 _errorMessage.value = "Failed to remove friend."
             }
         }
