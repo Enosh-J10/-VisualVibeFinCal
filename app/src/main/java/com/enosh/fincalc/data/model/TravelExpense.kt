@@ -18,5 +18,6 @@ data class TravelExpense(
     val customSplits: Map<String, Double> = emptyMap(), // UID to amount
     val excludedMembers: List<String> = emptyList(), // List of UIDs
     val originalAmount: Double = 0.0,
-    val originalCurrency: String = ""
+    val originalCurrency: String = "",
+    val hasOpenFlags: Boolean = false
 )

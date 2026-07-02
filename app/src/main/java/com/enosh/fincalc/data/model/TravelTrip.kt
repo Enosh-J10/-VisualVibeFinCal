@@ -11,6 +11,7 @@ data class TravelTrip(
     val currencySymbol: String = "",
     val createdByUid: String = "",
     val memberUids: List<String> = emptyList(),
+    val invitedUids: List<String> = emptyList(),
     val memberDetails: Map<String, MemberInfo> = emptyMap(),
     val createdAt: Timestamp? = null,
     val updatedAt: Timestamp? = null,

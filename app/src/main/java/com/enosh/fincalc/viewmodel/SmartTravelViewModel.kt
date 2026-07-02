@@ -30,12 +30,19 @@ class SmartTravelViewModel : ViewModel() {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage
 
+    private val _expenseFlags = MutableStateFlow<Map<String, List<TravelExpenseFlag>>>(emptyMap())
+    val expenseFlags: StateFlow<Map<String, List<TravelExpenseFlag>>> = _expenseFlags
+
+    private val _memberProfiles = MutableStateFlow<Map<String, User>>(emptyMap())
+    val memberProfiles: StateFlow<Map<String, User>> = _memberProfiles
+
     fun clearError() {
         _errorMessage.value = null
     }
 
     fun fetchTrips() {
-        val uid = auth.currentUser?.uid ?: return
+        val currentUser = auth.currentUser ?: return
+        val uid = currentUser.uid
         db.collection("trips")
             .whereArrayContains("memberUids", uid)
             .addSnapshotListener { snapshot, e ->
@@ -68,6 +75,22 @@ class SmartTravelViewModel : ViewModel() {
                 
                 _trips.value = trips
             }
+            
+        // Also fetch trips where user is invited
+        db.collection("trips")
+            .whereArrayContains("invitedUids", uid)
+            .addSnapshotListener { snapshot, e ->
+                if (e == null && snapshot != null) {
+                    val invitedTrips = snapshot.documents.mapNotNull { it.toObject(TravelTrip::class.java) }
+                    val currentList = _trips.value.toMutableList()
+                    invitedTrips.forEach { itrip ->
+                        if (currentList.none { it.tripId == itrip.tripId }) {
+                            currentList.add(itrip)
+                        }
+                    }
+                    _trips.value = currentList
+                }
+            }
     }
 
     fun createTrip(
@@ -75,7 +98,8 @@ class SmartTravelViewModel : ViewModel() {
         selectedCountryName: String,
         destinationCity: String,
         selectedCurrencyCode: String,
-        selectedCurrencySymbol: String
+        selectedCurrencySymbol: String,
+        description: String = ""
     ) {
         val currentUser = auth.currentUser ?: run {
             _errorMessage.value = "Please log in to create shared trips."
@@ -97,8 +121,17 @@ class SmartTravelViewModel : ViewModel() {
                     "currencySymbol" to selectedCurrencySymbol,
                     "createdByUid" to uid,
                     "memberUids" to listOf(uid),
+                    "invitedUids" to emptyList<String>(),
                     "createdAt" to FieldValue.serverTimestamp(),
-                    "updatedAt" to FieldValue.serverTimestamp()
+                    "updatedAt" to FieldValue.serverTimestamp(),
+                    "description" to description.trim(),
+                    "memberDetails" to mapOf(
+                        uid to MemberInfo(
+                            name = currentUser.displayName ?: "User",
+                            email = currentUser.email ?: "",
+                            status = "JOINED"
+                        )
+                    )
                 )
 
                 tripRef.set(tripData).await()
@@ -110,28 +143,126 @@ class SmartTravelViewModel : ViewModel() {
         }
     }
 
+    fun updateTrip(
+        tripId: String,
+        name: String,
+        destinationCountry: String,
+        destinationCity: String,
+        currencyCode: String,
+        currencySymbol: String,
+        description: String
+    ) {
+        viewModelScope.launch {
+            try {
+                db.collection("trips").document(tripId).update(
+                    "name", name.trim(),
+                    "destinationCountry", destinationCountry,
+                    "destinationCity", destinationCity.trim(),
+                    "currencyCode", currencyCode,
+                    "currencySymbol", currencySymbol,
+                    "description", description.trim(),
+                    "updatedAt", FieldValue.serverTimestamp()
+                ).await()
+                _errorMessage.value = "Trip Updated"
+            } catch (e: Exception) {
+                Log.e("SmartTravel", "Update trip failed", e)
+                _errorMessage.value = "Failed to update trip"
+            }
+        }
+    }
+
+    fun deleteTrip(tripId: String, onComplete: () -> Unit) {
+        viewModelScope.launch {
+            try {
+                // Delete expenses and flags first
+                val expensesSnapshot = db.collection("trips").document(tripId).collection("expenses").get().await()
+                val batch = db.batch()
+                for (doc in expensesSnapshot.documents) {
+                    val flagsSnapshot = doc.reference.collection("flags").get().await()
+                    for (flagDoc in flagsSnapshot.documents) {
+                        batch.delete(flagDoc.reference)
+                    }
+                    batch.delete(doc.reference)
+                }
+                batch.delete(db.collection("trips").document(tripId))
+                batch.commit().await()
+                _errorMessage.value = "Trip deleted."
+                onComplete()
+            } catch (e: Exception) {
+                Log.e("SmartTravel", "Delete trip failed", e)
+                _errorMessage.value = "Failed to delete trip."
+            }
+        }
+    }
+
     fun addMember(tripId: String, memberUid: String, name: String, email: String) {
         db.collection("trips").document(tripId).get().addOnSuccessListener { snapshot ->
             val trip = snapshot.toObject(TravelTrip::class.java) ?: return@addOnSuccessListener
             
-            // Compatibility for old trips using 'members' field
-            val legacyMembers = (snapshot["members"] as? List<*>)?.filterIsInstance<String>() ?: emptyList()
-            val currentMembers = trip.memberUids.ifEmpty { legacyMembers }
-
-            if (!currentMembers.contains(memberUid)) {
-                val newMembers = currentMembers.toMutableList()
-                newMembers.add(memberUid)
+            val invited = trip.invitedUids.toMutableList()
+            if (!invited.contains(memberUid) && !trip.memberUids.contains(memberUid)) {
+                invited.add(memberUid)
                 val newDetails = trip.memberDetails.toMutableMap()
                 newDetails[memberUid] = MemberInfo(name = name, email = email, status = "INVITED")
                 db.collection("trips").document(tripId).update(
-                    "memberUids", newMembers,
+                    "invitedUids", invited,
                     "memberDetails", newDetails
                 ).addOnFailureListener { e ->
-                    Log.e("SmartTravelError", "Add member failed: collection=trips, doc=$tripId", e)
+                    Log.e("SmartTravelError", "Add member failed", e)
                 }
             }
-        }.addOnFailureListener { e ->
-            Log.e("SmartTravelError", "Get trip failed: collection=trips, doc=$tripId", e)
+        }
+    }
+
+    fun joinTrip(tripId: String) {
+        val currentUser = auth.currentUser ?: return
+        val uid = currentUser.uid
+        
+        db.collection("trips").document(tripId).get().addOnSuccessListener { snapshot ->
+            val trip = snapshot.toObject(TravelTrip::class.java) ?: return@addOnSuccessListener
+            if (trip.invitedUids.contains(uid)) {
+                val invited = trip.invitedUids.toMutableList()
+                invited.remove(uid)
+                
+                val members = trip.memberUids.toMutableList()
+                if (!members.contains(uid)) members.add(uid)
+                
+                val details = trip.memberDetails.toMutableMap()
+                details[uid] = MemberInfo(
+                    name = currentUser.displayName ?: "User",
+                    email = currentUser.email ?: "",
+                    status = "JOINED"
+                )
+                
+                db.collection("trips").document(tripId).update(
+                    "invitedUids", invited,
+                    "memberUids", members,
+                    "memberDetails", details,
+                    "updatedAt", FieldValue.serverTimestamp()
+                )
+            }
+        }
+    }
+
+    fun removeMember(tripId: String, memberUid: String) {
+        db.collection("trips").document(tripId).get().addOnSuccessListener { snapshot ->
+            val trip = snapshot.toObject(TravelTrip::class.java) ?: return@addOnSuccessListener
+            
+            val invited = trip.invitedUids.toMutableList()
+            invited.remove(memberUid)
+            
+            val members = trip.memberUids.toMutableList()
+            members.remove(memberUid)
+            
+            val details = trip.memberDetails.toMutableMap()
+            details.remove(memberUid)
+            
+            db.collection("trips").document(tripId).update(
+                "invitedUids", invited,
+                "memberUids", members,
+                "memberDetails", details,
+                "updatedAt", FieldValue.serverTimestamp()
+            )
         }
     }
 
@@ -149,54 +280,63 @@ class SmartTravelViewModel : ViewModel() {
         }
     }
 
-    fun fetchExpenses(tripId: String) {
-        if (tripId.isBlank()) {
-            Log.e("SmartTravel", "fetchExpenses: tripId is blank")
-            return
+    fun fetchMemberProfiles(uids: List<String>) {
+        if (uids.isEmpty()) return
+        viewModelScope.launch {
+            try {
+                val profiles = mutableMapOf<String, User>()
+                for (uid in uids) {
+                    val doc = db.collection("users").document(uid).get().await()
+                    val user = doc.toObject(User::class.java)
+                    if (user != null) {
+                        profiles[uid] = user
+                    }
+                }
+                _memberProfiles.value = _memberProfiles.value + profiles
+            } catch (e: Exception) {
+                Log.e("SmartTravel", "Failed to fetch member profiles", e)
+            }
         }
+    }
+
+    fun fetchExpenses(tripId: String) {
+        if (tripId.isBlank()) return
         
         db.collection("trips").document(tripId).collection("expenses")
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
-                    Log.e("SmartTravel", "Expense listener failed for trip $tripId", e)
+                    Log.e("SmartTravel", "Expense listener failed", e)
                     return@addSnapshotListener
                 }
                 
-                if (snapshot == null) {
-                    _currentTripExpenses.value = emptyList()
-                    return@addSnapshotListener
-                }
-
-                val expenses = snapshot.documents.mapNotNull { doc ->
+                val expenses = snapshot?.documents?.mapNotNull { doc ->
                     try {
                         val expense = doc.toObject(TravelExpense::class.java) ?: return@mapNotNull null
-                        
-                        // Compatibility fallbacks
-                        val legacyPaidBy = doc.getString("paidBy") ?: ""
-                        val legacyDate = doc.getLong("date") ?: 0L
-
-                        expense.copy(
-                            expenseId = doc.id,
-                            paidByUid = if (expense.paidByUid.isEmpty()) legacyPaidBy else expense.paidByUid,
-                            createdAt = if (expense.createdAt == 0L) legacyDate else expense.createdAt
-                        )
+                        fetchFlags(tripId, doc.id)
+                        expense.copy(expenseId = doc.id)
                     } catch (ex: Exception) {
-                        Log.e("SmartTravel", "Error parsing expense ${doc.id}", ex)
                         null
                     }
-                }
+                } ?: emptyList()
                 
                 _currentTripExpenses.value = expenses
             }
     }
 
+    private fun fetchFlags(tripId: String, expenseId: String) {
+        db.collection("trips").document(tripId).collection("expenses").document(expenseId)
+            .collection("flags").addSnapshotListener { snapshot, _ ->
+                if (snapshot != null) {
+                    val flags = snapshot.documents.mapNotNull { it.toObject(TravelExpenseFlag::class.java) }
+                    val currentFlags = _expenseFlags.value.toMutableMap()
+                    currentFlags[expenseId] = flags
+                    _expenseFlags.value = currentFlags
+                }
+            }
+    }
+
     fun addExpense(tripId: String, expense: TravelExpense) {
-        if (tripId.isBlank()) {
-            Log.e("SmartTravel", "addExpense: tripId is blank")
-            return
-        }
-        
         val uid = auth.currentUser?.uid ?: ""
         val expenseRef = db.collection("trips").document(tripId).collection("expenses").document()
         val expenseId = expenseRef.id
@@ -205,86 +345,131 @@ class SmartTravelViewModel : ViewModel() {
             expenseId = expenseId,
             tripId = tripId,
             createdByUid = uid,
-            createdAt = if (expense.createdAt != 0L) expense.createdAt else System.currentTimeMillis(),
+            createdAt = System.currentTimeMillis(),
             updatedAt = System.currentTimeMillis()
         )
         
         expenseRef.set(expenseToSave)
-            .addOnFailureListener { e ->
-                Log.e("SmartTravel", "Failed to save expense: $expenseId", e)
-                _errorMessage.value = "Failed to add expense: ${e.message}"
-            }
     }
 
     fun updateExpense(tripId: String, expense: TravelExpense) {
-        val expenseId = expense.expenseId
-        if (expenseId.isEmpty() || tripId.isEmpty()) {
-            Log.e("SmartTravel", "updateExpense: expenseId or tripId is empty")
-            return
-        }
-        
-        val expenseToSave = expense.copy(
-            updatedAt = System.currentTimeMillis()
-        )
-        
-        db.collection("trips").document(tripId).collection("expenses").document(expenseId).set(expenseToSave)
-            .addOnFailureListener { e ->
-                Log.e("SmartTravel", "Expense update failed: $expenseId", e)
-                _errorMessage.value = "Failed to update expense: ${e.message}"
-            }
+        db.collection("trips").document(tripId).collection("expenses").document(expense.expenseId).set(expense.copy(updatedAt = System.currentTimeMillis()))
     }
 
     fun deleteExpense(tripId: String, expenseId: String) {
-        if (tripId.isEmpty() || expenseId.isEmpty()) {
-            Log.e("SmartTravel", "deleteExpense: tripId or expenseId is empty")
-            return
-        }
         db.collection("trips").document(tripId).collection("expenses").document(expenseId).delete()
-            .addOnFailureListener { e ->
-                Log.e("SmartTravel", "Expense deletion failed: $expenseId", e)
+    }
+
+    fun flagExpense(tripId: String, expenseId: String, reason: String, note: String) {
+        val user = auth.currentUser ?: return
+        val flagId = java.util.UUID.randomUUID().toString()
+        val flag = TravelExpenseFlag(
+            flagId = flagId,
+            expenseId = expenseId,
+            tripId = tripId,
+            createdByUid = user.uid,
+            createdByName = user.displayName ?: "User",
+            reasonType = reason,
+            note = note,
+            createdAt = com.google.firebase.Timestamp.now(),
+            status = "open"
+        )
+        
+        db.collection("trips").document(tripId).collection("expenses").document(expenseId)
+            .collection("flags").document(flagId).set(flag).addOnSuccessListener {
+                db.collection("trips").document(tripId).collection("expenses").document(expenseId)
+                    .update("hasOpenFlags", true)
+            }
+    }
+
+    fun resolveFlag(tripId: String, expenseId: String, flagId: String) {
+        db.collection("trips").document(tripId).collection("expenses").document(expenseId)
+            .collection("flags").document(flagId).update("status", "resolved").addOnSuccessListener {
+                // Check if any open flags remain
+                db.collection("trips").document(tripId).collection("expenses").document(expenseId)
+                    .collection("flags").whereEqualTo("status", "open").get().addOnSuccessListener { snapshot ->
+                        if (snapshot.isEmpty) {
+                            db.collection("trips").document(tripId).collection("expenses").document(expenseId)
+                                .update("hasOpenFlags", false)
+                        }
+                    }
             }
     }
 
     fun finalizeTrip(tripId: String) {
-        db.collection("trips").document(tripId).update("isFinalized", true)
+        db.collection("trips").document(tripId).update(
+            "isFinalized", true,
+            "finalizedAt", FieldValue.serverTimestamp(),
+            "finalizedByUid", auth.currentUser?.uid
+        )
+    }
+
+    fun reopenTrip(tripId: String) {
+        db.collection("trips").document(tripId).update("isFinalized", false)
     }
 
     fun calculateSettlements(trip: TravelTrip, expenses: List<TravelExpense>): List<String> {
         val members = trip.memberUids
-        val details = trip.memberDetails
-        val totalCost = expenses.sumOf { it.amount }
         if (members.isEmpty()) return emptyList()
-        val share = totalCost / members.size
-        
-        val balances = members.map { uid ->
-            val paid = expenses.filter { it.paidByUid == uid }.sumOf { it.amount }
-            uid to paid - share
-        }.filter { kotlin.math.abs(it.second) > 0.01 }.toMutableList()
 
-        val results = mutableListOf<String>()
-        balances.sortByDescending { it.second }
-        
-        var i = 0
-        var j = balances.size - 1
-        
-        while (i < j) {
-            val creditor = balances[i]
-            val debtor = balances[j]
+        val netBalances = mutableMapOf<String, Double>()
+        members.forEach { netBalances[it] = 0.0 }
+
+        expenses.forEach { expense ->
+            val paidBy = expense.paidByUid
+            val amount = expense.amount
             
-            val amount = kotlin.math.min(creditor.second, -debtor.second)
-            if (amount > 0.01) {
-                val creditorName = details[creditor.first]?.name ?: "Unknown"
-                val debtorName = details[debtor.first]?.name ?: "Unknown"
-                results.add("$debtorName owes $creditorName: ${String.format(java.util.Locale.getDefault(), "%.2f", amount)}")
+            val splitAmong = when (expense.splitType) {
+                "EQUAL" -> members
+                "EXCLUDE" -> members.filter { it !in expense.excludedMembers }
+                "CUSTOM" -> expense.customSplits.keys.toList()
+                else -> members
             }
             
-            balances[i] = creditor.first to creditor.second - amount
-            balances[j] = debtor.first to debtor.second + amount
-            
-            if (balances[i].second < 0.01) i++
-            if (balances[j].second > -0.01) j--
+            if (splitAmong.isNotEmpty()) {
+                val perPerson = if (expense.splitType == "CUSTOM") 0.0 else amount / splitAmong.size
+                
+                netBalances[paidBy] = (netBalances[paidBy] ?: 0.0) + amount
+                
+                splitAmong.forEach { uid ->
+                    val share = if (expense.splitType == "CUSTOM") expense.customSplits[uid] ?: 0.0 else perPerson
+                    netBalances[uid] = (netBalances[uid] ?: 0.0) - share
+                }
+            }
         }
-        
-        return if (results.isEmpty()) listOf("All settled!") else results
+
+        val creditors = netBalances.filter { it.value > 0.01 }
+            .map { it.key to it.value }
+            .sortedByDescending { it.second }
+            .toMutableList()
+
+        val debtors = netBalances.filter { it.value < -0.01 }
+            .map { it.key to -it.value }
+            .sortedByDescending { it.second }
+            .toMutableList()
+
+        val settlements = mutableListOf<String>()
+        var cIdx = 0
+        var dIdx = 0
+
+        while (cIdx < creditors.size && dIdx < debtors.size) {
+            val creditor = creditors[cIdx]
+            val debtor = debtors[dIdx]
+            
+            val amount = kotlin.math.min(creditor.second, debtor.second)
+            if (amount > 0.01) {
+                val cName = trip.memberDetails[creditor.first]?.name ?: "Unknown"
+                val dName = trip.memberDetails[debtor.first]?.name ?: "Unknown"
+                settlements.add("$dName owes $cName ${trip.currencySymbol}${String.format(java.util.Locale.getDefault(), "%.2f", amount)}")
+            }
+
+            creditors[cIdx] = creditor.first to (creditor.second - amount)
+            debtors[dIdx] = debtor.first to (debtor.second - amount)
+
+            if (creditors[cIdx].second < 0.01) cIdx++
+            if (debtors[dIdx].second < 0.01) dIdx++
+        }
+
+        return if (settlements.isEmpty()) listOf("All settled up!") else settlements
     }
 }

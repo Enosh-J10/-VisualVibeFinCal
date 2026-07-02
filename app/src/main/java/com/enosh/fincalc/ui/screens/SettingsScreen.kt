@@ -279,7 +279,16 @@ fun SettingsScreen(
                 title = stringResource(R.string.dark_mode),
                 isDarkMode = isDarkMode,
                 trailing = {
-                    Switch(checked = isDarkMode, onCheckedChange = onDarkModeChange, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00D1B2)))
+                    Switch(
+                        checked = isDarkMode, 
+                        onCheckedChange = onDarkModeChange, 
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Color(0xFF00D1B2),
+                            checkedTrackColor = Color(0xFF00D1B2).copy(alpha = 0.5f),
+                            uncheckedThumbColor = Color.Gray,
+                            uncheckedTrackColor = Color.Gray.copy(alpha = 0.3f)
+                        )
+                    )
                 }
             )
 
@@ -294,7 +303,16 @@ fun SettingsScreen(
                         title = stringResource(R.string.show_assistant),
                         isDarkMode = isDarkMode,
                         trailing = {
-                            Switch(checked = assistantPrefs.isEnabled, onCheckedChange = { assistantViewModel.setEnabled(it, context) }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00D1B2)))
+                            Switch(
+                                checked = assistantPrefs.isEnabled, 
+                                onCheckedChange = { assistantViewModel.setEnabled(it, context) }, 
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = Color(0xFF00D1B2),
+                                    checkedTrackColor = Color(0xFF00D1B2).copy(alpha = 0.5f),
+                                    uncheckedThumbColor = Color.Gray,
+                                    uncheckedTrackColor = Color.Gray.copy(alpha = 0.3f)
+                                )
+                            )
                         }
                     )
 
@@ -303,7 +321,16 @@ fun SettingsScreen(
                             title = "Mute Assistant",
                             isDarkMode = isDarkMode,
                             trailing = {
-                                Switch(checked = assistantPrefs.isMuted, onCheckedChange = { assistantViewModel.setMuted(it, context) }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00D1B2)))
+                                Switch(
+                                    checked = assistantPrefs.isMuted, 
+                                    onCheckedChange = { assistantViewModel.setMuted(it, context) }, 
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF00D1B2),
+                                        checkedTrackColor = Color(0xFF00D1B2).copy(alpha = 0.5f),
+                                        uncheckedThumbColor = Color.Gray,
+                                        uncheckedTrackColor = Color.Gray.copy(alpha = 0.3f)
+                                    )
+                                )
                             }
                         )
 
@@ -318,7 +345,12 @@ fun SettingsScreen(
                                         if (it) showRoastWarningDialog = true
                                         else assistantViewModel.setRoastMode(false, context)
                                     },
-                                    colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00D1B2))
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF00D1B2),
+                                        checkedTrackColor = Color(0xFF00D1B2).copy(alpha = 0.5f),
+                                        uncheckedThumbColor = Color.Gray,
+                                        uncheckedTrackColor = Color.Gray.copy(alpha = 0.3f)
+                                    )
                                 )
                             }
                         )
@@ -358,8 +390,6 @@ fun SettingsScreen(
 
                         if (assistantPrefs.theme == AssistantTheme.CUSTOM || assistantPrefs.isCustomMode) {
                             Text("Custom Theme Colors", fontSize = 12.sp, color = if (isDarkMode) Color.White.copy(alpha = 0.5f) else Color.Gray)
-                            // Simplified color pickers for brevity in this response, 
-                            // in a real app these would be color selection dialogs or a grid
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf(AssistantColor.BLUE, AssistantColor.PINK, AssistantColor.ORANGE, AssistantColor.CYAN, AssistantColor.NEON).forEach { color ->
                                     Box(
@@ -402,19 +432,28 @@ fun SettingsScreen(
                             title = "Assistant Animation",
                             isDarkMode = isDarkMode,
                             trailing = {
-                                Switch(checked = assistantPrefs.isAnimated, onCheckedChange = { assistantViewModel.setAnimated(it, context) }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00D1B2)))
+                                Switch(
+                                    checked = assistantPrefs.isAnimated, 
+                                    onCheckedChange = { assistantViewModel.setAnimated(it, context) }, 
+                                    colors = SwitchDefaults.colors(
+                                        checkedThumbColor = Color(0xFF00D1B2),
+                                        checkedTrackColor = Color(0xFF00D1B2).copy(alpha = 0.5f),
+                                        uncheckedThumbColor = Color.Gray,
+                                        uncheckedTrackColor = Color.Gray.copy(alpha = 0.3f)
+                                    )
+                                )
                             }
                         )
 
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(140.dp)
+                                .height(160.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(if (isDarkMode) Color.Black.copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.05f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Box(modifier = Modifier.size(100.dp)) {
+                            Box(modifier = Modifier.size(120.dp)) {
                                 AssistantRobot(viewModel = assistantViewModel, isDarkMode = isDarkMode, isPreview = true)
                             }
                         }

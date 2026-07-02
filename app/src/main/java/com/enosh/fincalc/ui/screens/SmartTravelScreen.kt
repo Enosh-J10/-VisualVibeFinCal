@@ -155,9 +155,9 @@ fun TripItem(trip: TravelTrip, isDarkMode: Boolean, onClick: () -> Unit) {
             }
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
-                Text(tripName, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(destination, fontSize = 14.sp, color = Color.Gray)
-                Text(dateRange, fontSize = 12.sp, color = Color.Gray)
+                Text(tripName, fontWeight = FontWeight.Bold, fontSize = 18.sp, color = if (isDarkMode) Color.White else Color.Black)
+                Text(destination, fontSize = 14.sp, color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray)
+                Text(dateRange, fontSize = 12.sp, color = if (isDarkMode) Color.White.copy(alpha = 0.5f) else Color.Gray)
             }
             if (trip.isFinalized) {
                 Surface(
