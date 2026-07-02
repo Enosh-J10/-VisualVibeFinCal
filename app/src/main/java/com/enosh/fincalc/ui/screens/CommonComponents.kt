@@ -27,15 +27,18 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import kotlinx.coroutines.launch
 
 import androidx.compose.ui.res.stringResource
+import coil.compose.AsyncImage
 import com.enosh.fincalc.R
 
 @Composable
@@ -441,6 +444,51 @@ fun SummaryItem(label: String, value: String, isDarkMode: Boolean, highlight: Bo
             textAlign = TextAlign.End,
             modifier = Modifier.padding(start = 8.dp)
         )
+    }
+}
+
+@Composable
+fun UserAvatar(
+    photoUrl: String?,
+    name: String?,
+    size: Dp = 40.dp,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    if (!photoUrl.isNullOrBlank()) {
+        AsyncImage(
+            model = coil.request.ImageRequest.Builder(context)
+                .data(photoUrl)
+                .crossfade(true)
+                .diskCacheKey(photoUrl)
+                .memoryCacheKey("${photoUrl}_${System.currentTimeMillis()}")
+                .build(),
+            contentDescription = null,
+            modifier = modifier
+                .size(size)
+                .clip(CircleShape),
+            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+        )
+    } else {
+        val initials = name?.split(" ")
+            ?.filter { it.isNotBlank() }
+            ?.take(2)
+            ?.joinToString("") { it.take(1) }
+            ?.uppercase() ?: "?"
+            
+        Box(
+            modifier = modifier
+                .size(size)
+                .background(Color(0xFF00D1B2).copy(alpha = 0.1f), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                initials,
+                color = Color(0xFF00D1B2),
+                fontSize = (size.value * 0.4f).sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 

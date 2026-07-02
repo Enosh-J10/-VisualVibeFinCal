@@ -72,28 +72,31 @@ fun SettingsScreen(
     var userData by remember { mutableStateOf<com.enosh.fincalc.data.model.User?>(null) }
     
     LaunchedEffect(userUid) {
-        if (userUid.isNotBlank()) {
-            try {
-                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                val doc = db.collection("users").document(userUid).get().await()
-                userData = doc.toObject(com.enosh.fincalc.data.model.User::class.java)
-            } catch (e: Exception) {
-                Log.e("Settings", "Failed to fetch user data", e)
-            }
+        if (userUid.isNotBlank() && !isGuest) {
+            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+            val listener = db.collection("users").document(userUid)
+                .addSnapshotListener { snapshot, e ->
+                    if (e != null) {
+                        Log.e("Settings", "Listen failed", e)
+                        return@addSnapshotListener
+                    }
+                    if (snapshot != null && snapshot.exists()) {
+                        userData = snapshot.toObject(com.enosh.fincalc.data.model.User::class.java)
+                    }
+                }
         }
     }
 
     var userName by remember { mutableStateOf(initialName) }
-    var profilePicUrl by remember { mutableStateOf(userData?.profilePictureUrl) }
     
     LaunchedEffect(userData) {
         userData?.let {
             userName = it.name.ifBlank { initialName }
-            profilePicUrl = it.profilePictureUrl
         }
     }
 
     var showEditDialog by remember { mutableStateOf(false) }
+    var showRemovePicConfirm by remember { mutableStateOf(false) }
     var showRestoreConfirmDialog by remember { mutableStateOf(false) }
     var showRoastWarningDialog by remember { mutableStateOf(false) }
     var showLogoutConfirmDialog by remember { mutableStateOf(false) }
@@ -108,15 +111,35 @@ fun SettingsScreen(
                 coroutineScope.launch {
                     isUploading = true
                     try {
+                        // 1. Process locally (copy to filesDir)
                         UserUtils.ensureFinCalcUserProfile(context, profilePicUri = uri)
-                        // Refresh URL
-                        val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
-                        val doc = db.collection("users").document(userUid).get().await()
-                        val newUrl = doc.getString("profilePictureUrl")
-                        profilePicUrl = newUrl
-                        Toast.makeText(context, "Profile picture updated", Toast.LENGTH_SHORT).show()
+                        
+                        // 2. Verification Flow (Read-back from Firestore)
+                        val currentUid = auth.currentUser?.uid ?: ""
+                        if (currentUid.isNotEmpty()) {
+                            val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                            val freshDoc = db.collection("users").document(currentUid).get().await()
+                            val readBackUrl = freshDoc.getString("profilePictureUrl")
+                            
+                            Log.d("DP_UPLOAD", "uid=$currentUid")
+                            Log.d("DP_UPLOAD", "uri=$uri")
+                            Log.d("DP_UPLOAD", "localPath=$readBackUrl")
+                            Log.d("DP_UPLOAD", "copy success")
+                            Log.d("DP_UPLOAD", "firestore update success")
+                            Log.d("DP_UPLOAD", "readback profilePictureUrl=$readBackUrl")
+                            
+                            if (!readBackUrl.isNullOrBlank()) {
+                                // 3. UI update Flow
+                                // The snapshot listener on 'userData' will automatically update the UI
+                                Log.d("DP_UPLOAD", "ui updated url=$readBackUrl")
+                                Toast.makeText(context, "Profile picture updated successfully", Toast.LENGTH_SHORT).show()
+                            } else {
+                                throw Exception("Local path not saved in Firestore")
+                            }
+                        }
                     } catch (e: Exception) {
-                        Toast.makeText(context, "Upload failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                        Log.e("DP_UPLOAD", "Local process failed: ${e.message}")
+                        Toast.makeText(context, "Profile update failed: ${e.message}", Toast.LENGTH_LONG).show()
                     } finally {
                         isUploading = false
                     }
@@ -154,13 +177,13 @@ fun SettingsScreen(
                 ) {
                     if (isUploading) {
                         CircularProgressIndicator(color = Color(0xFF00D1B2))
-                    } else if (profilePicUrl != null) {
+                    } else if (userData?.profilePictureUrl != null) {
                         AsyncImage(
                             model = coil.request.ImageRequest.Builder(LocalContext.current)
-                                .data(profilePicUrl)
+                                .data(userData?.profilePictureUrl)
                                 .crossfade(true)
-                                .memoryCacheKey(profilePicUrl)
-                                .diskCacheKey(profilePicUrl)
+                                .memoryCacheKey("${userData?.profilePictureUrl}_${System.currentTimeMillis()}")
+                                .diskCacheKey(userData?.profilePictureUrl)
                                 .build(),
                             contentDescription = "Profile Picture",
                             modifier = Modifier.fillMaxSize(),
@@ -178,28 +201,76 @@ fun SettingsScreen(
                 }
                 
                 if (!isGuest) {
-                    Surface(
-                        onClick = { 
-                            photoPickerLauncher.launch(
-                                PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                            )
-                        },
+                    Row(
                         modifier = Modifier
                             .align(Alignment.BottomEnd)
-                            .offset(x = (-4).dp, y = (-4).dp)
-                            .size(32.dp),
-                        shape = CircleShape,
-                        color = Color(0xFF00D1B2),
-                        tonalElevation = 4.dp
+                            .offset(x = 12.dp, y = (-4).dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Edit,
-                            contentDescription = "Edit Profile Picture",
-                            modifier = Modifier.padding(8.dp),
-                            tint = Color.White
-                        )
+                        if (userData?.profilePictureUrl != null) {
+                            Surface(
+                                onClick = { showRemovePicConfirm = true },
+                                modifier = Modifier.size(32.dp),
+                                shape = CircleShape,
+                                color = Color.Red,
+                                tonalElevation = 4.dp
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "Remove Profile Picture",
+                                    modifier = Modifier.padding(8.dp),
+                                    tint = Color.White
+                                )
+                            }
+                        }
+                        
+                        Surface(
+                            onClick = { 
+                                photoPickerLauncher.launch(
+                                    PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                                )
+                            },
+                            modifier = Modifier.size(32.dp),
+                            shape = CircleShape,
+                            color = Color(0xFF00D1B2),
+                            tonalElevation = 4.dp
+                        ) {
+                            Icon(
+                                Icons.Default.Edit,
+                                contentDescription = "Edit Profile Picture",
+                                modifier = Modifier.padding(8.dp),
+                                tint = Color.White
+                            )
+                        }
                     }
                 }
+            }
+
+            if (showRemovePicConfirm) {
+                AlertDialog(
+                    onDismissRequest = { showRemovePicConfirm = false },
+                    title = { Text("Remove Picture?") },
+                    text = { Text("Are you sure you want to remove your profile picture?") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                coroutineScope.launch {
+                                    try {
+                                        UserUtils.removeProfilePicture(context)
+                                        Toast.makeText(context, "Profile picture removed", Toast.LENGTH_SHORT).show()
+                                    } catch (e: Exception) {
+                                        Toast.makeText(context, "Failed to remove: ${e.message}", Toast.LENGTH_SHORT).show()
+                                    } finally {
+                                        showRemovePicConfirm = false
+                                    }
+                                }
+                            }
+                        ) { Text("Remove", color = Color.Red) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showRemovePicConfirm = false }) { Text("Cancel") }
+                    }
+                )
             }
 
             if (showProfilePreview) {
@@ -208,10 +279,10 @@ fun SettingsScreen(
                     title = { Text("Profile Preview", color = if (isDarkMode) Color.White else Color.Black) },
                     text = {
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                            if (profilePicUrl != null) {
+                            if (userData?.profilePictureUrl != null) {
                                 AsyncImage(
                                     model = coil.request.ImageRequest.Builder(LocalContext.current)
-                                        .data(profilePicUrl)
+                                        .data(userData?.profilePictureUrl)
                                         .crossfade(true)
                                         .build(),
                                     contentDescription = null,

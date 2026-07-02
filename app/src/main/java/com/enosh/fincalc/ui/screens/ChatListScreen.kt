@@ -189,26 +189,11 @@ fun ChatListItem(
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (!item.profilePic.isNullOrBlank()) {
-            coil.compose.AsyncImage(
-                model = coil.request.ImageRequest.Builder(LocalContext.current)
-                    .data(item.profilePic)
-                    .crossfade(true)
-                    .build(),
-                contentDescription = null,
-                modifier = Modifier.size(50.dp).clip(CircleShape),
-                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .size(50.dp)
-                    .background(Color(0xFF00D1B2).copy(alpha = 0.1f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2), modifier = Modifier.size(28.dp))
-            }
-        }
+        UserAvatar(
+            photoUrl = item.profilePic,
+            name = displayName,
+            size = 50.dp
+        )
         
         Spacer(Modifier.width(16.dp))
         

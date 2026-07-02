@@ -160,6 +160,7 @@ fun TripDetailScreen(
                         trip = trip,
                         expenses = expenses, 
                         expenseFlags = expenseFlags,
+                        memberProfiles = memberProfiles,
                         isDarkMode = isDarkMode, 
                         onAdd = { showAddExpenseDialog = true },
                         onEdit = { editingExpense = it },
@@ -183,7 +184,9 @@ fun TripDetailScreen(
             text = { Text("This will permanently delete this trip, expenses, members, flags, and settlement data. This cannot be undone.", color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Black) },
             confirmButton = {
                 Button(onClick = { 
+                    Log.d("TRIP_DELETE", "confirm clicked tripId=$effectiveTripId")
                     travelViewModel.deleteTrip(effectiveTripId) {
+                        Log.d("TRIP_DELETE", "navigate back")
                         navController.popBackStack()
                     }
                     showDeleteConfirm = false
@@ -259,6 +262,7 @@ fun ExpensesTab(
     trip: TravelTrip,
     expenses: List<TravelExpense>, 
     expenseFlags: Map<String, List<TravelExpenseFlag>>,
+    memberProfiles: Map<String, User>,
     isDarkMode: Boolean, 
     onAdd: () -> Unit,
     onEdit: (TravelExpense) -> Unit,
@@ -284,6 +288,7 @@ fun ExpensesTab(
                         expense = expense, 
                         trip = trip,
                         flags = expenseFlags[expense.expenseId] ?: emptyList(),
+                        memberProfiles = memberProfiles,
                         isDarkMode = isDarkMode,
                         onEdit = onEdit,
                         onDelete = onDelete,
@@ -314,6 +319,7 @@ fun TravelExpenseItem(
     expense: TravelExpense, 
     trip: TravelTrip,
     flags: List<TravelExpenseFlag>,
+    memberProfiles: Map<String, User>,
     isDarkMode: Boolean, 
     onEdit: (TravelExpense) -> Unit, 
     onDelete: (TravelExpense) -> Unit,
@@ -324,10 +330,20 @@ fun TravelExpenseItem(
 ) {
     var showMenu by remember { mutableStateOf(false) }
     var showFlagDialog by remember { mutableStateOf(false) }
-    var showFlagsDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+    var isExpanded by remember { mutableStateOf(false) }
 
-    val creatorName = if (expense.createdByUid == currentUid) "Me" else trip.memberDetails[expense.createdByUid]?.name ?: "Someone"
-    val openFlagsCount = flags.count { it.status == "open" }
+    val creatorNameRaw = memberProfiles[expense.createdByUid]?.name ?: trip.memberDetails[expense.createdByUid]?.name ?: "Someone"
+    val creatorName = if (creatorNameRaw.isBlank() || creatorNameRaw.equals("User", true)) "Unknown User" else creatorNameRaw
+    
+    val openFlags = flags.filter { it.status == "open" }
+    val openFlagsCount = openFlags.size
+    
+    LaunchedEffect(expense.expenseId, openFlagsCount) {
+        if (openFlagsCount > 0) {
+            Log.d("FLAG_RENDER", "expenseId=${expense.expenseId} count=$openFlagsCount")
+        }
+    }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -338,12 +354,11 @@ fun TravelExpenseItem(
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(40.dp).background(Color(0xFF00D1B2).copy(alpha = 0.1f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Receipt, contentDescription = null, tint = Color(0xFF00D1B2), modifier = Modifier.size(20.dp))
-                }
+                UserAvatar(
+                    photoUrl = memberProfiles[expense.createdByUid]?.profilePictureUrl ?: memberProfiles[expense.createdByUid]?.profilePic,
+                    name = creatorName,
+                    size = 40.dp
+                )
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
                     Text(expense.title, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black)
@@ -360,15 +375,21 @@ fun TravelExpenseItem(
                         Surface(
                             color = Color.Red.copy(alpha = 0.1f), 
                             shape = RoundedCornerShape(4.dp),
-                            modifier = Modifier.clickable { if (canEdit) showFlagsDialog = true }
+                            modifier = Modifier.clickable { 
+                                isExpanded = !isExpanded 
+                                Log.d("FLAG_LISTEN", "expenseId=${expense.expenseId} count=$openFlagsCount")
+                            }
                         ) {
-                            Text(
-                                if (openFlagsCount > 1) "FLAGGED ($openFlagsCount)" else "FLAGGED", 
-                                color = Color.Red, 
-                                fontSize = 9.sp, 
-                                fontWeight = FontWeight.Bold, 
-                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
+                                Icon(Icons.Default.Warning, null, tint = Color.Red, modifier = Modifier.size(10.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text(
+                                    if (openFlagsCount > 1) "FLAGGED ($openFlagsCount)" else "FLAGGED", 
+                                    color = Color.Red, 
+                                    fontSize = 9.sp, 
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
@@ -392,20 +413,10 @@ fun TravelExpenseItem(
                                     text = { Text("Delete", color = Color.Red) },
                                     onClick = { 
                                         showMenu = false
-                                        onDelete(expense)
+                                        showDeleteConfirm = true
                                     },
                                     leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) }
                                 )
-                                if (openFlagsCount > 0) {
-                                    DropdownMenuItem(
-                                        text = { Text("View Issues") },
-                                        onClick = { 
-                                            showMenu = false
-                                            showFlagsDialog = true
-                                        },
-                                        leadingIcon = { Icon(Icons.Default.Flag, null, tint = Color.Red) }
-                                    )
-                                }
                             }
                             if (expense.createdByUid != currentUid) {
                                 DropdownMenuItem(
@@ -434,26 +445,79 @@ fun TravelExpenseItem(
                 Spacer(Modifier.height(4.dp))
                 Text(expense.notes, fontSize = 12.sp, color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.DarkGray)
             }
+
+            if (openFlagsCount > 0 && isExpanded) {
+                Spacer(Modifier.height(8.dp))
+                HorizontalDivider(color = Color.Red.copy(alpha = 0.2f))
+                Spacer(Modifier.height(8.dp))
+                openFlags.forEach { flag ->
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 12.dp)
+                            .background(Color.Red.copy(alpha = 0.03f), RoundedCornerShape(8.dp))
+                            .padding(8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("⚠ Flagged Issue", fontWeight = FontWeight.ExtraBold, color = Color.Red, fontSize = 13.sp)
+                            Spacer(Modifier.weight(1f))
+                            if (trip.createdByUid == currentUid) {
+                                TextButton(
+                                    onClick = { onResolveFlag(expense.expenseId, flag.flagId) },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp),
+                                    modifier = Modifier.height(28.dp)
+                                ) {
+                                    Text("Resolve", fontSize = 12.sp, color = Color(0xFF00D1B2), fontWeight = FontWeight.ExtraBold)
+                                }
+                            }
+                        }
+                        
+                        Spacer(Modifier.height(6.dp))
+                        
+                        Text("Reason: ${flag.reasonType}", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black)
+                        Text("Reported by: ${flag.createdByName}", fontSize = 11.sp, color = Color.Gray)
+                        
+                        if (flag.note.isNotBlank()) {
+                            Text("Note: ${flag.note}", fontSize = 11.sp, color = if (isDarkMode) Color.White.copy(alpha = 0.8f) else Color.DarkGray)
+                        }
+                        
+                        flag.createdAt?.let {
+                            val fDateStr = java.text.SimpleDateFormat("MMM dd, yyyy", Locale.getDefault()).format(it.toDate())
+                            Text("Date: $fDateStr", fontSize = 10.sp, color = Color.Gray)
+                        }
+                    }
+                }
+            }
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Delete Expense?") },
+            text = { Text("This will permanently delete this expense and related flags.") },
+            confirmButton = {
+                Button(onClick = { 
+                    onDelete(expense)
+                    showDeleteConfirm = false
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) {
+                    Text("Delete", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancel") }
+            }
+        )
     }
 
     if (showFlagDialog) {
         FlagExpenseDialog(
             onDismiss = { showFlagDialog = false },
             onFlag = { reason, note ->
+                Log.d("FLAG_WRITE", "path=trips/${trip.tripId}/expenses/${expense.expenseId}/flags/...")
                 onFlag(expense, reason, note)
                 showFlagDialog = false
             }
-        )
-    }
-
-    if (showFlagsDialog) {
-        ViewFlagsDialog(
-            flags = flags.filter { it.status == "open" },
-            isDarkMode = isDarkMode,
-            canResolve = canEdit,
-            onResolve = { onResolveFlag(expense.expenseId, it) },
-            onDismiss = { showFlagsDialog = false }
         )
     }
 }
@@ -574,7 +638,6 @@ fun MembersTab(trip: TravelTrip, profiles: Map<String, User>, isDarkMode: Boolea
 
 @Composable
 fun MemberItem(memberId: String, trip: TravelTrip, user: User?, isDarkMode: Boolean, isAdmin: Boolean, onRemove: (String) -> Unit, currentUid: String, isInvited: Boolean) {
-    val isMe = memberId == currentUid
     val isCreator = memberId == trip.createdByUid
     
     val photoUrl = user?.profilePictureUrl ?: user?.profilePic
@@ -588,36 +651,17 @@ fun MemberItem(memberId: String, trip: TravelTrip, user: User?, isDarkMode: Bool
         )
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (!photoUrl.isNullOrBlank()) {
-                AsyncImage(
-                    model = coil.request.ImageRequest.Builder(LocalContext.current)
-                        .data(photoUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp).clip(CircleShape),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
-            } else {
-                Box(
-                    Modifier.size(40.dp).background(Color.Gray.copy(alpha = 0.2f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Person, contentDescription = null, tint = Color.Gray)
-                }
-            }
+            UserAvatar(
+                photoUrl = photoUrl,
+                name = displayName,
+                size = 40.dp
+            )
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Text(displayName, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black)
                 Text(user?.email ?: trip.memberDetails[memberId]?.email ?: "", fontSize = 12.sp, color = Color.Gray)
             }
             
-            if (isMe) {
-                Surface(color = Color.Gray.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
-                    Text("ME", color = if (isDarkMode) Color.White.copy(alpha = 0.6f) else Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
-                }
-                Spacer(Modifier.width(4.dp))
-            }
             if (isCreator) {
                 Surface(color = Color(0xFF00D1B2).copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
                     Text("CREATOR", color = Color(0xFF00D1B2), fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))

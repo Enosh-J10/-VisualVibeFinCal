@@ -111,36 +111,11 @@ fun ChatRoomScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (!friendProfilePic.isNullOrBlank()) {
-                            coil.compose.AsyncImage(
-                                model = coil.request.ImageRequest.Builder(LocalContext.current)
-                                    .data(friendProfilePic)
-                                    .crossfade(true)
-                                    .build(),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .size(40.dp)
-                                    .clip(androidx.compose.foundation.shape.CircleShape),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                            )
-                        } else {
-                            Box(
-                                Modifier
-                                    .size(40.dp)
-                                    .background(
-                                        Color(0xFF00D1B2).copy(alpha = 0.1f),
-                                        androidx.compose.foundation.shape.CircleShape
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    Icons.Default.Person,
-                                    null,
-                                    tint = Color(0xFF00D1B2),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
+                        UserAvatar(
+                            photoUrl = friendProfilePic,
+                            name = resolvedFriendName,
+                            size = 40.dp
+                        )
                         Spacer(Modifier.width(12.dp))
                         Column {
                             Text(resolvedFriendName, fontSize = 16.sp, fontWeight = FontWeight.Bold)

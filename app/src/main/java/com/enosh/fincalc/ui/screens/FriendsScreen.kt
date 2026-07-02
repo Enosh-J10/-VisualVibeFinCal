@@ -91,7 +91,7 @@ fun FriendsScreen(
             }
 
             when (selectedTab) {
-                0 -> FriendsListTab(viewModel, isDarkMode)
+                0 -> FriendsListTab(viewModel, isDarkMode, navController)
                 1 -> PendingRequestsTab(viewModel, isDarkMode)
                 2 -> SentRequestsTab(viewModel, isDarkMode)
                 3 -> AddFriendTab(viewModel, isDarkMode, initialSearch)
@@ -101,7 +101,7 @@ fun FriendsScreen(
 }
 
 @Composable
-fun FriendsListTab(viewModel: FriendsViewModel, isDarkMode: Boolean) {
+fun FriendsListTab(viewModel: FriendsViewModel, isDarkMode: Boolean, navController: NavController) {
     val friends by viewModel.friends.collectAsState()
     val nicknames by viewModel.friendNicknames.collectAsState()
     val context = LocalContext.current
@@ -201,6 +201,7 @@ fun FriendsListTab(viewModel: FriendsViewModel, isDarkMode: Boolean) {
                         user = friend, 
                         nickname = nicknames[friend.uid],
                         isDarkMode = isDarkMode,
+                        navController = navController,
                         onSetNickname = { viewModel.setNickname(friend.uid, it) },
                         onRemove = { viewModel.removeFriend(friend.uid) },
                         onBlock = { viewModel.blockUser(friend.uid) }
@@ -292,6 +293,7 @@ fun FriendItem(
     user: User, 
     nickname: String?,
     isDarkMode: Boolean,
+    navController: NavController,
     onSetNickname: (String) -> Unit,
     onRemove: () -> Unit,
     onBlock: () -> Unit
@@ -310,24 +312,11 @@ fun FriendItem(
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             val photoUrl = user.profilePictureUrl ?: user.profilePic
-            if (!photoUrl.isNullOrBlank()) {
-                coil.compose.AsyncImage(
-                    model = coil.request.ImageRequest.Builder(LocalContext.current)
-                        .data(photoUrl)
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = null,
-                    modifier = Modifier.size(40.dp).clip(CircleShape),
-                    contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                )
-            } else {
-                Box(
-                    Modifier.size(40.dp).background(Color(0xFF00D1B2).copy(alpha = 0.1f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2))
-                }
-            }
+            UserAvatar(
+                photoUrl = photoUrl,
+                name = nickname ?: user.name,
+                size = 40.dp
+            )
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 if (!nickname.isNullOrBlank()) {
@@ -350,6 +339,17 @@ fun FriendItem(
                             showNicknameDialog = true
                         },
                         leadingIcon = { Icon(Icons.Default.Edit, null) }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Message") },
+                        onClick = {
+                            showMenu = false
+                            val currentUid = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: ""
+                            val friendUid = user.uid
+                            val chatId = listOf(currentUid, friendUid).sorted().joinToString("_")
+                            navController.navigate(com.enosh.fincalc.ui.navigation.Screen.ChatRoom.createRoute(chatId, friendUid))
+                        },
+                        leadingIcon = { Icon(Icons.Default.Chat, null) }
                     )
                     DropdownMenuItem(
                         text = { Text("Remove Friend", color = Color.Red) },
@@ -470,12 +470,11 @@ fun PendingRequestItem(request: FriendRequest, isDarkMode: Boolean, onAccept: ()
     ) {
         Column(Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(
-                    Modifier.size(40.dp).background(Color(0xFF00D1B2).copy(alpha = 0.1f), CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2))
-                }
+                UserAvatar(
+                    photoUrl = null, // We don't have the photoUrl in the request object
+                    name = request.fromName,
+                    size = 40.dp
+                )
                 Spacer(Modifier.width(16.dp))
                 Column(Modifier.weight(1f)) {
                     Text(request.fromName, fontWeight = FontWeight.Bold)
@@ -535,12 +534,11 @@ fun SentRequestItem(request: FriendRequest, isDarkMode: Boolean, onCancel: () ->
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(40.dp).background(Color(0xFF00D1B2).copy(alpha = 0.1f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2))
-            }
+            UserAvatar(
+                photoUrl = null,
+                name = request.toName,
+                size = 40.dp
+            )
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Text(request.toName, fontWeight = FontWeight.Bold)
@@ -664,12 +662,11 @@ fun SearchResultItem(
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(
-                Modifier.size(40.dp).background(Color(0xFF00D1B2).copy(alpha = 0.1f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2))
-            }
+            UserAvatar(
+                photoUrl = user.profilePictureUrl ?: user.profilePic,
+                name = user.name,
+                size = 40.dp
+            )
             Spacer(Modifier.width(16.dp))
             Column(Modifier.weight(1f)) {
                 Text(user.name, fontWeight = FontWeight.Bold)

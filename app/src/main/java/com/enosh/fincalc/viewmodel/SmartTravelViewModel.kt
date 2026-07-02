@@ -172,25 +172,55 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     fun deleteTrip(tripId: String, onComplete: () -> Unit) {
+        Log.d("TRIP_DELETE", "confirm clicked tripId=$tripId")
         viewModelScope.launch {
             try {
-                // Delete expenses and flags first
-                val expensesSnapshot = db.collection("trips").document(tripId).collection("expenses").get().await()
-                val batch = db.batch()
-                for (doc in expensesSnapshot.documents) {
-                    val flagsSnapshot = doc.reference.collection("flags").get().await()
+                val tripDocRef = db.collection("trips").document(tripId)
+                
+                // 1. Delete all expenses and their flags
+                val expensesSnapshot = tripDocRef.collection("expenses").get().await()
+                Log.d("TRIP_DELETE", "deleting expenses count=${expensesSnapshot.size()}")
+                
+                var totalFlagsDeleted = 0
+                for (expenseDoc in expensesSnapshot.documents) {
+                    val flagsSnapshot = expenseDoc.reference.collection("flags").get().await()
+                    totalFlagsDeleted += flagsSnapshot.size()
+                    
+                    val subBatch = db.batch()
                     for (flagDoc in flagsSnapshot.documents) {
-                        batch.delete(flagDoc.reference)
+                        subBatch.delete(flagDoc.reference)
                     }
-                    batch.delete(doc.reference)
+                    subBatch.delete(expenseDoc.reference)
+                    subBatch.commit().await()
                 }
-                batch.delete(db.collection("trips").document(tripId))
-                batch.commit().await()
-                _errorMessage.value = "Trip deleted."
+                Log.d("TRIP_DELETE", "deleting flags count=$totalFlagsDeleted")
+                
+                // 2. Delete other possible subcollections. Best effort as they might not always be used
+                val subcollections = listOf("members", "settlements", "receipts")
+                for (sub in subcollections) {
+                    val snap = tripDocRef.collection(sub).get().await()
+                    if (!snap.isEmpty) {
+                        val batch = db.batch()
+                        snap.documents.forEach { batch.delete(it.reference) }
+                        batch.commit().await()
+                    }
+                }
+                
+                // 3. Delete the trip document itself
+                Log.d("TRIP_DELETE", "deleting trip doc")
+                tripDocRef.delete().await()
+                Log.d("TRIP_DELETE", "success")
+                
+                // Update local state
+                val currentTrips = _trips.value.toMutableList()
+                currentTrips.removeAll { it.tripId == tripId }
+                _trips.value = currentTrips
+
+                _errorMessage.value = "Trip deleted successfully"
                 onComplete()
             } catch (e: Exception) {
-                Log.e("SmartTravel", "Delete trip failed", e)
-                _errorMessage.value = "Failed to delete trip."
+                Log.e("TRIP_DELETE", "Delete trip failed", e)
+                _errorMessage.value = "Failed to delete trip: ${e.message}"
             }
         }
     }
@@ -301,6 +331,7 @@ class SmartTravelViewModel : ViewModel() {
 
     fun fetchExpenses(tripId: String) {
         if (tripId.isBlank()) return
+        Log.d("SmartTravel", "Fetching expenses for trip: $tripId")
         
         db.collection("trips").document(tripId).collection("expenses")
             .orderBy("createdAt", Query.Direction.DESCENDING)
@@ -320,15 +351,34 @@ class SmartTravelViewModel : ViewModel() {
                     }
                 } ?: emptyList()
                 
+                Log.d("SmartTravel", "Fetched ${expenses.size} expenses")
                 _currentTripExpenses.value = expenses
+                
+                // Fetch profiles for all creators/payers to ensure actual names are shown
+                val uidsToFetch = expenses.flatMap { listOf(it.createdByUid, it.paidByUid) }.distinct()
+                if (uidsToFetch.isNotEmpty()) {
+                    fetchMemberProfiles(uidsToFetch)
+                }
             }
     }
 
     private fun fetchFlags(tripId: String, expenseId: String) {
         db.collection("trips").document(tripId).collection("expenses").document(expenseId)
-            .collection("flags").addSnapshotListener { snapshot, _ ->
+            .collection("flags").addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.e("SmartTravel", "fetchFlags failed for $expenseId", e)
+                    return@addSnapshotListener
+                }
                 if (snapshot != null) {
-                    val flags = snapshot.documents.mapNotNull { it.toObject(TravelExpenseFlag::class.java) }
+                    val flags = snapshot.documents.mapNotNull { 
+                        try {
+                            it.toObject(TravelExpenseFlag::class.java)?.copy(flagId = it.id)
+                        } catch(ex: Exception) {
+                            Log.e("SmartTravel", "Error parsing flag ${it.id}", ex)
+                            null
+                        }
+                    }
+                    Log.d("FLAG_LISTEN", "$expenseId count=${flags.size}")
                     val currentFlags = _expenseFlags.value.toMutableMap()
                     currentFlags[expenseId] = flags
                     _expenseFlags.value = currentFlags
@@ -357,7 +407,36 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     fun deleteExpense(tripId: String, expenseId: String) {
-        db.collection("trips").document(tripId).collection("expenses").document(expenseId).delete()
+        Log.d("EXPENSE_DELETE", "clicked expenseId=$expenseId")
+        viewModelScope.launch {
+            try {
+                val expenseRef = db.collection("trips").document(tripId).collection("expenses").document(expenseId)
+                
+                // 1. Delete nested flags
+                val flagsSnapshot = expenseRef.collection("flags").get().await()
+                Log.d("EXPENSE_DELETE", "flags count=${flagsSnapshot.size()}")
+                
+                val batch = db.batch()
+                flagsSnapshot.documents.forEach { batch.delete(it.reference) }
+                
+                // 2. Delete expense
+                batch.delete(expenseRef)
+                batch.commit().await()
+                
+                Log.d("EXPENSE_DELETE", "expense delete success")
+                
+                // 3. Remove from local state immediately
+                val currentExpenses = _currentTripExpenses.value.toMutableList()
+                currentExpenses.removeAll { it.expenseId == expenseId }
+                _currentTripExpenses.value = currentExpenses
+                Log.d("EXPENSE_DELETE", "local state removed")
+                
+                _errorMessage.value = "Expense deleted"
+            } catch (e: Exception) {
+                Log.e("EXPENSE_DELETE", "Failed to delete expense", e)
+                _errorMessage.value = "Failed to delete expense: ${e.message}"
+            }
+        }
     }
 
     fun flagExpense(tripId: String, expenseId: String, reason: String, note: String) {
@@ -375,24 +454,36 @@ class SmartTravelViewModel : ViewModel() {
             status = "open"
         )
         
+        val writePath = "trips/$tripId/expenses/$expenseId/flags/$flagId"
+        Log.d("FLAG_WRITE", "path=$writePath")
+        
         db.collection("trips").document(tripId).collection("expenses").document(expenseId)
             .collection("flags").document(flagId).set(flag).addOnSuccessListener {
+                Log.d("FLAG_WRITE", "success")
                 db.collection("trips").document(tripId).collection("expenses").document(expenseId)
                     .update("hasOpenFlags", true)
+            }.addOnFailureListener {
+                Log.e("FLAG_WRITE", "Failed to create flag", it)
             }
     }
 
     fun resolveFlag(tripId: String, expenseId: String, flagId: String) {
+        Log.d("SmartTravel", "resolveFlag: flagId=$flagId")
+        // The requirement says "Resolved flags should disappear after confirmation."
+        // We delete the flag document to make it disappear.
         db.collection("trips").document(tripId).collection("expenses").document(expenseId)
-            .collection("flags").document(flagId).update("status", "resolved").addOnSuccessListener {
+            .collection("flags").document(flagId).delete().addOnSuccessListener {
+                Log.d("SmartTravel", "Flag deleted: $flagId")
                 // Check if any open flags remain
                 db.collection("trips").document(tripId).collection("expenses").document(expenseId)
-                    .collection("flags").whereEqualTo("status", "open").get().addOnSuccessListener { snapshot ->
+                    .collection("flags").get().addOnSuccessListener { snapshot ->
                         if (snapshot.isEmpty) {
                             db.collection("trips").document(tripId).collection("expenses").document(expenseId)
                                 .update("hasOpenFlags", false)
                         }
                     }
+            }.addOnFailureListener {
+                Log.e("SmartTravel", "Failed to resolve/delete flag", it)
             }
     }
 
@@ -458,8 +549,12 @@ class SmartTravelViewModel : ViewModel() {
             
             val amount = kotlin.math.min(creditor.second, debtor.second)
             if (amount > 0.01) {
-                val cName = profiles[creditor.first]?.name ?: trip.memberDetails[creditor.first]?.name ?: "Someone"
-                val dName = profiles[debtor.first]?.name ?: trip.memberDetails[debtor.first]?.name ?: "Someone"
+                val cNameRaw = profiles[creditor.first]?.name ?: trip.memberDetails[creditor.first]?.name ?: "Someone"
+                val dNameRaw = profiles[debtor.first]?.name ?: trip.memberDetails[debtor.first]?.name ?: "Someone"
+                
+                val cName = if (cNameRaw.equals("Me", true)) (auth.currentUser?.displayName ?: "You") else cNameRaw
+                val dName = if (dNameRaw.equals("Me", true)) (auth.currentUser?.displayName ?: "You") else dNameRaw
+
                 settlements.add("$dName owes $cName ${trip.currencySymbol}${String.format(java.util.Locale.getDefault(), "%.2f", amount)}")
             }
 
