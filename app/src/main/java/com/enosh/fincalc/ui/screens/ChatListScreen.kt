@@ -191,7 +191,10 @@ fun ChatListItem(
     ) {
         if (!item.profilePic.isNullOrBlank()) {
             coil.compose.AsyncImage(
-                model = item.profilePic,
+                model = coil.request.ImageRequest.Builder(LocalContext.current)
+                    .data(item.profilePic)
+                    .crossfade(true)
+                    .build(),
                 contentDescription = null,
                 modifier = Modifier.size(50.dp).clip(CircleShape),
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop

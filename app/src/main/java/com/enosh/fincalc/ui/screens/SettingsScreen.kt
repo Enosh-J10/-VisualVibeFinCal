@@ -285,8 +285,8 @@ fun SettingsScreen(
                         colors = SwitchDefaults.colors(
                             checkedThumbColor = Color(0xFF00D1B2),
                             checkedTrackColor = Color(0xFF00D1B2).copy(alpha = 0.5f),
-                            uncheckedThumbColor = Color.Gray,
-                            uncheckedTrackColor = Color.Gray.copy(alpha = 0.3f)
+                            uncheckedThumbColor = if (isDarkMode) Color.LightGray else Color.Gray,
+                            uncheckedTrackColor = if (isDarkMode) Color.DarkGray else Color.LightGray.copy(alpha = 0.5f)
                         )
                     )
                 }
@@ -296,7 +296,7 @@ fun SettingsScreen(
 
             // Assistant Settings
             CalculatorCard(isDarkMode = isDarkMode) {
-                Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(text = stringResource(R.string.assistant), modifier = Modifier.fillMaxWidth(), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
 
                     SettingsItem(
@@ -309,8 +309,8 @@ fun SettingsScreen(
                                 colors = SwitchDefaults.colors(
                                     checkedThumbColor = Color(0xFF00D1B2),
                                     checkedTrackColor = Color(0xFF00D1B2).copy(alpha = 0.5f),
-                                    uncheckedThumbColor = Color.Gray,
-                                    uncheckedTrackColor = Color.Gray.copy(alpha = 0.3f)
+                                    uncheckedThumbColor = if (isDarkMode) Color.LightGray else Color.Gray,
+                                    uncheckedTrackColor = if (isDarkMode) Color.DarkGray else Color.LightGray.copy(alpha = 0.5f)
                                 )
                             )
                         }
@@ -327,8 +327,8 @@ fun SettingsScreen(
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = Color(0xFF00D1B2),
                                         checkedTrackColor = Color(0xFF00D1B2).copy(alpha = 0.5f),
-                                        uncheckedThumbColor = Color.Gray,
-                                        uncheckedTrackColor = Color.Gray.copy(alpha = 0.3f)
+                                        uncheckedThumbColor = if (isDarkMode) Color.LightGray else Color.Gray,
+                                        uncheckedTrackColor = if (isDarkMode) Color.DarkGray else Color.LightGray.copy(alpha = 0.5f)
                                     )
                                 )
                             }
@@ -348,8 +348,8 @@ fun SettingsScreen(
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = Color(0xFF00D1B2),
                                         checkedTrackColor = Color(0xFF00D1B2).copy(alpha = 0.5f),
-                                        uncheckedThumbColor = Color.Gray,
-                                        uncheckedTrackColor = Color.Gray.copy(alpha = 0.3f)
+                                        uncheckedThumbColor = if (isDarkMode) Color.LightGray else Color.Gray,
+                                        uncheckedTrackColor = if (isDarkMode) Color.DarkGray else Color.LightGray.copy(alpha = 0.5f)
                                     )
                                 )
                             }
@@ -438,8 +438,8 @@ fun SettingsScreen(
                                     colors = SwitchDefaults.colors(
                                         checkedThumbColor = Color(0xFF00D1B2),
                                         checkedTrackColor = Color(0xFF00D1B2).copy(alpha = 0.5f),
-                                        uncheckedThumbColor = Color.Gray,
-                                        uncheckedTrackColor = Color.Gray.copy(alpha = 0.3f)
+                                        uncheckedThumbColor = if (isDarkMode) Color.LightGray else Color.Gray,
+                                        uncheckedTrackColor = if (isDarkMode) Color.DarkGray else Color.LightGray.copy(alpha = 0.5f)
                                     )
                                 )
                             }
@@ -449,11 +449,12 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(160.dp)
+                                .padding(top = 8.dp)
                                 .clip(RoundedCornerShape(16.dp))
                                 .background(if (isDarkMode) Color.Black.copy(alpha = 0.2f) else Color.Gray.copy(alpha = 0.05f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Box(modifier = Modifier.size(120.dp)) {
+                            Box(modifier = Modifier.size(110.dp)) {
                                 AssistantRobot(viewModel = assistantViewModel, isDarkMode = isDarkMode, isPreview = true)
                             }
                         }

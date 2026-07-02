@@ -312,7 +312,10 @@ fun FriendItem(
             val photoUrl = user.profilePictureUrl ?: user.profilePic
             if (!photoUrl.isNullOrBlank()) {
                 coil.compose.AsyncImage(
-                    model = photoUrl,
+                    model = coil.request.ImageRequest.Builder(LocalContext.current)
+                        .data(photoUrl)
+                        .crossfade(true)
+                        .build(),
                     contentDescription = null,
                     modifier = Modifier.size(40.dp).clip(CircleShape),
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop

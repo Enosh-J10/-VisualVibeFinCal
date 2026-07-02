@@ -590,7 +590,10 @@ fun MemberItem(memberId: String, trip: TravelTrip, user: User?, isDarkMode: Bool
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
             if (!photoUrl.isNullOrBlank()) {
                 AsyncImage(
-                    model = photoUrl,
+                    model = coil.request.ImageRequest.Builder(LocalContext.current)
+                        .data(photoUrl)
+                        .crossfade(true)
+                        .build(),
                     contentDescription = null,
                     modifier = Modifier.size(40.dp).clip(CircleShape),
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
@@ -611,7 +614,7 @@ fun MemberItem(memberId: String, trip: TravelTrip, user: User?, isDarkMode: Bool
             
             if (isMe) {
                 Surface(color = Color.Gray.copy(alpha = 0.1f), shape = RoundedCornerShape(4.dp)) {
-                    Text("ME", color = Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
+                    Text("ME", color = if (isDarkMode) Color.White.copy(alpha = 0.6f) else Color.Gray, fontSize = 9.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp))
                 }
                 Spacer(Modifier.width(4.dp))
             }
@@ -677,7 +680,7 @@ fun InsightsTab(trip: TravelTrip, expenses: List<TravelExpense>, isDarkMode: Boo
 @Composable
 fun SettlementTab(trip: TravelTrip, expenses: List<TravelExpense>, profiles: Map<String, User>, isDarkMode: Boolean, onFinalize: () -> Unit, onReopen: () -> Unit) {
     val travelViewModel: SmartTravelViewModel = viewModel()
-    val settlements = travelViewModel.calculateSettlements(trip, expenses)
+    val settlements = travelViewModel.calculateSettlements(trip, expenses, profiles)
     val currentUid = FirebaseAuth.getInstance().currentUser?.uid
     val isCreator = trip.createdByUid == currentUid
     val context = LocalContext.current

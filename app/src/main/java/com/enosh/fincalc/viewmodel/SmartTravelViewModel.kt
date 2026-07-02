@@ -408,7 +408,7 @@ class SmartTravelViewModel : ViewModel() {
         db.collection("trips").document(tripId).update("isFinalized", false)
     }
 
-    fun calculateSettlements(trip: TravelTrip, expenses: List<TravelExpense>): List<String> {
+    fun calculateSettlements(trip: TravelTrip, expenses: List<TravelExpense>, profiles: Map<String, User> = emptyMap()): List<String> {
         val members = trip.memberUids
         if (members.isEmpty()) return emptyList()
 
@@ -458,8 +458,8 @@ class SmartTravelViewModel : ViewModel() {
             
             val amount = kotlin.math.min(creditor.second, debtor.second)
             if (amount > 0.01) {
-                val cName = trip.memberDetails[creditor.first]?.name ?: "Unknown"
-                val dName = trip.memberDetails[debtor.first]?.name ?: "Unknown"
+                val cName = profiles[creditor.first]?.name ?: trip.memberDetails[creditor.first]?.name ?: "Someone"
+                val dName = profiles[debtor.first]?.name ?: trip.memberDetails[debtor.first]?.name ?: "Someone"
                 settlements.add("$dName owes $cName ${trip.currencySymbol}${String.format(java.util.Locale.getDefault(), "%.2f", amount)}")
             }
 

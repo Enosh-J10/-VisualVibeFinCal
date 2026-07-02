@@ -113,7 +113,10 @@ fun ChatRoomScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (!friendProfilePic.isNullOrBlank()) {
                             coil.compose.AsyncImage(
-                                model = friendProfilePic,
+                                model = coil.request.ImageRequest.Builder(LocalContext.current)
+                                    .data(friendProfilePic)
+                                    .crossfade(true)
+                                    .build(),
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(40.dp)
