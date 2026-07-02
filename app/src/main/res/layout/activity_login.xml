@@ -61,7 +61,7 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="@dimen/margin_xxlarge"
-                android:hint="@string/email_or_username"
+                android:hint="@string/email_address"
                 android:textColorHint="@color/hint_color"
                 app:boxBackgroundColor="@color/input_bg"
                 app:boxCornerRadiusBottomEnd="@dimen/corner_radius_input"

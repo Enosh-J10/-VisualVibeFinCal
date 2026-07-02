@@ -1,6 +1,5 @@
 package com.enosh.fincalc.viewmodel
 
-import android.net.Uri
 import android.util.Log
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
@@ -16,7 +15,6 @@ import com.google.firebase.firestore.FieldValue
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.FirebaseFirestoreException
-import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -26,7 +24,6 @@ import java.util.UUID
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = FirebaseAuth.getInstance()
     private val db = FirebaseFirestore.getInstance()
-    private val storage = FirebaseStorage.getInstance()
 
     init {
         logFirebaseDiagnostic("Init")
@@ -42,49 +39,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             Log.d("FirebaseDiagnostic", "[$tag] Uid: ${user?.uid}")
             Log.d("FirebaseDiagnostic", "[$tag] Email: ${user?.email}")
             Log.d("FirebaseDiagnostic", "[$tag] IsAnonymous: ${user?.isAnonymous}")
-            Log.d("FirebaseDiagnostic", "[$tag] StorageBucket: ${storage.reference.bucket}")
             Log.d("FirebaseDiagnostic", "[$tag] PackageName: com.enosh.fincalc")
         } catch (e: Exception) {
             Log.e("FirebaseDiagnostic", "[$tag] Failed to log diagnostic", e)
         }
-    }
-
-    // Temporary storage isolation test
-    fun uploadTestFile() {
-        val currentUid = auth.currentUser?.uid ?: run {
-            _errorMessage.value = "Please sign in again."
-            return
-        }
-        val testData = "hello".toByteArray()
-        val storagePath = "chat_uploads/test/test/test.txt"
-        val storageRef = storage.getReference(storagePath)
-
-        Log.d("AttachmentDebug", "Starting test upload to: $storagePath")
-        storageRef.putBytes(testData)
-            .addOnSuccessListener {
-                Log.d("AttachmentDebug", "Test upload succeeded! Fetching URL...")
-                storageRef.downloadUrl.addOnSuccessListener { uri ->
-                    Log.d("AttachmentDebug", "Test downloadUrl succeeded: $uri")
-                    _errorMessage.value = "Test upload & URL fetch succeeded!"
-                }.addOnFailureListener { e ->
-                    val errorMsg = if (e is com.google.firebase.storage.StorageException) {
-                        "STORAGE ${e.errorCode} - ${e.message}"
-                    } else {
-                        "${e.javaClass.simpleName} - ${e.message}"
-                    }
-                    Log.e("AttachmentDebug", "Test downloadUrl failed: $errorMsg", e)
-                    _errorMessage.value = "Test upload OK, but downloadUrl failed: $errorMsg"
-                }
-            }
-            .addOnFailureListener { e ->
-                val errorMsg = if (e is com.google.firebase.storage.StorageException) {
-                    "STORAGE ${e.errorCode} - ${e.message}"
-                } else {
-                    "${e.javaClass.simpleName} - ${e.message}"
-                }
-                Log.e("AttachmentDebug", "Test upload failed: $errorMsg", e)
-                _errorMessage.value = "Test upload failed: $errorMsg"
-            }
     }
 
     private val _chats = MutableStateFlow<List<ChatRoom>>(emptyList())
@@ -92,9 +50,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _messages = MutableStateFlow<List<Message>>(emptyList())
     val messages: StateFlow<List<Message>> = _messages
-
-    private val _uploadProgress = MutableStateFlow<Float?>(null)
-    val uploadProgress: StateFlow<Float?> = _uploadProgress
 
     private var chatsListener: ListenerRegistration? = null
     private var messagesListener: ListenerRegistration? = null
@@ -293,10 +248,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             "receiverUid" to receiverUid,
             "text" to text.trim(),
             "type" to "text",
-            "fileUrl" to null,
-            "fileName" to null,
-            "fileMimeType" to null,
-            "fileSize" to -1L,
+            "fileUrl" to "",
+            "fileName" to "",
+            "fileMimeType" to "",
+            "fileSize" to 0L,
             "createdAt" to FieldValue.serverTimestamp(),
             "readBy" to listOf(currentUid),
             "deletedFor" to emptyList<String>(),
@@ -358,187 +313,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val errorMsg = "${e.javaClass.simpleName} - ${e.message}"
                 Log.e("AttachmentDebug", "sendMessage: General failure - $errorMsg", e)
                 onResult(false, "Send failed: $errorMsg")
-            }
-        }
-    }
-
-    fun uploadFile(chatId: String, receiverUid: String, uri: Uri, type: String, fallbackFileName: String) {
-        val currentUid = auth.currentUser?.uid ?: run {
-            _errorMessage.value = "Please sign in again."
-            return
-        }
-        if (chatId.isBlank()) return
-        
-        _uploadProgress.value = 0f
-        
-        viewModelScope.launch {
-            try {
-                val context = getApplication<Application>()
-                
-                // 1. Metadata Detection (Defensive)
-                var originalName: String? = null
-                var fileSize: Long = -1
-                var mimeType: String = "application/octet-stream"
-
-                try {
-                    val cursor = context.contentResolver.query(uri, null, null, null, null)
-                    cursor?.use {
-                        if (it.moveToFirst()) {
-                            val nameIndex = it.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
-                            val sizeIndex = it.getColumnIndex(android.provider.OpenableColumns.SIZE)
-                            if (nameIndex != -1) originalName = it.getString(nameIndex)
-                            if (sizeIndex != -1) fileSize = it.getLong(sizeIndex)
-                        }
-                    }
-                    mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
-                } catch (e: Exception) {
-                    Log.e("AttachmentDebug", "Metadata detection failed", e)
-                }
-                
-                val finalFileName = originalName ?: "attachment_${System.currentTimeMillis()}"
-                // Sanitize filename: only letters, numbers, dot, underscore, dash
-                val safeFileName = finalFileName.replace("[^a-zA-Z0-9._-]".toRegex(), "_")
-                
-                val messageId = UUID.randomUUID().toString()
-                val storagePath = "chat_uploads/$chatId/$messageId/$safeFileName"
-                val storageRef = storage.getReference(storagePath)
-
-                Log.d("AttachmentDebug", "uploadFile started: $storagePath")
-                Log.d("AttachmentDebug", "storageBucket: ${storage.reference.bucket}")
-
-                // 2. Open InputStream and Upload (Safe)
-                val uploadTask = try {
-                    val stream = context.contentResolver.openInputStream(uri)
-                        ?: throw Exception("Cannot open selected file stream")
-                    
-                    storageRef.putStream(stream)
-                } catch (e: Exception) {
-                    val errorMsg = if (e is com.google.firebase.storage.StorageException) {
-                        "STORAGE ${e.errorCode} - ${e.message}"
-                    } else {
-                        "${e.javaClass.simpleName} - ${e.message}"
-                    }
-                    Log.e("AttachmentDebug", "Upload preparation failed: $errorMsg", e)
-                    _errorMessage.value = "Upload failed: $errorMsg"
-                    _uploadProgress.value = null
-                    return@launch
-                }
-
-                uploadTask.addOnProgressListener { taskSnapshot ->
-                    val total = if (taskSnapshot.totalByteCount > 0) taskSnapshot.totalByteCount else fileSize
-                    if (total > 0) {
-                        val progress = (100.0 * taskSnapshot.bytesTransferred / total).toFloat()
-                        _uploadProgress.value = progress / 100f
-                    }
-                }
-
-                try {
-                    uploadTask.await()
-                    Log.d("AttachmentDebug", "uploadFile: putStream succeeded for $storagePath")
-                } catch (e: Exception) {
-                    val errorMsg = if (e is com.google.firebase.storage.StorageException) {
-                        "STORAGE ${e.errorCode} - ${e.message}"
-                    } else {
-                        "${e.javaClass.simpleName} - ${e.message}"
-                    }
-                    Log.e("AttachmentDebug", "uploadFile: putStream failed: $errorMsg", e)
-                    _errorMessage.value = "Upload failed: $errorMsg"
-                    _uploadProgress.value = null
-                    return@launch
-                }
-
-                // 3. Get Download URL
-                val downloadUrl = try {
-                    val url = storageRef.downloadUrl.await().toString()
-                    Log.d("AttachmentDebug", "uploadFile: downloadUrl succeeded for $storagePath")
-                    url
-                } catch (e: Exception) {
-                    val errorMsg = if (e is com.google.firebase.storage.StorageException) {
-                        "STORAGE ${e.errorCode} - ${e.message}"
-                    } else {
-                        "${e.javaClass.simpleName} - ${e.message}"
-                    }
-                    Log.e("AttachmentDebug", "uploadFile: downloadUrl failed for $storagePath: $errorMsg", e)
-                    _errorMessage.value = "Upload succeeded, but fetching URL failed: $errorMsg"
-                    _uploadProgress.value = null
-                    return@launch
-                }
-
-                // 4. Create Message in Firestore (Standardized Schema)
-                val messageData = mapOf(
-                    "messageId" to messageId,
-                    "chatId" to chatId,
-                    "senderUid" to currentUid,
-                    "receiverUid" to receiverUid,
-                    "type" to type, // image, video, file
-                    "text" to when(type) {
-                        "image" -> "📷 Photo"
-                        "video" -> "🎥 Video"
-                        else -> "📎 File"
-                    },
-                    "fileUrl" to downloadUrl,
-                    "fileName" to finalFileName,
-                    "fileMimeType" to mimeType,
-                    "fileSize" to fileSize,
-                    "createdAt" to FieldValue.serverTimestamp(),
-                    "readBy" to listOf(currentUid),
-                    "deletedFor" to emptyList<String>()
-                )
-                
-                val chatData = mapOf(
-                    "chatId" to chatId,
-                    "memberUids" to listOf(currentUid, receiverUid).sorted(),
-                    "updatedAt" to FieldValue.serverTimestamp(),
-                    "lastMessage" to (messageData["text"] as String),
-                    "lastMessageAt" to FieldValue.serverTimestamp(),
-                    "lastMessageSenderUid" to currentUid
-                )
-
-                try {
-                    val batch = db.batch()
-                    val chatRef = db.collection("chats").document(chatId)
-                    val msgRef = chatRef.collection("messages").document(messageId)
-
-                    batch.set(chatRef, chatData, com.google.firebase.firestore.SetOptions.merge())
-                    batch.set(msgRef, messageData)
-                    batch.commit().await()
-                    
-                    // For background notification trigger - decoupled from message send success
-                    launch {
-                        try {
-                            val notificationRef = db.collection("notifications").document(receiverUid)
-                                .collection("items").document(messageId)
-                            
-                            val notificationData = mapOf(
-                                "notificationId" to messageId,
-                                "type" to "chat_message",
-                                "chatId" to chatId,
-                                "fromUid" to currentUid,
-                                "toUid" to receiverUid,
-                                "title" to "New Attachment", 
-                                "body" to (messageData["text"] as String),
-                                "createdAt" to FieldValue.serverTimestamp(),
-                                "read" to false
-                            )
-                            notificationRef.set(notificationData).await()
-                        } catch (e: Exception) {
-                            Log.e("NotificationDebug", "Failed to create notification document for attachment", e)
-                        }
-                    }
-
-                    Log.d("AttachmentDebug", "uploadFile: Firestore commit succeeded")
-                    _uploadProgress.value = null
-                } catch (e: Exception) {
-                    Log.e("AttachmentDebug", "Firestore commit failed", e)
-                    _errorMessage.value = "Upload completed but message record failed."
-                    _uploadProgress.value = null
-                    // Attempt cleanup in storage if Firestore fails
-                    try { storageRef.delete().await() } catch(ex: Exception) {}
-                }
-            } catch (e: Exception) {
-                Log.e("AttachmentDebug", "General attachment failure", e)
-                _errorMessage.value = "Upload failed: ${e.javaClass.simpleName} - ${e.message}"
-                _uploadProgress.value = null
             }
         }
     }

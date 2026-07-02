@@ -470,7 +470,8 @@ fun AddTravelExpenseDialog(
                     label = "Title", 
                     modifier = Modifier.fillMaxWidth(),
                     error = titleError,
-                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Text
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                    capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
                 )
                 
                 Row(verticalAlignment = Alignment.CenterVertically) {

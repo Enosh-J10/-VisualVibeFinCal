@@ -1,9 +1,6 @@
 package com.enosh.fincalc.ui.screens
 
-import android.net.Uri
 import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
@@ -12,12 +9,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -29,9 +27,6 @@ import com.enosh.fincalc.data.model.Message
 import com.enosh.fincalc.viewmodel.ChatViewModel
 import com.enosh.fincalc.viewmodel.FriendsViewModel
 import com.google.firebase.auth.FirebaseAuth
-import coil.compose.AsyncImage
-import android.util.Log
-import androidx.activity.result.PickVisualMediaRequest
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -106,56 +101,6 @@ fun ChatRoomScreen(
         }
     }
 
-    var tempCameraUri by remember { mutableStateOf<Uri?>(null) }
-    
-    val filePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        try {
-            uri?.let { chatViewModel.uploadFile(chatId, friendUid, it, "file", "attachment_${System.currentTimeMillis()}") }
-        } catch (e: Exception) {
-            Log.e("ChatAttachmentError", "File picker failure", e)
-            Toast.makeText(context, "Failed to select file", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    val imagePickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-        try {
-            uri?.let { chatViewModel.uploadFile(chatId, friendUid, it, "image", "image_${System.currentTimeMillis()}.jpg") }
-        } catch (e: Exception) {
-            Log.e("ChatAttachmentError", "Gallery picker failure", e)
-            Toast.makeText(context, "Failed to select image", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
-        try {
-            if (success && tempCameraUri != null) {
-                chatViewModel.uploadFile(chatId, friendUid, tempCameraUri!!, "image", "camera_${System.currentTimeMillis()}.jpg")
-            }
-        } catch (e: Exception) {
-            Log.e("ChatAttachmentError", "Camera capture failure", e)
-            Toast.makeText(context, "Failed to capture image", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    fun launchCamera() {
-        try {
-            val fileName = "camera_${System.currentTimeMillis()}.jpg"
-            val values = android.content.ContentValues().apply {
-                put(android.provider.MediaStore.Images.Media.DISPLAY_NAME, fileName)
-                put(android.provider.MediaStore.Images.Media.MIME_TYPE, "image/jpeg")
-            }
-            tempCameraUri = context.contentResolver.insert(android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values)
-            if (tempCameraUri != null) {
-                cameraLauncher.launch(tempCameraUri!!)
-            } else {
-                Toast.makeText(context, "Could not create file for camera", Toast.LENGTH_SHORT).show()
-            }
-        } catch (e: Exception) {
-            Log.e("ChatAttachmentError", "Camera launch failure", e)
-            Toast.makeText(context, "Cannot open camera", Toast.LENGTH_SHORT).show()
-        }
-    }
-
     Scaffold(
         topBar = {
             TopAppBar(
@@ -171,8 +116,9 @@ fun ChatRoomScreen(
                         }
                     }
                 },
-                navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Default.ArrowBack, "Back") } },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White)
+                navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White),
+                windowInsets = WindowInsets.statusBars
             )
         },
         bottomBar = {
@@ -189,31 +135,16 @@ fun ChatRoomScreen(
                             }
                         }
                     }
-                    Row(Modifier.padding(horizontal = 8.dp, vertical = 4.dp).fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                        var showMore by remember { mutableStateOf(false) }
-                        IconButton(onClick = { showMore = !showMore }, modifier = Modifier.padding(bottom = 4.dp)) {
-                            Icon(if (showMore) Icons.Default.Close else Icons.Default.Add, null, tint = Color(0xFF00D1B2))
-                        }
-                        if (showMore) {
-                            IconButton(onClick = { filePickerLauncher.launch("*/*") }) { Icon(Icons.Default.AttachFile, null, tint = Color(0xFF00D1B2)) }
-                            IconButton(onClick = { imagePickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) { Icon(Icons.Default.PhotoLibrary, null, tint = Color(0xFF00D1B2)) }
-                            IconButton(onClick = { launchCamera() }) { Icon(Icons.Default.PhotoCamera, null, tint = Color(0xFF00D1B2)) }
-                            IconButton(onClick = { chatViewModel.uploadTestFile() }) { Icon(Icons.Default.BugReport, null, tint = Color.Red) }
-                            IconButton(onClick = { 
-                                com.enosh.fincalc.utils.NotificationHelper.showChatNotification(
-                                    context, "System Test", "This is a test notification 🔔", chatId, friendUid
-                                )
-                            }) { Icon(Icons.Default.NotificationsActive, null, tint = Color(0xFFFFA500)) }
-                        }
+                    Row(Modifier.padding(horizontal = 12.dp, vertical = 8.dp).fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                         OutlinedTextField(
                             value = messageText,
                             onValueChange = { messageText = it; chatViewModel.setTypingStatus(chatId, it.isNotBlank()) },
-                            modifier = Modifier.weight(1f).padding(vertical = 4.dp),
+                            modifier = Modifier.weight(1f),
                             placeholder = { Text("Type a message...", fontSize = 14.sp) },
                             shape = RoundedCornerShape(24.dp),
                             maxLines = 5
                         )
-                        Spacer(Modifier.width(4.dp))
+                        Spacer(Modifier.width(8.dp))
                         FloatingActionButton(
                             onClick = {
                                 if (messageText.isNotBlank()) {
@@ -264,14 +195,6 @@ fun ChatRoomScreen(
                     }
                 }
             }
-            val progress by chatViewModel.uploadProgress.collectAsState()
-            progress?.let { currentProgress ->
-                LinearProgressIndicator(
-                    progress = { currentProgress },
-                    modifier = Modifier.fillMaxWidth().align(Alignment.TopCenter),
-                    color = Color(0xFF00D1B2)
-                )
-            }
         }
     }
 
@@ -307,7 +230,7 @@ fun MessageItem(
         ) {
             Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                 DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
-                    DropdownMenuItem(text = { Text("Reply") }, onClick = { onReply(); showMenu = false }, leadingIcon = { Icon(Icons.Default.Reply, null) })
+                    DropdownMenuItem(text = { Text("Reply") }, onClick = { onReply(); showMenu = false }, leadingIcon = { Icon(Icons.AutoMirrored.Filled.Reply, null) })
                     DropdownMenuItem(text = { Text("Copy") }, onClick = { onCopy(); showMenu = false }, leadingIcon = { Icon(Icons.Default.ContentCopy, null) })
                     if (isMine && message.type == "text") DropdownMenuItem(text = { Text("Edit") }, onClick = { onEdit(); showMenu = false }, leadingIcon = { Icon(Icons.Default.Edit, null) })
                     if (isMine) DropdownMenuItem(text = { Text("Delete", color = Color.Red) }, onClick = { onDelete(); showMenu = false }, leadingIcon = { Icon(Icons.Default.Delete, null, tint = Color.Red) })
@@ -321,11 +244,12 @@ fun MessageItem(
 
                 when (message.type) {
                     "text" -> Text(message.text)
-                    "image" -> AsyncImage(model = message.fileUrl, contentDescription = "Image", modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp).clip(RoundedCornerShape(8.dp)))
-                    else -> Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(if (message.type == "video") Icons.Default.VideoLibrary else Icons.Default.Description, null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(message.fileName ?: "File", fontSize = 14.sp)
+                    else -> {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(if (message.type == "video") Icons.Default.VideoLibrary else Icons.Default.Description, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Attachment unavailable", fontSize = 14.sp)
+                        }
                     }
                 }
                 Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {

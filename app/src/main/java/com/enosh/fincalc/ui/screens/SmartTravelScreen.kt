@@ -201,7 +201,17 @@ fun CreateTripDialog(
         title = { Text("Create New Trip", fontWeight = FontWeight.Bold) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Trip Name") }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(12.dp))
+                OutlinedTextField(
+                    value = name, 
+                    onValueChange = { name = it }, 
+                    label = { Text("Trip Name") }, 
+                    modifier = Modifier.fillMaxWidth(), 
+                    shape = RoundedCornerShape(12.dp),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                        capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
+                    )
+                )
                 
                 // Country Dropdown
                 Box {

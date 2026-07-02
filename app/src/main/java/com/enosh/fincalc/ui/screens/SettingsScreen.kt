@@ -469,7 +469,13 @@ fun SettingsScreen(
             onDismissRequest = { showEditDialog = false },
             title = { Text(stringResource(R.string.edit_profile)) },
             text = {
-                ValidatedTextField(value = newName, onValueChange = { newName = it }, label = stringResource(R.string.full_name))
+                ValidatedTextField(
+                    value = newName, 
+                    onValueChange = { newName = it }, 
+                    label = stringResource(R.string.full_name),
+                    keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
+                    capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
+                )
             },
             confirmButton = {
                 Button(onClick = {
