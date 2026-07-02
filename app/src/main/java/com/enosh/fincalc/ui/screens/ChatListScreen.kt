@@ -75,7 +75,7 @@ fun ChatListScreen(
                         lastMessageAt = chat.lastMessageAt,
                         isNew = unreadCount > 0,
                         unreadCount = unreadCount,
-                        profilePic = friend?.profilePic
+                        profilePic = friend?.profilePictureUrl ?: friend?.profilePic
                     )
                 )
             }
@@ -92,7 +92,7 @@ fun ChatListScreen(
                         lastMessage = "Tap to start chatting",
                         lastMessageAt = null,
                         isNew = true,
-                        profilePic = friend.profilePic
+                        profilePic = friend.profilePictureUrl ?: friend.profilePic
                     )
                 )
             }

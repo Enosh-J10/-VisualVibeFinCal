@@ -16,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -56,19 +57,23 @@ fun ChatRoomScreen(
     }
     
     var resolvedFriendName by remember { mutableStateOf("Chat") }
+    var friendProfilePic by remember { mutableStateOf<String?>(null) }
     
     LaunchedEffect(friendUid, friends, nicknames) {
         val friendFromList = friends.find { it.uid == friendUid }
         val nickname = nicknames[friendUid]
         if (nickname != null) {
             resolvedFriendName = nickname
+            friendProfilePic = friendFromList?.profilePictureUrl ?: friendFromList?.profilePic
         } else if (friendFromList != null) {
             resolvedFriendName = friendFromList.name.ifBlank { friendFromList.email.substringBefore("@") }
+            friendProfilePic = friendFromList.profilePictureUrl ?: friendFromList.profilePic
         } else {
             val profile = chatViewModel.getUserProfile(friendUid)
             if (profile != null) {
                 resolvedFriendName = profile.name.ifBlank { profile.email.substringBefore("@") }
                 if (resolvedFriendName.isBlank()) resolvedFriendName = profile.finCalcId.ifBlank { "Friend" }
+                friendProfilePic = profile.profilePictureUrl ?: profile.profilePic
             }
         }
     }
@@ -106,8 +111,32 @@ fun ChatRoomScreen(
             TopAppBar(
                 title = {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(40.dp).background(Color(0xFF00D1B2).copy(alpha = 0.1f), androidx.compose.foundation.shape.CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Default.Person, null, tint = Color(0xFF00D1B2), modifier = Modifier.size(24.dp))
+                        if (!friendProfilePic.isNullOrBlank()) {
+                            coil.compose.AsyncImage(
+                                model = friendProfilePic,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(40.dp)
+                                    .clip(androidx.compose.foundation.shape.CircleShape),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                            )
+                        } else {
+                            Box(
+                                Modifier
+                                    .size(40.dp)
+                                    .background(
+                                        Color(0xFF00D1B2).copy(alpha = 0.1f),
+                                        androidx.compose.foundation.shape.CircleShape
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Default.Person,
+                                    null,
+                                    tint = Color(0xFF00D1B2),
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
                         }
                         Spacer(Modifier.width(12.dp))
                         Column {

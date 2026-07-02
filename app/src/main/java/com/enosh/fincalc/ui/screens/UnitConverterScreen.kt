@@ -2,25 +2,21 @@ package com.enosh.fincalc.ui.screens
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.semantics.contentDescription
@@ -105,79 +101,44 @@ fun UnitConverterScreen(
                         )
                     }
 
-                    // Category Selector (Tabs or Row)
-                    val tabScrollState = rememberScrollState()
-                    val tabScrollPercentage by remember {
-                        derivedStateOf {
-                            if (tabScrollState.maxValue > 0) tabScrollState.value.toFloat() / tabScrollState.maxValue else 0f
-                        }
-                    }
-                    
-                    Column {
-                        ScrollableTabRow(
-                            selectedTabIndex = categories.keys.toList().indexOf(selectedCategory),
-                            containerColor = Color.Transparent,
-                            contentColor = Color(0xFF00D1B2),
-                            edgePadding = 0.dp,
-                            divider = {}
-                        ) {
-                            categories.keys.forEach { cat ->
-                                Tab(
-                                    selected = selectedCategory == cat,
-                                    onClick = { 
-                                        if (!isConverting) {
-                                            selectedCategory = cat
-                                            fromUnit = categories[cat]!![0]
-                                            toUnit = categories[cat]!![1]
-                                            outputValue = null
-                                        }
-                                    },
-                                    text = { Text(cat, color = if (selectedCategory == cat) Color(0xFF00D1B2) else if (isDarkMode) Color.White else Color.Black) },
-                                    modifier = Modifier.semantics {
-                                        contentDescription = "Category $cat"
-                                    }
+                    // Category Selector (Tabs)
+                    ScrollableTabRow(
+                        selectedTabIndex = categories.keys.toList().indexOf(selectedCategory),
+                        containerColor = Color.Transparent,
+                        contentColor = Color(0xFF00D1B2),
+                        edgePadding = 16.dp,
+                        divider = {},
+                        indicator = { tabPositions ->
+                            if (categories.keys.toList().indexOf(selectedCategory) < tabPositions.size) {
+                                TabRowDefaults.SecondaryIndicator(
+                                    modifier = Modifier.tabIndicatorOffset(tabPositions[categories.keys.toList().indexOf(selectedCategory)]),
+                                    color = Color(0xFF00D1B2)
                                 )
                             }
                         }
-                        
-                        // Custom Scroll Bar (Draggable) for Tabs
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp)
-                                .height(12.dp)
-                                .pointerInput(Unit) {
-                                    detectDragGestures { change, dragAmount ->
-                                        change.consume()
-                                        scope.launch {
-                                            val totalWidth = size.width
-                                            if (totalWidth > 0) {
-                                                val scrollAmount = (dragAmount.x / totalWidth) * tabScrollState.maxValue
-                                                tabScrollState.scrollTo((tabScrollState.value + scrollAmount).toInt())
-                                            }
-                                        }
+                    ) {
+                        categories.keys.forEach { cat ->
+                            Tab(
+                                selected = selectedCategory == cat,
+                                onClick = { 
+                                    if (!isConverting) {
+                                        selectedCategory = cat
+                                        fromUnit = categories[cat]!![0]
+                                        toUnit = categories[cat]!![1]
+                                        outputValue = null
                                     }
                                 },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            // Track
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(2.dp)
-                                    .background(if (isDarkMode) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f))
-                            )
-                            
-                            // Thumb
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(0.2f)
-                                    .height(4.dp)
-                                    .align(Alignment.CenterStart)
-                                    .graphicsLayer {
-                                        translationX = tabScrollPercentage * (size.width * 0.8f)
-                                    }
-                                    .background(Color(0xFF00D1B2), RoundedCornerShape(2.dp))
+                                text = { 
+                                    Text(
+                                        cat, 
+                                        color = if (selectedCategory == cat) Color(0xFF00D1B2) else if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray,
+                                        fontWeight = if (selectedCategory == cat) FontWeight.Bold else FontWeight.Normal,
+                                        maxLines = 1
+                                    ) 
+                                },
+                                modifier = Modifier.semantics {
+                                    contentDescription = "Category $cat"
+                                }
                             )
                         }
                     }
@@ -240,7 +201,8 @@ fun UnitConverterScreen(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         BouncyButton(
                             onClick = {
@@ -278,7 +240,7 @@ fun UnitConverterScreen(
                             if (isConverting) {
                                 CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
                             } else {
-                                Text(stringResource(R.string.convert), fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.convert), fontSize = 16.sp, fontWeight = FontWeight.Bold, maxLines = 1)
                             }
                         }
 
@@ -292,11 +254,15 @@ fun UnitConverterScreen(
                                 resultCategory = ""
                                 assistantViewModel.showMessage("Reset complete", AssistantState.IDLE)
                             },
-                            modifier = Modifier.weight(0.4f).height(56.dp),
+                            modifier = Modifier.weight(0.5f).height(56.dp),
                             containerColor = Color.Gray.copy(alpha = 0.2f),
                             shape = RoundedCornerShape(16.dp)
                         ) {
-                            Text("Reset", color = if (isDarkMode) Color.White else Color.Black)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+                                Icon(Icons.Default.Refresh, null, modifier = Modifier.size(18.dp), tint = if (isDarkMode) Color.White else Color.Black)
+                                Spacer(Modifier.width(4.dp))
+                                Text("Reset", color = if (isDarkMode) Color.White else Color.Black, fontSize = 14.sp, maxLines = 1)
+                            }
                         }
                     }
 

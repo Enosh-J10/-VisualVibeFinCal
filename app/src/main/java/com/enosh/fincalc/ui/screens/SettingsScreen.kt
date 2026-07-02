@@ -1,14 +1,11 @@
 package com.enosh.fincalc.ui.screens
 
 import android.content.Context
-import android.content.Intent
-import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.biometric.BiometricManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -30,17 +27,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.edit
-import androidx.core.net.toUri
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.userProfileChangeRequest
 import com.enosh.fincalc.R
 import com.enosh.fincalc.ui.components.AssistantRobot
 import com.enosh.fincalc.ui.components.ValidatedTextField
@@ -49,7 +41,6 @@ import com.enosh.fincalc.utils.SecurityUtils
 import com.enosh.fincalc.utils.BackupUtils
 import com.enosh.fincalc.utils.CurrencyUtils
 import com.enosh.fincalc.utils.UserUtils
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -121,7 +112,8 @@ fun SettingsScreen(
                         // Refresh URL
                         val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
                         val doc = db.collection("users").document(userUid).get().await()
-                        profilePicUrl = doc.getString("profilePictureUrl")
+                        val newUrl = doc.getString("profilePictureUrl")
+                        profilePicUrl = newUrl
                         Toast.makeText(context, "Profile picture updated", Toast.LENGTH_SHORT).show()
                     } catch (e: Exception) {
                         Toast.makeText(context, "Upload failed: ${e.message}", Toast.LENGTH_SHORT).show()
@@ -164,7 +156,12 @@ fun SettingsScreen(
                         CircularProgressIndicator(color = Color(0xFF00D1B2))
                     } else if (profilePicUrl != null) {
                         AsyncImage(
-                            model = profilePicUrl,
+                            model = coil.request.ImageRequest.Builder(LocalContext.current)
+                                .data(profilePicUrl)
+                                .crossfade(true)
+                                .memoryCacheKey(profilePicUrl)
+                                .diskCacheKey(profilePicUrl)
+                                .build(),
                             contentDescription = "Profile Picture",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop,
@@ -208,12 +205,15 @@ fun SettingsScreen(
             if (showProfilePreview) {
                 AlertDialog(
                     onDismissRequest = { showProfilePreview = false },
-                    title = { Text("Profile Preview") },
+                    title = { Text("Profile Preview", color = if (isDarkMode) Color.White else Color.Black) },
                     text = {
                         Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                             if (profilePicUrl != null) {
                                 AsyncImage(
-                                    model = profilePicUrl,
+                                    model = coil.request.ImageRequest.Builder(LocalContext.current)
+                                        .data(profilePicUrl)
+                                        .crossfade(true)
+                                        .build(),
                                     contentDescription = null,
                                     modifier = Modifier.size(250.dp).clip(RoundedCornerShape(16.dp)),
                                     contentScale = ContentScale.Crop
@@ -224,20 +224,21 @@ fun SettingsScreen(
                         }
                     },
                     confirmButton = {
-                        TextButton(onClick = { showProfilePreview = false }) { Text("Close") }
-                    }
+                        TextButton(onClick = { showProfilePreview = false }) { Text("Close", color = Color(0xFF00D1B2)) }
+                    },
+                    containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White
                 )
             }
 
             Spacer(Modifier.height(16.dp))
 
-            Text(if (isGuest) "Guest User" else userName, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            Text(if (isGuest) "Register to unlock all features" else email, fontSize = 14.sp, color = Color.Gray)
+            Text(if (isGuest) "Guest User" else userName, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black)
+            Text(if (isGuest) "Register to unlock all features" else email, fontSize = 14.sp, color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray)
 
             if (!isGuest) {
                 val finCalcId = remember(userUid) { UserUtils.generateStableFinCalcId(userUid) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(text = "FinCalc ID: $finCalcId", fontSize = 14.sp, color = Color.Gray)
+                    Text(text = "FinCalc ID: $finCalcId", fontSize = 14.sp, color = if (isDarkMode) Color.White.copy(alpha = 0.5f) else Color.Gray)
                     IconButton(onClick = {
                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
                         clipboard.setPrimaryClip(android.content.ClipData.newPlainText("FinCalc ID", finCalcId))
@@ -276,12 +277,13 @@ fun SettingsScreen(
 
             SettingsItem(
                 title = stringResource(R.string.dark_mode),
+                isDarkMode = isDarkMode,
                 trailing = {
-                    Switch(checked = isDarkMode, onCheckedChange = onDarkModeChange)
+                    Switch(checked = isDarkMode, onCheckedChange = onDarkModeChange, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00D1B2)))
                 }
             )
 
-            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp))
+            HorizontalDivider(modifier = Modifier.padding(vertical = 16.dp), color = if (isDarkMode) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f))
 
             // Assistant Settings
             CalculatorCard(isDarkMode = isDarkMode) {
@@ -290,34 +292,38 @@ fun SettingsScreen(
 
                     SettingsItem(
                         title = stringResource(R.string.show_assistant),
+                        isDarkMode = isDarkMode,
                         trailing = {
-                            Switch(checked = assistantPrefs.isEnabled, onCheckedChange = { assistantViewModel.setEnabled(it, context) })
+                            Switch(checked = assistantPrefs.isEnabled, onCheckedChange = { assistantViewModel.setEnabled(it, context) }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00D1B2)))
                         }
                     )
 
                     if (assistantPrefs.isEnabled) {
                         SettingsItem(
                             title = "Mute Assistant",
+                            isDarkMode = isDarkMode,
                             trailing = {
-                                Switch(checked = assistantPrefs.isMuted, onCheckedChange = { assistantViewModel.setMuted(it, context) })
+                                Switch(checked = assistantPrefs.isMuted, onCheckedChange = { assistantViewModel.setMuted(it, context) }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00D1B2)))
                             }
                         )
 
                         SettingsItem(
                             title = "Roast Mode",
                             subtitle = "Playful savage AI responses",
+                            isDarkMode = isDarkMode,
                             trailing = {
                                 Switch(
                                     checked = assistantPrefs.isRoastMode,
                                     onCheckedChange = { 
                                         if (it) showRoastWarningDialog = true
                                         else assistantViewModel.setRoastMode(false, context)
-                                    }
+                                    },
+                                    colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00D1B2))
                                 )
                             }
                         )
 
-                        Text("Appearance Theme", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text("Appearance Theme", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black)
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -341,13 +347,17 @@ fun SettingsScreen(
                                         assistantViewModel.setCustomMode(false, context)
                                         assistantViewModel.setTheme(theme, context) 
                                     },
-                                    label = { Text(theme.label) }
+                                    label = { Text(theme.label) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Color(0xFF00D1B2).copy(alpha = 0.2f),
+                                        selectedLabelColor = Color(0xFF00D1B2)
+                                    )
                                 )
                             }
                         }
 
                         if (assistantPrefs.theme == AssistantTheme.CUSTOM || assistantPrefs.isCustomMode) {
-                            Text("Custom Theme Colors", fontSize = 12.sp, color = Color.Gray)
+                            Text("Custom Theme Colors", fontSize = 12.sp, color = if (isDarkMode) Color.White.copy(alpha = 0.5f) else Color.Gray)
                             // Simplified color pickers for brevity in this response, 
                             // in a real app these would be color selection dialogs or a grid
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -368,18 +378,21 @@ fun SettingsScreen(
 
                         SettingsItem(
                             title = "Assistant Type",
+                            isDarkMode = isDarkMode,
                             trailing = {
                                 Row {
                                     FilterChip(
                                         selected = assistantPrefs.gender == AssistantGender.MALE,
                                         onClick = { assistantViewModel.setGender(AssistantGender.MALE, context) },
-                                        label = { Text("Male") }
+                                        label = { Text("Male") },
+                                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFF00D1B2).copy(alpha = 0.2f), selectedLabelColor = Color(0xFF00D1B2))
                                     )
                                     Spacer(Modifier.width(8.dp))
                                     FilterChip(
                                         selected = assistantPrefs.gender == AssistantGender.FEMALE,
                                         onClick = { assistantViewModel.setGender(AssistantGender.FEMALE, context) },
-                                        label = { Text("Female") }
+                                        label = { Text("Female") },
+                                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFF00D1B2).copy(alpha = 0.2f), selectedLabelColor = Color(0xFF00D1B2))
                                     )
                                 }
                             }
@@ -387,8 +400,9 @@ fun SettingsScreen(
 
                         SettingsItem(
                             title = "Assistant Animation",
+                            isDarkMode = isDarkMode,
                             trailing = {
-                                Switch(checked = assistantPrefs.isAnimated, onCheckedChange = { assistantViewModel.setAnimated(it, context) })
+                                Switch(checked = assistantPrefs.isAnimated, onCheckedChange = { assistantViewModel.setAnimated(it, context) }, colors = SwitchDefaults.colors(checkedThumbColor = Color(0xFF00D1B2)))
                             }
                         )
 
@@ -417,7 +431,7 @@ fun SettingsScreen(
                 Text(
                     "Notifications work while FinCalc is running in the background. Full closed-app push notifications may be added later.",
                     fontSize = 12.sp,
-                    color = Color.Gray
+                    color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray
                 )
             }
 
@@ -467,7 +481,7 @@ fun SettingsScreen(
         var newName by remember { mutableStateOf(userName) }
         AlertDialog(
             onDismissRequest = { showEditDialog = false },
-            title = { Text(stringResource(R.string.edit_profile)) },
+            title = { Text(stringResource(R.string.edit_profile), color = if (isDarkMode) Color.White else Color.Black) },
             text = {
                 ValidatedTextField(
                     value = newName, 
@@ -484,65 +498,69 @@ fun SettingsScreen(
                         userName = newName
                         showEditDialog = false
                     }
-                }) { Text(stringResource(R.string.save)) }
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))) { Text(stringResource(R.string.save), color = Color.White) }
             },
-            dismissButton = { TextButton(onClick = { showEditDialog = false }) { Text(stringResource(R.string.cancel)) } }
+            dismissButton = { TextButton(onClick = { showEditDialog = false }) { Text(stringResource(R.string.cancel), color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray) } },
+            containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White
         )
     }
 
     if (showLogoutConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showLogoutConfirmDialog = false },
-            title = { Text("Logout") },
-            text = { Text("Are you sure you want to log out?") },
+            title = { Text("Logout", color = if (isDarkMode) Color.White else Color.Black) },
+            text = { Text("Are you sure you want to log out?", color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Black) },
             confirmButton = {
-                Button(onClick = { onLogout() }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Logout") }
+                Button(onClick = { onLogout() }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Logout", color = Color.White) }
             },
-            dismissButton = { TextButton(onClick = { showLogoutConfirmDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showLogoutConfirmDialog = false }) { Text("Cancel", color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray) } },
+            containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White
         )
     }
 
     if (showGuestLogoutConfirmDialog) {
         AlertDialog(
             onDismissRequest = { showGuestLogoutConfirmDialog = false },
-            title = { Text("Leaving Guest Mode") },
-            text = { Text("You are using a guest account. Guest data is not saved. If you leave now, all guest notes, preferences, history, and temporary data will be permanently deleted.") },
+            title = { Text("Leaving Guest Mode", color = if (isDarkMode) Color.White else Color.Black) },
+            text = { Text("You are using a guest account. Guest data is not saved. If you leave now, all guest notes, preferences, history, and temporary data will be permanently deleted.", color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Black) },
             confirmButton = {
                 Button(onClick = { 
                     showGuestLogoutConfirmDialog = false
                     onLogout() 
-                }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Leave Guest") }
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color.Red)) { Text("Leave Guest", color = Color.White) }
             },
-            dismissButton = { TextButton(onClick = { showGuestLogoutConfirmDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showGuestLogoutConfirmDialog = false }) { Text("Cancel", color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray) } },
+            containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White
         )
     }
 
     if (showRoastWarningDialog) {
         AlertDialog(
             onDismissRequest = { showRoastWarningDialog = false },
-            title = { Text("Roast Mode") },
-            text = { Text("Roast Mode is for jokes only. Responses may sound sarcastic or rude. Do not take them seriously.") },
+            title = { Text("Roast Mode", color = if (isDarkMode) Color.White else Color.Black) },
+            text = { Text("Roast Mode is for jokes only. Responses may sound sarcastic or rude. Do not take them seriously.", color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Black) },
             confirmButton = {
                 Button(onClick = { 
                     showRoastWarningDialog = false
                     assistantViewModel.setRoastMode(true, context)
-                }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))) { Text("Turn On") }
+                }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))) { Text("Turn On", color = Color.White) }
             },
-            dismissButton = { TextButton(onClick = { showRoastWarningDialog = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showRoastWarningDialog = false }) { Text("Cancel", color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray) } },
+            containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White
         )
     }
 }
 
 @Composable
-fun SettingsItem(title: String, subtitle: String? = null, trailing: @Composable () -> Unit) {
+fun SettingsItem(title: String, subtitle: String? = null, isDarkMode: Boolean = true, trailing: @Composable () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(title, fontWeight = FontWeight.Medium)
-            if (subtitle != null) Text(subtitle, fontSize = 12.sp, color = Color.Gray)
+            Text(title, fontWeight = FontWeight.Medium, color = if (isDarkMode) Color.White else Color.Black)
+            if (subtitle != null) Text(subtitle, fontSize = 12.sp, color = if (isDarkMode) Color.White.copy(alpha = 0.5f) else Color.Gray)
         }
         trailing()
     }

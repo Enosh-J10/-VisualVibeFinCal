@@ -309,9 +309,10 @@ fun FriendItem(
         shape = RoundedCornerShape(12.dp)
     ) {
         Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (!user.profilePic.isNullOrBlank()) {
+            val photoUrl = user.profilePictureUrl ?: user.profilePic
+            if (!photoUrl.isNullOrBlank()) {
                 coil.compose.AsyncImage(
-                    model = user.profilePic,
+                    model = photoUrl,
                     contentDescription = null,
                     modifier = Modifier.size(40.dp).clip(CircleShape),
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop
