@@ -93,6 +93,7 @@ class HomeActivity : ComponentActivity() {
         @OptIn(ExperimentalLayoutApi::class)
         setContent {
             val assistantViewModel: AssistantViewModel = viewModel()
+            val notificationsViewModel: com.enosh.fincalc.viewmodel.NotificationsViewModel = viewModel()
             val context = LocalContext.current
             val uid = remember { FirebaseAuth.getInstance().currentUser?.uid ?: "guest" }
             val darkModeKey = remember(uid) { UserUtils.getScopedKey(uid, "is_dark_mode") }
@@ -105,6 +106,7 @@ class HomeActivity : ComponentActivity() {
 
                 LaunchedEffect(Unit) {
                     assistantViewModel.loadPrefs(context)
+                    notificationsViewModel.loadSettings(context)
                     
                     val isGuest = sharedPref.getBoolean("is_guest", false)
                     if (!isGuest && FirebaseAuth.getInstance().currentUser != null) {
@@ -125,8 +127,21 @@ class HomeActivity : ComponentActivity() {
                     val navigateTo = intent.getStringExtra("navigate_to")
                     val notificationChatId = intent.getStringExtra("chatId")
                     val notificationFriendUid = intent.getStringExtra("friendUid")
+                    
                     if (navigateTo == "chat_room" && notificationChatId != null && notificationFriendUid != null) {
                         navController.navigate("chat_room/$notificationChatId/$notificationFriendUid")
+                    } else if (navigateTo != null) {
+                        when (navigateTo) {
+                            "friends_pending" -> navController.navigate(Screen.Friends.createRoute(tab = 1))
+                            "friends_add" -> navController.navigate(Screen.Friends.createRoute(tab = 3))
+                            "expenses" -> navController.navigate(Screen.Calculator.route)
+                            "budget" -> navController.navigate(Screen.Budget.route)
+                            "smart_travel" -> navController.navigate(Screen.SmartTravel.route)
+                            "smart_business" -> navController.navigate(Screen.SmartBusiness.route)
+                            "notes" -> navController.navigate(Screen.NoteBook.route)
+                            "unit" -> navController.navigate(Screen.UnitConverter.route)
+                            "calc" -> navController.navigate(Screen.Calculator.route)
+                        }
                     }
                     
                     deepLinkUri?.let { uri ->

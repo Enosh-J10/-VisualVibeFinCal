@@ -71,20 +71,6 @@ fun HomeScreen(
     val recentToolsKey = remember(uid) { UserUtils.getScopedKey(uid, "recent_tools") }
     val favoriteToolsKey = remember(uid) { UserUtils.getScopedKey(uid, "favorite_tools") }
 
-    LaunchedEffect(Unit) {
-        val workManager = WorkManager.getInstance(context)
-        val reminderRequest = PeriodicWorkRequestBuilder<ReminderWorker>(1, TimeUnit.DAYS)
-            .setInitialDelay(12, TimeUnit.HOURS)
-            .addTag("daily_reminder")
-            .build()
-        
-        workManager.enqueueUniquePeriodicWork(
-            "daily_reminder",
-            ExistingPeriodicWorkPolicy.KEEP,
-            reminderRequest
-        )
-    }
-
     val isGuest = remember { sharedPref.getBoolean("is_guest", false) }
 
     val expenses by financialViewModel.allExpenses.collectAsState()

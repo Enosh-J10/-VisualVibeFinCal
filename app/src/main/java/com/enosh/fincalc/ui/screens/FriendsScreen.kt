@@ -38,7 +38,8 @@ fun FriendsScreen(
     navController: NavController,
     isDarkMode: Boolean,
     viewModel: FriendsViewModel = viewModel(),
-    initialSearch: String? = null
+    initialSearch: String? = null,
+    initialTab: Int = if (initialSearch != null) 3 else 0
 ) {
     val context = LocalContext.current
     val errorMessage by viewModel.errorMessage.collectAsState()
@@ -50,7 +51,7 @@ fun FriendsScreen(
         }
     }
 
-    var selectedTab by remember { mutableIntStateOf(if (initialSearch != null) 3 else 0) }
+    var selectedTab by remember { mutableIntStateOf(initialTab) }
     val tabs = listOf("Friends", "Pending", "Sent", "Add Friend")
     
     LaunchedEffect(initialSearch) {

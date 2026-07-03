@@ -197,11 +197,17 @@ fun NavGraph(
         }
         composable(
             route = Screen.Friends.route,
-            arguments = listOf(navArgument("search") { 
-                type = NavType.StringType
-                nullable = true
-                defaultValue = null 
-            })
+            arguments = listOf(
+                navArgument("search") { 
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null 
+                },
+                navArgument("tab") {
+                    type = NavType.IntType
+                    defaultValue = -1
+                }
+            )
         ) { backStackEntry ->
             val isGuest = remember { sharedPref.getBoolean("is_guest", false) }
             if (isGuest) {
@@ -210,8 +216,16 @@ fun NavGraph(
                     navController.popBackStack()
                 }
             } else {
-                val initialSearch = backStackEntry.arguments?.getString("search")
-                com.enosh.fincalc.ui.screens.FriendsScreen(navController, isDarkMode, initialSearch = initialSearch)
+                val initialSearch = backStackEntry.arguments?.getString("search")?.let { if (it == "{search}") null else it }
+                val initialTabArg = backStackEntry.arguments?.getInt("tab") ?: -1
+                val initialTab = if (initialTabArg != -1) initialTabArg else (if (initialSearch != null) 3 else 0)
+                
+                com.enosh.fincalc.ui.screens.FriendsScreen(
+                    navController = navController, 
+                    isDarkMode = isDarkMode, 
+                    initialSearch = initialSearch,
+                    initialTab = initialTab
+                )
             }
         }
         composable(

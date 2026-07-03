@@ -21,8 +21,12 @@ sealed class Screen(val route: String) {
     object Onboarding : Screen("onboarding")
     object SavingPlanner : Screen("saving_planner")
     object SmartTravel : Screen("smart_travel")
-    object Friends : Screen("friends?search={search}") {
-        fun createRoute(search: String) = "friends?search=$search"
+    object Friends : Screen("friends?search={search}&tab={tab}") {
+        fun createRoute(search: String? = null, tab: Int? = null): String {
+            val s = search ?: "{search}"
+            val t = tab ?: -1
+            return "friends?search=$s&tab=$t"
+        }
     }
     object TripDetail : Screen("trip_detail/{tripId}") {
         fun createRoute(tripId: String) = "trip_detail/$tripId"

@@ -53,6 +53,7 @@ fun SettingsScreen(
     onLogout: () -> Unit,
     assistantViewModel: AssistantViewModel,
     settingsViewModel: SettingsViewModel = viewModel(),
+    notificationsViewModel: NotificationsViewModel = viewModel(),
     initialResetPin: Boolean = false
 ) {
     val context = LocalContext.current
@@ -60,6 +61,11 @@ fun SettingsScreen(
     val isGuest = remember { sharedPref.getBoolean("is_guest", false) }
     val coroutineScope = rememberCoroutineScope()
     val assistantPrefs by assistantViewModel.prefs.collectAsState()
+    val notificationSettings by notificationsViewModel.settings.collectAsState()
+
+    LaunchedEffect(Unit) {
+        notificationsViewModel.loadSettings(context)
+    }
     
     val auth = remember { FirebaseAuth.getInstance() }
     val firebaseUser = auth.currentUser
@@ -539,6 +545,45 @@ fun SettingsScreen(
             CalculatorCard(isDarkMode = isDarkMode) {
                 Text("Notifications", fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2), modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(8.dp))
+                
+                SettingsItem(
+                    title = "Fun Reminders",
+                    subtitle = "Daily tips and savage reminders",
+                    isDarkMode = isDarkMode,
+                    trailing = {
+                        Switch(
+                            checked = notificationSettings.funRemindersEnabled,
+                            onCheckedChange = { notificationsViewModel.setFunRemindersEnabled(it, context) },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color(0xFF00D1B2),
+                                checkedTrackColor = Color(0xFF00D1B2).copy(alpha = 0.5f)
+                            )
+                        )
+                    }
+                )
+
+                if (notificationSettings.funRemindersEnabled) {
+                    Text("Reminder Frequency", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        ReminderFrequency.entries.forEach { freq ->
+                            FilterChip(
+                                selected = notificationSettings.frequency == freq,
+                                onClick = { notificationsViewModel.setFrequency(freq, context) },
+                                label = { Text(freq.name.lowercase().replaceFirstChar { it.uppercase() }) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Color(0xFF00D1B2).copy(alpha = 0.2f),
+                                    selectedLabelColor = Color(0xFF00D1B2)
+                                )
+                            )
+                        }
+                    }
+                }
+
+                HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = if (isDarkMode) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.05f))
+
                 Text(
                     "Notifications work while FinCalc is running in the background. Full closed-app push notifications may be added later.",
                     fontSize = 12.sp,
