@@ -112,13 +112,9 @@ object UserUtils {
         
         val finCalcId = generateStableFinCalcId(uid)
         
-        android.util.Log.d("DP_UPLOAD", "ensureFinCalcUserProfile: uid=$uid")
-        
         var finalProfilePicUrl: String? = null
         if (profilePicUri != null) {
             try {
-                android.util.Log.d("DP_UPLOAD", "uri=$profilePicUri")
-                
                 // 1. Create local directory for profile pictures
                 val dir = java.io.File(context.filesDir, "profile_pictures")
                 if (!dir.exists()) dir.mkdirs()
@@ -135,8 +131,6 @@ object UserUtils {
                 
                 if (file.exists()) {
                     finalProfilePicUrl = android.net.Uri.fromFile(file).toString()
-                    android.util.Log.d("DP_UPLOAD", "localPath=$finalProfilePicUrl")
-                    android.util.Log.d("DP_UPLOAD", "copy success")
                     
                     // Save locally for instant access
                     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
@@ -146,8 +140,8 @@ object UserUtils {
                     throw Exception("Failed to create local persistent profile file")
                 }
             } catch (e: Exception) {
-                android.util.Log.e("DP_UPLOAD", "Local copy failed: ${e.message}")
-                throw e
+                android.util.Log.e("UserUtils", "Local copy failed: ${e.message}")
+                throw e 
             }
         }
 
@@ -164,7 +158,6 @@ object UserUtils {
         providedEmail: String? = null,
         profilePicUrl: String? = null
     ) {
-        android.util.Log.d("UserUtils", "uploadCurrentUser: name=$providedName, hasPic=${profilePicUrl != null}")
         val auth = FirebaseAuth.getInstance()
         val firebaseUser = auth.currentUser ?: return
         val uid = firebaseUser.uid
@@ -180,17 +173,14 @@ object UserUtils {
 
         // Update FirebaseAuth profile as well
         if ((providedName != null && providedName.isNotBlank()) || profilePicUrl != null) {
-            android.util.Log.d("UserUtils", "Updating FirebaseUser profile...")
             val profileUpdates = com.google.firebase.auth.userProfileChangeRequest {
                 if (providedName != null && providedName.isNotBlank()) displayName = providedName
                 if (profilePicUrl != null) photoUri = android.net.Uri.parse(profilePicUrl)
             }
             try {
                 firebaseUser.updateProfile(profileUpdates).await()
-                android.util.Log.d("UserUtils", "FirebaseUser profile updated, reloading...")
                 // IMPORTANT: Reload the user to refresh the local cache/token
                 firebaseUser.reload().await()
-                android.util.Log.d("UserUtils", "FirebaseUser reloaded")
             } catch (e: Exception) {
                 android.util.Log.e("UserUtils", "FirebaseAuth profile update failed", e)
             }
@@ -211,13 +201,11 @@ object UserUtils {
         }
 
         try {
-            android.util.Log.d("UserUtils", "Updating Firestore user document for $uid...")
             FirebaseFirestore.getInstance()
                 .collection("users")
                 .document(uid)
                 .set(userMap, com.google.firebase.firestore.SetOptions.merge())
                 .await()
-            android.util.Log.d("UserUtils", "Firestore updated successfully with url: ${userMap["profilePictureUrl"]}")
         } catch (e: Exception) {
             android.util.Log.e("UserUtils", "Failed to upload user profile: ${e.message}")
         }

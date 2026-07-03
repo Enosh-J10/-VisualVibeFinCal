@@ -31,18 +31,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun logFirebaseDiagnostic(tag: String) {
-        try {
-            val app = FirebaseApp.getInstance()
-            val user = auth.currentUser
-            Log.d("FirebaseDiagnostic", "[$tag] ProjectId: ${app.options.projectId}")
-            Log.d("FirebaseDiagnostic", "[$tag] AppId: ${app.options.applicationId}")
-            Log.d("FirebaseDiagnostic", "[$tag] Uid: ${user?.uid}")
-            Log.d("FirebaseDiagnostic", "[$tag] Email: ${user?.email}")
-            Log.d("FirebaseDiagnostic", "[$tag] IsAnonymous: ${user?.isAnonymous}")
-            Log.d("FirebaseDiagnostic", "[$tag] PackageName: com.enosh.fincalc")
-        } catch (e: Exception) {
-            Log.e("FirebaseDiagnostic", "[$tag] Failed to log diagnostic", e)
-        }
     }
 
     private val _chats = MutableStateFlow<List<ChatRoom>>(emptyList())

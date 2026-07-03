@@ -28,19 +28,7 @@ class FriendsViewModel : ViewModel() {
         fetchFriendMetadata()
     }
 
-    private fun logFirebaseDiagnostic(tag: String) {
-        try {
-            val app = FirebaseApp.getInstance()
-            val user = auth.currentUser
-            Log.d("FirebaseDiagnostic", "[$tag] ProjectId: ${app.options.projectId}")
-            Log.d("FirebaseDiagnostic", "[$tag] AppId: ${app.options.applicationId}")
-            Log.d("FirebaseDiagnostic", "[$tag] Uid: ${user?.uid}")
-            Log.d("FirebaseDiagnostic", "[$tag] Email: ${user?.email}")
-            Log.d("FirebaseDiagnostic", "[$tag] IsAnonymous: ${user?.isAnonymous}")
-            Log.d("FirebaseDiagnostic", "[$tag] PackageName: com.enosh.fincalc")
-        } catch (e: Exception) {
-            Log.e("FirebaseDiagnostic", "[$tag] Failed to log diagnostic", e)
-        }
+        private fun logFirebaseDiagnostic(tag: String) {
     }
 
     private val _searchResults = MutableStateFlow<List<User>>(emptyList())
@@ -337,35 +325,27 @@ class FriendsViewModel : ViewModel() {
     }
 
     fun cancelFriendRequest(request: FriendRequest) {
-        logFirebaseDiagnostic("cancelFriendRequest")
         val currentUid = auth.currentUser?.uid ?: return
         viewModelScope.launch {
             try {
                 val requestId = if (request.requestId.isNotBlank()) request.requestId else "${request.fromUid}_${request.toUid}"
                 val reverseRequestId = "${request.toUid}_${request.fromUid}"
-
-                Log.d("Friends", "Attempting to cancel request: $requestId (Reverse: $reverseRequestId)")
                 
                 val doc = db.collection("friendRequests").document(requestId).get().await()
                 if (doc.exists()) {
                     db.collection("friendRequests").document(requestId).delete().await()
                     _errorMessage.value = "Friend request cancelled."
                 } else {
-                    Log.d("Friends", "Primary requestId not found, checking reverse: $reverseRequestId")
                     val reverseDoc = db.collection("friendRequests").document(reverseRequestId).get().await()
                     if (reverseDoc.exists()) {
                         db.collection("friendRequests").document(reverseRequestId).delete().await()
                         _errorMessage.value = "Friend request cancelled."
                     } else {
-                        Log.d("Friends", "Neither requestId nor reverseRequestId found in friendRequests")
                         _errorMessage.value = "Friend request not found."
                     }
                 }
-            } catch (e: FirebaseFirestoreException) {
-                _errorMessage.value = "Cancel failed: ${e.code} - ${e.message}"
             } catch (e: Exception) {
-                Log.e("Friends", "Failed to cancel request", e)
-                _errorMessage.value = "Failed to cancel request: ${e.message}"
+                _errorMessage.value = "Failed to cancel request"
             }
         }
     }

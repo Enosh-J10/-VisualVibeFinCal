@@ -127,24 +127,15 @@ fun SettingsScreen(
                             val freshDoc = db.collection("users").document(currentUid).get().await()
                             val readBackUrl = freshDoc.getString("profilePictureUrl")
                             
-                            Log.d("DP_UPLOAD", "uid=$currentUid")
-                            Log.d("DP_UPLOAD", "uri=$uri")
-                            Log.d("DP_UPLOAD", "localPath=$readBackUrl")
-                            Log.d("DP_UPLOAD", "copy success")
-                            Log.d("DP_UPLOAD", "firestore update success")
-                            Log.d("DP_UPLOAD", "readback profilePictureUrl=$readBackUrl")
-                            
                             if (!readBackUrl.isNullOrBlank()) {
                                 // 3. UI update Flow
                                 // The snapshot listener on 'userData' will automatically update the UI
-                                Log.d("DP_UPLOAD", "ui updated url=$readBackUrl")
                                 Toast.makeText(context, "Profile picture updated successfully", Toast.LENGTH_SHORT).show()
                             } else {
                                 throw Exception("Local path not saved in Firestore")
                             }
                         }
                     } catch (e: Exception) {
-                        Log.e("DP_UPLOAD", "Local process failed: ${e.message}")
                         Toast.makeText(context, "Profile update failed: ${e.message}", Toast.LENGTH_LONG).show()
                     } finally {
                         isUploading = false

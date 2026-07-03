@@ -56,7 +56,6 @@ class FunReminderWorker(context: Context, params: WorkerParameters) : CoroutineW
         sharedPref.edit {
             putString("last_fun_reminder_text_$currentUid", message)
         }
-        Log.d("FunReminderWorker", "Notification shown: $message")
 
         return Result.success()
     }

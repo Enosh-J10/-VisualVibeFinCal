@@ -184,9 +184,7 @@ fun TripDetailScreen(
             text = { Text("This will permanently delete this trip, expenses, members, flags, and settlement data. This cannot be undone.", color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Black) },
             confirmButton = {
                 Button(onClick = { 
-                    Log.d("TRIP_DELETE", "confirm clicked tripId=$effectiveTripId")
                     travelViewModel.deleteTrip(effectiveTripId) {
-                        Log.d("TRIP_DELETE", "navigate back")
                         navController.popBackStack()
                     }
                     showDeleteConfirm = false
@@ -340,9 +338,6 @@ fun TravelExpenseItem(
     val openFlagsCount = openFlags.size
     
     LaunchedEffect(expense.expenseId, openFlagsCount) {
-        if (openFlagsCount > 0) {
-            Log.d("FLAG_RENDER", "expenseId=${expense.expenseId} count=$openFlagsCount")
-        }
     }
 
     Card(
@@ -377,7 +372,6 @@ fun TravelExpenseItem(
                             shape = RoundedCornerShape(4.dp),
                             modifier = Modifier.clickable { 
                                 isExpanded = !isExpanded 
-                                Log.d("FLAG_LISTEN", "expenseId=${expense.expenseId} count=$openFlagsCount")
                             }
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)) {
@@ -514,7 +508,6 @@ fun TravelExpenseItem(
         FlagExpenseDialog(
             onDismiss = { showFlagDialog = false },
             onFlag = { reason, note ->
-                Log.d("FLAG_WRITE", "path=trips/${trip.tripId}/expenses/${expense.expenseId}/flags/...")
                 onFlag(expense, reason, note)
                 showFlagDialog = false
             }
