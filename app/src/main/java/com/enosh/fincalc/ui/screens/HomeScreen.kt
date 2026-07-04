@@ -5,25 +5,21 @@ import android.widget.Toast
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -31,33 +27,28 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.viewinterop.AndroidView
-import androidx.constraintlayout.compose.ConstraintLayout
-import androidx.constraintlayout.compose.Dimension
 import androidx.core.content.edit
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.enosh.fincalc.R
 import com.enosh.fincalc.domain.model.Category
 import com.enosh.fincalc.domain.model.Tool
-import com.enosh.fincalc.viewmodel.AssistantViewModel
+import com.enosh.fincalc.utils.UserUtils
 import com.enosh.fincalc.viewmodel.AssistantMessageType
 import com.enosh.fincalc.viewmodel.AssistantState
-import com.enosh.fincalc.utils.ReminderWorker
-import com.enosh.fincalc.utils.UserUtils
-import androidx.work.*
+import com.enosh.fincalc.viewmodel.AssistantViewModel
+import com.enosh.fincalc.viewmodel.FinancialViewModel
 import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
-import java.util.concurrent.TimeUnit
-
-import com.enosh.fincalc.viewmodel.FinancialViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(
-    isDarkMode: Boolean, 
+    isDarkMode: Boolean,
     onNavigateToChat: () -> Unit,
     onNavigateToTool: (String) -> Unit,
     assistantViewModel: AssistantViewModel,
@@ -67,7 +58,7 @@ fun HomeScreen(
     val context = LocalContext.current
     val sharedPref = remember { context.getSharedPreferences(UserUtils.PREFS_NAME, Context.MODE_PRIVATE) }
     val uid = remember { FirebaseAuth.getInstance().currentUser?.uid ?: "guest" }
-    
+
     val recentToolsKey = remember(uid) { UserUtils.getScopedKey(uid, "recent_tools") }
     val favoriteToolsKey = remember(uid) { UserUtils.getScopedKey(uid, "favorite_tools") }
 
@@ -82,7 +73,7 @@ fun HomeScreen(
             Tool("ai_chat", "FinCalc AI", R.drawable.ic_calc),
             Tool("curr", "Currency", R.drawable.ic_currency),
             Tool("loan", "Loan Calculator", R.drawable.ic_loan),
-            Tool("tip", "Tip & Split Calculator", R.drawable.ic_tip),
+            Tool("tip", "Tip & Split", R.drawable.ic_tip),
             Tool("tax", "Tax & Disc", R.drawable.ic_tax),
             Tool("perc", "Percentage", R.drawable.ic_percent),
             Tool("unit", "Unit Conversion", R.drawable.ic_unit),
@@ -95,10 +86,10 @@ fun HomeScreen(
             Tool("insights", "Insights", R.drawable.ic_calc),
             Tool("budget", "Budget Planner", R.drawable.ic_calc),
             Tool("goals", "Savings Goals", R.drawable.ic_calc),
-            Tool("saving_planner", "Auto Saving Planner", R.drawable.ic_salary),
+            Tool("saving_planner", "Auto Planner", R.drawable.ic_salary),
             Tool("smart_travel", "Smart Travel", R.drawable.ic_tip),
             Tool("smart_business", "Smart Business", R.drawable.ic_tax)
-        ).filter { 
+        ).filter {
             if (isGuest) it.id !in listOf("smart_travel", "friends", "ai_chat") else true
         }
     }
@@ -128,11 +119,11 @@ fun HomeScreen(
         recentList.add(0, toolId)
         val updatedRecent = recentList.take(5).joinToString(",")
         sharedPref.edit { putString(recentToolsKey, updatedRecent) }
-        
+
         recentToolsState.value = updatedRecent.split(",")
             .filter { it.isNotBlank() }
             .mapNotNull { id -> allTools.find { it.id == id } }
-            
+
         onNavigateToTool(toolId)
     }
 
@@ -146,15 +137,15 @@ fun HomeScreen(
         }
         val updatedFavorites = favList.joinToString(",")
         sharedPref.edit { putString(favoriteToolsKey, updatedFavorites) }
-        
+
         favoritesState.value = updatedFavorites.split(",")
             .filter { it.isNotBlank() }
             .mapNotNull { id -> allTools.find { it.id == id } }
     }
 
-    val userName = remember(isGuest) { 
-        if (isGuest) "Guest" 
-        else sharedPref.getString("name", "User") ?: "User" 
+    val userName = remember(isGuest) {
+        if (isGuest) "Guest"
+        else sharedPref.getString("name", "User") ?: "User"
     }
     val greeting = remember {
         val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
@@ -166,12 +157,12 @@ fun HomeScreen(
     }
 
     var searchQuery by remember { mutableStateOf("") }
-    
+
     val filteredTools = remember(searchQuery) {
         if (searchQuery.isBlank()) allTools
-        else allTools.filter { 
+        else allTools.filter {
             it.name.contains(searchQuery, ignoreCase = true) ||
-            (it.id == "smart_travel" && listOf("travel", "trip", "split", "group", "expense", "settlement").any { tag -> tag.contains(searchQuery, ignoreCase = true) })
+                    (it.id == "smart_travel" && listOf("travel", "trip", "split", "group", "expense", "settlement").any { tag -> tag.contains(searchQuery, ignoreCase = true) })
         }
     }
 
@@ -187,7 +178,7 @@ fun HomeScreen(
     var refreshTrigger by remember { mutableIntStateOf(0) }
     var visible by remember { mutableStateOf(false) }
     var lastRefreshTime by remember { mutableLongStateOf(0L) }
-    
+
     LaunchedEffect(refreshTrigger) {
         visible = false
         delay(100)
@@ -210,129 +201,84 @@ fun HomeScreen(
         topBar = {
             Column(modifier = Modifier.background(if (isDarkMode) Color(0xFF0F2027) else Color.White)) {
                 CenterAlignedTopAppBar(
-                    title = { Text(stringResource(R.string.fincalc), fontWeight = FontWeight.Bold, color = if (isDarkMode) Color.White else Color.Black) },
+                    title = { Text(stringResource(R.string.fincalc), fontSize = 18.sp, fontWeight = FontWeight.Black, color = if (isDarkMode) Color.White else Color.Black) },
                     navigationIcon = {
                         if (isGuest) {
                             IconButton(onClick = onLogout) {
-                                Icon(
-                                    Icons.Default.Logout,
-                                    contentDescription = "Logout",
-                                    tint = Color(0xFF00D1B2)
-                                )
+                                Icon(Icons.Default.Logout, contentDescription = "Logout", tint = Color(0xFF00D1B2))
                             }
                         } else {
                             IconButton(onClick = onNavigateToChat) {
-                                Icon(
-                                    Icons.Default.Chat,
-                                    contentDescription = "Chat",
-                                    tint = Color(0xFF00D1B2)
-                                )
+                                Icon(Icons.Default.Chat, contentDescription = "Chat", tint = Color(0xFF00D1B2))
                             }
                         }
                     },
                     actions = {
-                        IconButton(onClick = { 
+                        IconButton(onClick = {
                             if (isGuest) {
                                 Toast.makeText(context, "Guest users don't have settings", Toast.LENGTH_LONG).show()
                             } else {
                                 handleNavigateToTool("settings")
                             }
                         }) {
-                            Icon(
-                                Icons.Default.Settings,
-                                contentDescription = stringResource(R.string.settings),
-                                tint = if (isDarkMode) Color.White else Color.Black
-                            )
+                            Icon(Icons.Default.Settings, contentDescription = stringResource(R.string.settings), tint = if (isDarkMode) Color.White else Color.Black)
                         }
                     },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color.Transparent
-                    ),
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                     windowInsets = WindowInsets.statusBars
                 )
-                
-                // Greeting and Search
-                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+
+                // Header Content
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp)) {
                     Text(
                         "$greeting, $userName",
-                        fontSize = 20.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = if (isDarkMode) Color.White else Color.Black
                     )
                     Text(
                         "Let's get on track for today.",
-                        fontSize = 14.sp,
-                        color = Color.Gray
+                        fontSize = 13.sp,
+                        color = Color.Gray.copy(alpha = 0.8f)
                     )
                     Spacer(Modifier.height(12.dp))
-                    OutlinedTextField(
-                        value = searchQuery,
-                        onValueChange = { searchQuery = it },
-                        placeholder = { Text("Search tools...") },
-                        modifier = Modifier.fillMaxWidth().height(50.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        leadingIcon = { Icon(Icons.Default.Search, null, tint = Color.Gray) },
-                        trailingIcon = if (searchQuery.isNotEmpty()) {
-                            { IconButton(onClick = { searchQuery = "" }) { Icon(Icons.Default.Close, null, tint = Color.Gray) } }
-                        } else null,
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Color(0xFF00D1B2),
-                            unfocusedBorderColor = Color.Gray.copy(alpha = 0.5f)
-                        )
-                    )
-                }
-            }
-        },
-        bottomBar = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(if (isDarkMode) Color.Black.copy(alpha = 0.5f) else Color.White.copy(alpha = 0.8f))
-                    .navigationBarsPadding()
-                    .padding(vertical = 8.dp)
-            ) {
-                if (favoriteTools.isNotEmpty()) {
-                    Text(
-                        "Favorites",
-                        color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Black.copy(alpha = 0.7f),
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    LazyRow(
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
+                    
+                    // Modern Search Bar
+                    Surface(
+                        color = if (isDarkMode) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.04f),
+                        shape = RoundedCornerShape(20.dp),
+                        modifier = Modifier.fillMaxWidth().height(48.dp)
                     ) {
-                        items(favoriteTools, key = { "fav_${it.id}" }) { tool ->
-                            RecentToolChip(tool, isDarkMode) {
-                                handleNavigateToTool(tool.id)
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        ) {
+                            Icon(Icons.Default.Search, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Box(Modifier.weight(1f)) {
+                                if (searchQuery.isEmpty()) {
+                                    Text("Search tools...", color = Color.Gray, fontSize = 14.sp)
+                                }
+                                androidx.compose.foundation.text.BasicTextField(
+                                    value = searchQuery,
+                                    onValueChange = { searchQuery = it },
+                                    singleLine = true,
+                                    textStyle = LocalTextStyle.current.copy(
+                                        color = if (isDarkMode) Color.White else Color.Black,
+                                        fontSize = 14.sp
+                                    ),
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(20.dp)) {
+                                    Icon(Icons.Default.Close, null, tint = Color.Gray, modifier = Modifier.size(16.dp))
+                                }
                             }
                         }
                     }
                     Spacer(Modifier.height(8.dp))
                 }
-
-                Text(
-                    stringResource(R.string.recent_tools),
-                    color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Black.copy(alpha = 0.7f),
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
-                )
-                LazyRow(
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    items(recentTools, key = { it.id }) { tool ->
-                        RecentToolChip(tool, isDarkMode) {
-                            handleNavigateToTool(tool.id)
-                        }
-                    }
-                }
-                Spacer(Modifier.height(8.dp))
             }
         },
         containerColor = Color.Transparent,
@@ -351,22 +297,33 @@ fun HomeScreen(
                     )
                     .padding(innerPadding)
             ) {
-                val scrollState = androidx.compose.foundation.rememberScrollState()
+                val scrollState = rememberScrollState()
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(scrollState)
-                        .padding(8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
+                    // Recent & Favorites integrated cleaner
+                    if (favoriteTools.isNotEmpty() || recentTools.isNotEmpty()) {
+                        Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                            if (favoriteTools.isNotEmpty()) {
+                                SectionLabel("Favorites", isDarkMode)
+                                ToolRow(favoriteTools, isDarkMode, handleNavigateToTool)
+                            }
+                            if (recentTools.isNotEmpty()) {
+                                SectionLabel(stringResource(R.string.recent_tools), isDarkMode)
+                                ToolRow(recentTools, isDarkMode, handleNavigateToTool)
+                            }
+                        }
+                    }
+
                     if (categories.isEmpty()) {
                         Box(Modifier.fillMaxWidth().height(300.dp), contentAlignment = Alignment.Center) {
                             Text("No tools found", color = Color.Gray)
                         }
                     } else {
-                        // Improved Grid layout with PremiumFab at the exact intersection
-                        Box(contentAlignment = Alignment.TopCenter) {
-                            var firstRowHeight by remember { mutableStateOf(0) }
+                        Box(contentAlignment = Alignment.TopCenter, modifier = Modifier.padding(horizontal = 8.dp)) {
+                            var firstRowHeight by remember { mutableIntStateOf(0) }
                             val density = androidx.compose.ui.platform.LocalDensity.current
 
                             Column {
@@ -376,12 +333,21 @@ fun HomeScreen(
                                         Modifier
                                             .fillMaxWidth()
                                             .height(IntrinsicSize.Max)
-                                            .onGloballyPositioned { 
-                                                if (rowIndex == 0) firstRowHeight = it.size.height 
+                                            .onGloballyPositioned {
+                                                if (rowIndex == 0) firstRowHeight = it.size.height
                                             }
                                     ) {
                                         rowCategories.forEach { cat ->
-                                            CategoryCard(cat, Modifier.weight(1f).fillMaxHeight(), visible, categories.indexOf(cat), isDarkMode, handleNavigateToTool, favoriteTools, toggleFavorite)
+                                            CategoryCard(
+                                                category = cat,
+                                                modifier = Modifier.weight(1f).fillMaxHeight(),
+                                                visible = visible,
+                                                index = categories.indexOf(cat),
+                                                isDarkMode = isDarkMode,
+                                                onNavigateToTool = handleNavigateToTool,
+                                                favoriteTools = favoriteTools,
+                                                onToggleFavorite = toggleFavorite
+                                            )
                                         }
                                         if (rowCategories.size == 1) {
                                             Spacer(Modifier.weight(1f))
@@ -389,31 +355,30 @@ fun HomeScreen(
                                     }
                                 }
                             }
-                            
+
                             if (categories.size >= 4 && firstRowHeight > 0) {
                                 val yOffset = with(density) { firstRowHeight.toDp() }
                                 PremiumFab(
-                                    visible = visible, 
-                                    onClick = { 
+                                    visible = visible,
+                                    onClick = {
                                         val currentTime = System.currentTimeMillis()
                                         if (currentTime - lastRefreshTime > 2000) {
                                             lastRefreshTime = currentTime
-                                            refreshTrigger++ 
-                                            assistantViewModel.showMessage("Refreshing the page for you! ⚡", state = AssistantState.HAPPY, type = AssistantMessageType.THOUGHT)
+                                            refreshTrigger++
+                                            assistantViewModel.showMessage("Refreshing the page! ⚡", state = AssistantState.HAPPY, type = AssistantMessageType.THOUGHT)
                                             Toast.makeText(context, "Page Refreshed", Toast.LENGTH_SHORT).show()
                                         } else {
-                                            Toast.makeText(context, "Refreshing too fast! Please wait.", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, "Please wait...", Toast.LENGTH_SHORT).show()
                                         }
                                     },
                                     modifier = Modifier
-                                        .offset(y = yOffset - 30.dp) // 30dp is half of FAB size (60dp)
+                                        .offset(y = yOffset - 24.dp)
                                         .semantics { contentDescription = "Refresh the home screen tools" }
                                 )
                             }
                         }
                     }
-
-                    Spacer(Modifier.height(120.dp)) // Padding for bottom nav chips
+                    Spacer(Modifier.height(100.dp))
                 }
             }
         }
@@ -421,11 +386,35 @@ fun HomeScreen(
 }
 
 @Composable
+fun SectionLabel(text: String, isDarkMode: Boolean) {
+    Text(
+        text = text,
+        color = if (isDarkMode) Color.White.copy(alpha = 0.6f) else Color.Black.copy(alpha = 0.6f),
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+    )
+}
+
+@Composable
+fun ToolRow(tools: List<Tool>, isDarkMode: Boolean, onNavigate: (String) -> Unit) {
+    LazyRow(
+        contentPadding = PaddingValues(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        items(tools, key = { it.id }) { tool ->
+            RecentToolChip(tool, isDarkMode) { onNavigate(tool.id) }
+        }
+    }
+}
+
+@Composable
 fun CategoryCard(
-    category: Category, 
-    modifier: Modifier, 
-    visible: Boolean, 
-    index: Int, 
+    category: Category,
+    modifier: Modifier,
+    visible: Boolean,
+    index: Int,
     isDarkMode: Boolean,
     onNavigateToTool: (String) -> Unit,
     favoriteTools: List<Tool>,
@@ -433,38 +422,39 @@ fun CategoryCard(
 ) {
     val animatedAlpha by animateFloatAsState(
         targetValue = if (visible) 1f else 0f,
-        animationSpec = tween(500, delayMillis = index * 100), label = ""
+        animationSpec = tween(400, delayMillis = index * 80), label = ""
     )
     val animatedOffsetY by animateFloatAsState(
-        targetValue = if (visible) 0f else 50f,
+        targetValue = if (visible) 0f else 30f,
         animationSpec = spring(stiffness = Spring.StiffnessLow), label = ""
     )
 
-    Card(
+    ElevatedCard(
         modifier = modifier
             .padding(6.dp)
             .graphicsLayer {
                 alpha = animatedAlpha
                 translationY = animatedOffsetY
             },
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = category.color.copy(alpha = 0.9f)
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = if (isDarkMode) category.color.copy(alpha = 0.15f) else category.color.copy(alpha = 0.6f)
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
     ) {
-        Column(Modifier.padding(16.dp)) {
+        Column(Modifier.padding(14.dp)) {
             Text(
                 category.title,
-                fontWeight = FontWeight.ExtraBold,
-                fontSize = 18.sp,
+                fontWeight = FontWeight.Black,
+                fontSize = 15.sp,
+                lineHeight = 18.sp,
                 color = if (isDarkMode) Color.White else Color(0xFF0F2027),
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 10.dp)
             )
             category.tools.forEach { tool ->
                 ToolItem(
-                    tool = tool, 
-                    isDarkMode = isDarkMode, 
+                    tool = tool,
+                    isDarkMode = isDarkMode,
                     isFavorite = favoriteTools.any { it.id == tool.id },
                     onToggleFavorite = { onToggleFavorite(tool.id) },
                     onClick = { onNavigateToTool(tool.id) }
@@ -476,8 +466,8 @@ fun CategoryCard(
 
 @Composable
 fun ToolItem(
-    tool: Tool, 
-    isDarkMode: Boolean, 
+    tool: Tool,
+    isDarkMode: Boolean,
     isFavorite: Boolean,
     onToggleFavorite: () -> Unit,
     onClick: () -> Unit
@@ -486,34 +476,34 @@ fun ToolItem(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .padding(vertical = 3.dp)
+            .clip(RoundedCornerShape(10.dp))
             .clickable { onClick() }
-            .padding(4.dp)
+            .padding(vertical = 5.dp, horizontal = 2.dp)
     ) {
         Icon(
             painter = painterResource(tool.iconRes),
             contentDescription = null,
-            modifier = Modifier.size(18.dp),
+            modifier = Modifier.size(16.dp),
             tint = Color(0xFF00D1B2)
         )
         Spacer(Modifier.width(8.dp))
         Text(
             tool.name,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.SemiBold,
             color = if (isDarkMode) Color.White.copy(alpha = 0.9f) else Color.Black.copy(alpha = 0.8f),
             modifier = Modifier.weight(1f)
         )
         IconButton(
             onClick = { onToggleFavorite() },
-            modifier = Modifier.size(24.dp)
+            modifier = Modifier.size(22.dp)
         ) {
             Icon(
                 imageVector = if (isFavorite) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                 contentDescription = "Toggle Favorite",
-                tint = if (isFavorite) Color.Red else Color.Gray.copy(alpha = 0.5f),
-                modifier = Modifier.size(16.dp)
+                tint = if (isFavorite) Color.Red else Color.Gray.copy(alpha = 0.4f),
+                modifier = Modifier.size(14.dp)
             )
         }
     }
@@ -525,13 +515,13 @@ fun PremiumFab(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modif
         targetValue = if (visible) 1f else 0f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy), label = ""
     )
-    
+
     val infiniteTransition = rememberInfiniteTransition(label = "")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
         targetValue = 1.05f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
+            animation = tween(2000, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ), label = ""
     )
@@ -539,20 +529,17 @@ fun PremiumFab(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modif
     Box(
         modifier = modifier
             .scale(scale * pulseScale)
-            .size(60.dp)
+            .size(48.dp)
             .clip(CircleShape)
-            .background(
-                Brush.linearGradient(listOf(Color(0xFF00D1B2), Color(0xFF00BFA5)))
-            )
-            .clickable { onClick() }
-            .padding(2.dp),
+            .background(Brush.linearGradient(listOf(Color(0xFF00D1B2), Color(0xFF00BFA5))))
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Icon(
             painter = painterResource(R.drawable.ic_fincalc_logo_vector),
             contentDescription = "Refresh",
             tint = Color.Unspecified,
-            modifier = Modifier.size(40.dp)
+            modifier = Modifier.size(30.dp)
         )
     }
 }
@@ -560,8 +547,8 @@ fun PremiumFab(visible: Boolean, onClick: () -> Unit, modifier: Modifier = Modif
 @Composable
 fun RecentToolChip(tool: Tool, isDarkMode: Boolean, onClick: () -> Unit) {
     Surface(
-        color = if (isDarkMode) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.05f),
-        shape = RoundedCornerShape(16.dp),
+        color = if (isDarkMode) Color.White.copy(alpha = 0.1f) else Color.Black.copy(alpha = 0.06f),
+        shape = RoundedCornerShape(14.dp),
         modifier = Modifier.clickable { onClick() }
     ) {
         Row(
@@ -571,11 +558,16 @@ fun RecentToolChip(tool: Tool, isDarkMode: Boolean, onClick: () -> Unit) {
             Icon(
                 painter = painterResource(tool.iconRes),
                 contentDescription = null,
-                modifier = Modifier.size(16.dp),
+                modifier = Modifier.size(14.dp),
                 tint = Color(0xFF00D1B2)
             )
             Spacer(Modifier.width(6.dp))
-            Text(tool.name, color = if (isDarkMode) Color.White else Color.Black, fontSize = 12.sp)
+            Text(
+                tool.name,
+                color = if (isDarkMode) Color.White else Color.Black,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium
+            )
         }
     }
 }
