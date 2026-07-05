@@ -1,59 +1,109 @@
-# FinCalc 📊
+# FinCalc – Smart Finance, AI & Travel Companion
 
-FinCalc is an Android app I built to put all the useful finance tools I need in one place. It has things like currency conversion, loan calculators, and a way to scan receipts so you don't have to type everything in.
+FinCalc is a comprehensive Android personal finance application designed to simplify budgeting, expense tracking, and financial planning. Featuring AI-powered assistance, shared travel expenses, and smart business tracking, FinCalc provides a suite of premium tools to keep your finances on track.
 
-## Features
+## Key Features
 
-### Tracking Money
-* **Insights**: A quick look at how much you're spending and what you're spending it on.
-* **Budgeting**: Set a monthly limit and the app will let you know if you're going over.
-* **Goals**: A simple way to track how much you've saved for specific things.
-* **Expense Log**: Keep a list of your daily spending.
-
-### Tools & Calculators
-* **Smart Scan**: Use your camera to scan receipts. It tries to find the total and category for you.
-* **Currency**: Live exchange rates for a bunch of different currencies.
-* **Calculators**: Basic stuff like loans, salary, taxes, and unit conversion.
-* **Extras**: A BMI calculator and a simple notebook for quick notes.
-
-### Assistant
-* **Bot Character**: A little floating robot that gives tips and budget notifications. You can change how it looks in settings.
-
-### Security
-* **App Lock**: You can lock the app with a PIN or use your fingerprint.
-* **Privacy**: Everything stays on your phone. Nothing is sent to a server.
-
-## Tech Used
-* **Kotlin** & **Jetpack Compose** for the UI.
-* **Room** to save your data locally.
-* **Retrofit** for getting currency rates.
-* **ML Kit** for the receipt scanning.
-* **WorkManager** for daily reminders.
-
-## Setup
-1. Clone the repo: `git clone https://github.com/Enosh-J10/FinCalc.git`
-2. Open it in Android Studio.
-3. Build and run it on your phone or an emulator (API 24+).
+- **Budget Planner**: Set monthly limits and monitor spending trends.
+- **Expense Tracker**: Log daily transactions with categorization.
+- **Savings Goals**: Track progress toward long-term financial targets.
+- **Auto Saving Planner**: Automated calculations for reaching goals.
+- **Smart Travel**: Collaborative trip expense management with friends.
+- **Smart Business**: Professional tools for tracking business income and targets.
+- **AI Assistant**: Personalized financial tips and "Roast Mode" powered by Google Gemini.
+- **Friends System**: Securely connect with other users via unique FinCalc IDs.
+- **Text Chat**: Secure 1-on-1 messaging with real-time status indicators.
+- **Smart Scan**: OCR-powered receipt scanning for automated entry.
+- **Notes**: Integrated notebook for financial reminders and checklists.
+- **Cloud Backup & Restore**: Securely sync your data across devices using Firestore.
+- **Profile Pictures**: Local avatar management with initials-based fallback.
+- **Fun Local Reminders**: Engaging notifications to keep you financially active.
+- **Unit & Currency Converters**: Real-time exchange rates and measurement swaps.
+- **Financial Calculators**: Dedicated tools for Loans, Salary, Tax, and Tips.
+- **Guest Mode**: Full local functionality without requiring an account.
 
 ## Screenshots
-Here is a look at the app in action:
 
-| Home Dashboard | Assistant Settings | Currency Converter |
-| :---: | :---: | :---: |
-| ![Home Screen](./screenshots/home_screen.png) | ![Assistant Settings](./screenshots/assistant_robot.png) | ![Currency Converter](./screenshots/currency_converter.png) |
-| The main hub for all your finance tools. | Customize the robot assistant's look and behavior. | Real-time conversion with live exchange rates. |
+![Home](screenshots/home.png)
+![Smart Travel](screenshots/smart-travel.png)
+![AI Assistant](screenshots/ai-assistant.png)
 
-For more, check the [screenshots](./screenshots) folder.
+## Tech Stack
 
-## Known Issues
-- **OCR Accuracy**: The receipt scanner might struggle with blurry photos or very long receipts.
-- **Internet Dependency**: You'll need a connection to fetch the latest currency exchange rates.
-- **Device UI**: Some animations might look slightly different depending on your phone's screen size.
+- **Language**: Kotlin
+- **UI Framework**: Jetpack Compose
+- **Design System**: Material 3
+- **Authentication**: Firebase Authentication
+- **Cloud Database**: Cloud Firestore
+- **Local Database**: Room
+- **Background Tasks**: WorkManager
+- **Generative AI**: Google Gemini API
+- **Media**: Android Photo Picker & Coil
 
-## Future Plans
-* Add better charts and graphs.
-* Maybe some basic AI for better spending advice.
-* Support for more languages.
+## Architecture Overview
 
----
-*Note: This is a student project. Don't use it for official financial advice!*
+FinCalc follows the **MVVM (Model-View-ViewModel)** architectural pattern to ensure a clean separation of concerns and high maintainability.
+
+- **Jetpack Compose**: 100% declarative UI for a modern, responsive experience.
+- **ViewModels**: Manage UI state and encapsulate business logic.
+- **Room Database**: Robust local persistence for offline access and user-scoped data isolation.
+- **Firebase Integration**: Secure authentication and real-time cloud synchronization via Firestore.
+- **User-Scoped Data**: Local databases are unique to each UID to prevent data leakage.
+- **Local Storage**: Profile pictures are stored on the device filesystem to minimize latency and cloud costs.
+
+## Firebase Collections
+
+- `users`: Core profile data (UID, email, FinCalc ID).
+- `friends`: Peer-to-peer friendship records.
+- `friendRequests`: Pending and historical connection status.
+- `chats`: Metadata and presence status for messaging rooms.
+- `trips`: Shared "Smart Travel" trip records.
+- `expenses`: Transaction data for individual and shared use.
+- `flags`: Dispute markers for shared trip expenses.
+- `backups`: Encrypted JSON snapshots of user application data.
+
+## Important Design Decisions
+
+- **Stability First**: Production releases prioritize crash prevention and data integrity over experimental feature sets.
+- **Text-Only Chat**: Messaging is currently optimized for text for maximum stability; image sharing is disabled.
+- **Local Profile Images**: Avatars are managed locally with a deterministic initials-based fallback.
+- **Spark-Plan Optimized**: Built to run efficiently without requiring paid Firebase Cloud Functions.
+- **Lazy AI Initialization**: AI services are initialized only when the AI screen is accessed to optimize battery and memory.
+
+## Installation / Setup
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Enosh-J10/FinCalc.git
+   ```
+2. Open the project in **Android Studio (Ladybug or newer)**.
+3. Place your `google-services.json` file in the `app/` directory.
+4. Add your `GEMINI_API_KEY` to `local.properties` (e.g., `GEMINI_API_KEY=your_key_here`).
+5. Sync Gradle and build the project.
+
+## Build Commands
+
+```bash
+./gradlew clean
+./gradlew assembleRelease
+./gradlew bundleRelease
+```
+
+## Release Notes
+
+Latest Version: **v1.9.6**
+
+## Privacy & Disclaimer
+
+- FinCalc is not a bank or regulated financial institution.
+- This application does not provide professional financial, investment, or legal advice.
+- All calculations are estimates provided for informational purposes.
+- Users assume full responsibility for their financial decisions and data management.
+
+## License
+
+License: All rights reserved unless otherwise specified.
+
+## Maintainer
+
+**Enosh Jaques**
