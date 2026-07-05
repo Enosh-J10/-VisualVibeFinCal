@@ -31,7 +31,9 @@ class MainActivity : AppCompatActivity() {
         val handler = Handler(Looper.getMainLooper())
         
         fun showNextTip() {
+            if (isFinishing || isDestroyed) return
             tvTip?.animate()?.alpha(0f)?.setDuration(200)?.withEndAction {
+                if (isFinishing || isDestroyed) return@withEndAction
                 tvTip.text = tips.random()
                 tvTip.animate()?.alpha(1f)?.setDuration(200)?.start()
             }?.start()
@@ -39,6 +41,7 @@ class MainActivity : AppCompatActivity() {
 
         val updateTipRunnable = object : Runnable {
             override fun run() {
+                if (isFinishing || isDestroyed) return
                 showNextTip()
                 handler.postDelayed(this, 3000) 
             }
@@ -56,13 +59,14 @@ class MainActivity : AppCompatActivity() {
             handler.removeCallbacks(updateTipRunnable)
             
             try {
-                val auth = try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (ignored: Exception) { null }
+                val auth = try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Throwable) { null }
                 val sharedPref = getSharedPreferences(UserUtils.PREFS_NAME, MODE_PRIVATE)
                 val isGuest = sharedPref.getBoolean("is_guest", false)
                 val keepMeSignedIn = sharedPref.getBoolean("keep_me_signed_in", true)
 
                 if (auth != null && (auth.currentUser != null || isGuest) && keepMeSignedIn) {
-                    val intent = if (SecurityUtils.isAppLockEnabled(this)) {
+                    val isLockEnabled = try { SecurityUtils.isAppLockEnabled(this) } catch (e: Throwable) { false }
+                    val intent = if (isLockEnabled) {
                         Intent(this, LockActivity::class.java).apply {
                             putExtra("DESTINATION", "HOME")
                         }
@@ -71,17 +75,19 @@ class MainActivity : AppCompatActivity() {
                     }
                     
                     // Pass deep link data if any
-                    getIntent().data?.let { uri ->
-                        intent.data = uri
-                    }
+                    intent.data = getIntent().data
                     
                     startActivity(intent)
                 } else {
                     startActivity(Intent(this, LoginActivity::class.java))
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 android.util.Log.e("MainActivity", "Startup failure", e)
-                startActivity(Intent(this, LoginActivity::class.java))
+                try {
+                    startActivity(Intent(this, LoginActivity::class.java))
+                } catch (internal: Exception) {
+                    // Critical failure
+                }
             }
             finish()
         }, 3000)

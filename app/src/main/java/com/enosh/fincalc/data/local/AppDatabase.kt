@@ -52,7 +52,11 @@ abstract class AppDatabase : RoomDatabase() {
         fun getDatabase(context: Context): AppDatabase {
             val prefs = context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
             val isGuest = prefs.getBoolean("is_guest", false)
-            val userId = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
+            val userId = try {
+                com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
+            } catch (e: Throwable) {
+                "anonymous"
+            }
             val dbName = if (isGuest) "fincalc_database_guest" else "fincalc_database_$userId"
 
             val currentInstance = INSTANCE

@@ -95,7 +95,13 @@ class HomeActivity : ComponentActivity() {
             val assistantViewModel: AssistantViewModel = viewModel()
             val notificationsViewModel: com.enosh.fincalc.viewmodel.NotificationsViewModel = viewModel()
             val context = LocalContext.current
-            val uid = remember { FirebaseAuth.getInstance().currentUser?.uid ?: "guest" }
+            val uid = remember { 
+                try {
+                    FirebaseAuth.getInstance().currentUser?.uid ?: "guest"
+                } catch (e: Throwable) {
+                    "guest"
+                }
+            }
             val darkModeKey = remember(uid) { UserUtils.getScopedKey(uid, "is_dark_mode") }
             
             var isDarkMode by remember(darkModeKey) { 

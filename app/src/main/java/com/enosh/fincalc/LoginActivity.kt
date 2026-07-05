@@ -42,8 +42,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Optimized for stability and performance.
  */
 class LoginActivity : AppCompatActivity() {
-    private lateinit var auth: FirebaseAuth
-    private lateinit var googleSignInClient: GoogleSignInClient
+    private var auth: FirebaseAuth? = null
+    private var googleSignInClient: GoogleSignInClient? = null
 
     private val googleSignInLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
@@ -54,8 +54,9 @@ class LoginActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 setLoading(true)
                 try {
-                    if (::auth.isInitialized) {
-                        auth.signInWithCredential(firebaseCredential).await()
+                    val currentAuth = auth ?: try { FirebaseAuth.getInstance() } catch (e: Throwable) { null }
+                    if (currentAuth != null) {
+                        currentAuth.signInWithCredential(firebaseCredential).await()
                         onAuthSuccess(account.email)
                     } else {
                         Toast.makeText(this@LoginActivity, "Authentication service not available.", Toast.LENGTH_LONG).show()
@@ -84,14 +85,14 @@ class LoginActivity : AppCompatActivity() {
         isPinRecovery = intent.getBooleanExtra("is_pin_recovery", false)
         
         try {
-            auth = FirebaseAuth.getInstance()
+            auth = try { FirebaseAuth.getInstance() } catch (e: Throwable) { null }
             val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                 .requestIdToken(getString(R.string.default_web_client_id))
                 .requestEmail()
                 .build()
             googleSignInClient = GoogleSignIn.getClient(this, gso)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Firebase setup error.", Toast.LENGTH_LONG).show()
+        } catch (e: Throwable) {
+            android.util.Log.e("LoginActivity", "Setup error", e)
         }
 
         enableEdgeToEdge()
@@ -99,7 +100,11 @@ class LoginActivity : AppCompatActivity() {
 
         // Pre-initialize off the main thread
         lifecycleScope.launch(Dispatchers.IO) {
-            SecurityUtils.getEncryptedPrefs(applicationContext)
+            try {
+                SecurityUtils.getEncryptedPrefs(applicationContext)
+            } catch (e: Throwable) {
+                // Ignore
+            }
         }
 
         val etEmail = findViewById<TextInputEditText>(R.id.et_email)
@@ -111,7 +116,7 @@ class LoginActivity : AppCompatActivity() {
         val tvForgotPassword = findViewById<TextView>(R.id.tv_forgot_password)
         val btnHelp = findViewById<ImageButton>(R.id.btn_help)
 
-        btnHelp.setOnClickListener {
+        btnHelp?.setOnClickListener {
             val intent = Intent(Intent.ACTION_SENDTO).apply {
                 data = "mailto:".toUri()
                 putExtra(Intent.EXTRA_EMAIL, arrayOf("enoshjaques@gmail.com"))
@@ -120,15 +125,15 @@ class LoginActivity : AppCompatActivity() {
             try { startActivity(Intent.createChooser(intent, "Send Email")) } catch (_: Exception) {}
         }
 
-        etEmail.addTextChangedListener { findViewById<TextInputLayout>(R.id.til_email).error = null }
-        etPassword.addTextChangedListener { findViewById<TextInputLayout>(R.id.til_password).error = null }
+        etEmail?.addTextChangedListener { findViewById<TextInputLayout>(R.id.til_email)?.error = null }
+        etPassword?.addTextChangedListener { findViewById<TextInputLayout>(R.id.til_password)?.error = null }
 
-        btnLogin.setOnClickListener { performLogin() }
-        btnGoogle.setOnClickListener { signInWithGoogle() }
-        tvForgotPassword.setOnClickListener { startActivity(Intent(this, ForgotPasswordActivity::class.java)) }
-        tvSignup.setOnClickListener { startActivity(Intent(this, SignupActivity::class.java)) }
+        btnLogin?.setOnClickListener { performLogin() }
+        btnGoogle?.setOnClickListener { signInWithGoogle() }
+        tvForgotPassword?.setOnClickListener { startActivity(Intent(this, ForgotPasswordActivity::class.java)) }
+        tvSignup?.setOnClickListener { startActivity(Intent(this, SignupActivity::class.java)) }
 
-        btnGuest.setOnClickListener {
+        btnGuest?.setOnClickListener {
             lifecycleScope.launch {
                 withContext(Dispatchers.IO) {
                     getSharedPreferences("UserPrefs", MODE_PRIVATE).edit { putBoolean("is_guest", true) }
@@ -139,33 +144,34 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun setLoading(isLoading: Boolean) {
-        findViewById<MaterialButton>(R.id.btn_login).isEnabled = !isLoading
-        findViewById<MaterialButton>(R.id.btn_google).isEnabled = !isLoading
+        findViewById<MaterialButton>(R.id.btn_login)?.isEnabled = !isLoading
+        findViewById<MaterialButton>(R.id.btn_google)?.isEnabled = !isLoading
         findViewById<ProgressBar>(R.id.progress_login)?.visibility = if (isLoading) View.VISIBLE else View.GONE
     }
 
     private fun performLogin() {
-        if (!::auth.isInitialized) {
+        val currentAuth = auth ?: try { FirebaseAuth.getInstance() } catch (e: Throwable) { null }
+        if (currentAuth == null) {
             Toast.makeText(this, "Authentication service not available.", Toast.LENGTH_LONG).show()
             return
         }
-        val email = findViewById<TextInputEditText>(R.id.et_email).text.toString().trim()
-        val password = findViewById<TextInputEditText>(R.id.et_password).text.toString()
+        val email = findViewById<TextInputEditText>(R.id.et_email)?.text.toString().trim()
+        val password = findViewById<TextInputEditText>(R.id.et_password)?.text.toString()
 
         if (!ValidationUtils.isValidEmail(email)) {
-            findViewById<TextInputLayout>(R.id.til_email).error = getString(R.string.invalid_email_format)
+            findViewById<TextInputLayout>(R.id.til_email)?.error = getString(R.string.invalid_email_format)
             return
         }
         if (password.isEmpty()) {
-            findViewById<TextInputLayout>(R.id.til_password).error = getString(R.string.password_empty)
+            findViewById<TextInputLayout>(R.id.til_password)?.error = getString(R.string.password_empty)
             return
         }
 
         setLoading(true)
         lifecycleScope.launch {
             try {
-                auth.signInWithEmailAndPassword(email, password).await()
-                val user = auth.currentUser
+                currentAuth.signInWithEmailAndPassword(email, password).await()
+                val user = currentAuth.currentUser
                 if (user != null && (!user.isEmailVerified)) {
                     setLoading(false)
                     showResendVerificationDialog()
@@ -185,7 +191,8 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun onAuthSuccess(email: String?) {
-        val user = FirebaseAuth.getInstance().currentUser
+        val currentAuth = auth ?: try { FirebaseAuth.getInstance() } catch (e: Throwable) { null }
+        val user = currentAuth?.currentUser
         if (user != null) {
             lifecycleScope.launch {
                 com.enosh.fincalc.utils.UserUtils.ensureFinCalcUserProfile(this@LoginActivity)
@@ -198,7 +205,7 @@ class LoginActivity : AppCompatActivity() {
                 getSharedPreferences("UserPrefs", MODE_PRIVATE).edit {
                     putBoolean("is_guest", false)
                     putString("email", email)
-                    val user = FirebaseAuth.getInstance().currentUser
+                    val user = currentAuth?.currentUser
                     putString("name", user?.displayName)
                     putString("profile_pic", user?.photoUrl?.toString())
                 }
@@ -260,9 +267,10 @@ class LoginActivity : AppCompatActivity() {
                 val credential = result.credential
                 if (credential is GoogleIdTokenCredential) {
                     val firebaseCredential = GoogleAuthProvider.getCredential(credential.idToken, null)
-                    if (::auth.isInitialized) {
-                        auth.signInWithCredential(firebaseCredential).await()
-                        onAuthSuccess(auth.currentUser?.email)
+                    val currentAuth = auth ?: try { FirebaseAuth.getInstance() } catch (e: Throwable) { null }
+                    if (currentAuth != null) {
+                        currentAuth.signInWithCredential(firebaseCredential).await()
+                        onAuthSuccess(currentAuth.currentUser?.email)
                     } else {
                         Toast.makeText(this@LoginActivity, "Authentication service not available.", Toast.LENGTH_LONG).show()
                     }
@@ -277,7 +285,11 @@ class LoginActivity : AppCompatActivity() {
 
     private fun startLegacyGoogleSignIn() {
         getSharedPreferences("GooglePrefs", MODE_PRIVATE).edit { putBoolean("PREFER_LEGACY", true) }
-        googleSignInLauncher.launch(googleSignInClient.signInIntent)
+        googleSignInClient?.let {
+            googleSignInLauncher.launch(it.signInIntent)
+        } ?: run {
+            Toast.makeText(this, "Google Sign-In not available.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun showResendVerificationDialog() {
@@ -285,7 +297,8 @@ class LoginActivity : AppCompatActivity() {
             .setTitle("Email Not Verified")
             .setMessage(getString(R.string.verify_email_warning))
             .setPositiveButton(getString(R.string.resend_verification)) { _, _ ->
-                auth.currentUser?.sendEmailVerification()
+                val currentAuth = auth ?: try { FirebaseAuth.getInstance() } catch (e: Throwable) { null }
+                currentAuth?.currentUser?.sendEmailVerification()
             }
             .setNegativeButton("OK", null)
             .show()

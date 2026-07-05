@@ -25,6 +25,15 @@ object UserUtils {
         "profile_pic"
     )
 
+    private fun getAuth(): FirebaseAuth? {
+        return try {
+            FirebaseAuth.getInstance()
+        } catch (e: Throwable) {
+            android.util.Log.e("UserUtils", "Firebase Auth not available")
+            null
+        }
+    }
+
     fun getScopedKey(uid: String, key: String) = "${key}_$uid"
     
     fun getEffectiveUid(context: Context): String {
@@ -32,9 +41,8 @@ object UserUtils {
             val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             val isGuest = prefs.getBoolean("is_guest", false)
             if (isGuest) return "guest"
-            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
-        } catch (e: Exception) {
-            android.util.Log.e("UserUtils", "Firebase not initialized: ${e.message}")
+            getAuth()?.currentUser?.uid ?: "anonymous"
+        } catch (e: Throwable) {
             "anonymous"
         }
     }
@@ -54,11 +62,11 @@ object UserUtils {
     }
 
     fun logout(context: Context, onComplete: () -> Unit) {
-        val auth = FirebaseAuth.getInstance()
+        val auth = getAuth()
         val sharedPref = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         val isGuest = sharedPref.getBoolean("is_guest", false)
         
-        auth.signOut()
+        auth?.signOut()
         
         val gso = com.google.android.gms.auth.api.signin.GoogleSignInOptions.Builder(com.google.android.gms.auth.api.signin.GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(context.getString(com.enosh.fincalc.R.string.default_web_client_id))
@@ -110,7 +118,7 @@ object UserUtils {
         providedEmail: String? = null,
         profilePicUri: android.net.Uri? = null
     ) {
-        val auth = FirebaseAuth.getInstance()
+        val auth = getAuth() ?: return
         val firebaseUser = auth.currentUser ?: return
         val uid = firebaseUser.uid
         if (uid.isBlank()) return
@@ -141,21 +149,26 @@ object UserUtils {
                     context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
                         .putString(getScopedKey(uid, "profile_pic_local"), finalProfilePicUrl)
                         .apply()
-                } else {
-                    throw Exception("Failed to create local persistent profile file")
                 }
             } catch (e: Exception) {
                 android.util.Log.e("UserUtils", "Local copy failed: ${e.message}")
-                throw e 
             }
         }
 
-        uploadCurrentUser(providedName, providedEmail, finalProfilePicUrl)
-        updateFcmToken()
+        try {
+            uploadCurrentUser(providedName, providedEmail, finalProfilePicUrl)
+            updateFcmToken()
+        } catch (e: Throwable) {
+            android.util.Log.e("UserUtils", "Cloud profile update failed", e)
+        }
         
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
-            .putString(getFinCalcIdKey(uid), finCalcId)
-            .apply()
+        try {
+            context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+                .putString(getFinCalcIdKey(uid), finCalcId)
+                .apply()
+        } catch (e: Throwable) {
+            // Ignore
+        }
     }
 
     suspend fun uploadCurrentUser(
@@ -163,7 +176,7 @@ object UserUtils {
         providedEmail: String? = null,
         profilePicUrl: String? = null
     ) {
-        val auth = FirebaseAuth.getInstance()
+        val auth = getAuth() ?: return
         val firebaseUser = auth.currentUser ?: return
         val uid = firebaseUser.uid
         val initialName = firebaseUser.displayName ?: ""
@@ -178,13 +191,12 @@ object UserUtils {
 
         // Update FirebaseAuth profile as well
         if ((providedName != null && providedName.isNotBlank()) || profilePicUrl != null) {
-            val profileUpdates = com.google.firebase.auth.userProfileChangeRequest {
-                if (providedName != null && providedName.isNotBlank()) displayName = providedName
-                if (profilePicUrl != null) photoUri = android.net.Uri.parse(profilePicUrl)
-            }
             try {
+                val profileUpdates = com.google.firebase.auth.userProfileChangeRequest {
+                    if (providedName != null && providedName.isNotBlank()) displayName = providedName
+                    if (profilePicUrl != null) photoUri = android.net.Uri.parse(profilePicUrl)
+                }
                 firebaseUser.updateProfile(profileUpdates).await()
-                // IMPORTANT: Reload the user to refresh the local cache/token
                 firebaseUser.reload().await()
             } catch (e: Exception) {
                 android.util.Log.e("UserUtils", "FirebaseAuth profile update failed", e)
@@ -218,8 +230,14 @@ object UserUtils {
 
     suspend fun updateFcmToken() {
         try {
-            val uid = FirebaseAuth.getInstance().currentUser?.uid ?: return
-            val token = FirebaseMessaging.getInstance().token.await()
+            val auth = getAuth() ?: return
+            val uid = auth.currentUser?.uid ?: return
+            val token = try { 
+                FirebaseMessaging.getInstance().token.await() 
+            } catch (e: Exception) { 
+                null 
+            } ?: return
+
             FirebaseFirestore.getInstance().collection("users").document(uid)
                 .update("fcmToken", token).await()
         } catch (e: Exception) {
@@ -229,8 +247,8 @@ object UserUtils {
 
 
     suspend fun removeProfilePicture(context: Context) {
-        val auth = FirebaseAuth.getInstance()
-        val firebaseUser = auth.currentUser ?: return
+        val auth = getAuth()
+        val firebaseUser = auth?.currentUser ?: return
         val uid = firebaseUser.uid
         if (uid.isBlank()) return
 
@@ -265,7 +283,7 @@ object UserUtils {
     }
 
     suspend fun searchUsers(query: String): List<User> {
-        val db = FirebaseFirestore.getInstance()
+        val db = try { FirebaseFirestore.getInstance() } catch (e: Throwable) { return emptyList() }
         val results = mutableListOf<User>()
         val trimmedQuery = query.trim()
         if (trimmedQuery.isEmpty()) return emptyList()

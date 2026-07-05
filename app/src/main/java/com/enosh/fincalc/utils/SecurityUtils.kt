@@ -29,7 +29,7 @@ object SecurityUtils {
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                 )
             } catch (e: Throwable) {
-                android.util.Log.e("SecurityUtils", "Failed to create EncryptedSharedPreferences", e)
+                android.util.Log.e("SecurityUtils", "Failed to create EncryptedSharedPreferences, falling back", e)
                 // Fallback to regular SharedPreferences if encryption fails
                 sharedPrefs = context.applicationContext.getSharedPreferences(
                     ENCRYPTED_PREFS_NAME + "_fallback",
@@ -37,7 +37,10 @@ object SecurityUtils {
                 )
             }
         }
-        return sharedPrefs!!
+        return sharedPrefs ?: context.applicationContext.getSharedPreferences(
+            ENCRYPTED_PREFS_NAME + "_emergency",
+            Context.MODE_PRIVATE
+        )
     }
 
     private fun getEffectiveUid(context: Context): String {
@@ -45,36 +48,56 @@ object SecurityUtils {
     }
 
     fun isAppLockEnabled(context: Context): Boolean {
-        val uid = getEffectiveUid(context)
-        return getEncryptedPrefs(context).getBoolean("app_lock_enabled_$uid", false)
+        return try {
+            val uid = getEffectiveUid(context)
+            getEncryptedPrefs(context).getBoolean("app_lock_enabled_$uid", false)
+        } catch (e: Throwable) {
+            false
+        }
     }
 
     fun setAppLockEnabled(context: Context, enabled: Boolean) {
-        val uid = getEffectiveUid(context)
-        getEncryptedPrefs(context).edit().putBoolean("app_lock_enabled_$uid", enabled).apply()
+        try {
+            val uid = getEffectiveUid(context)
+            getEncryptedPrefs(context).edit().putBoolean("app_lock_enabled_$uid", enabled).apply()
+        } catch (e: Throwable) {
+            android.util.Log.e("SecurityUtils", "Failed to set app lock", e)
+        }
     }
 
     fun getAppPin(context: Context): String? {
-        val uid = getEffectiveUid(context)
-        return getEncryptedPrefs(context).getString("app_pin_$uid", null)
+        return try {
+            val uid = getEffectiveUid(context)
+            getEncryptedPrefs(context).getString("app_pin_$uid", null)
+        } catch (e: Throwable) {
+            null
+        }
     }
 
     fun setAppPin(context: Context, pin: String) {
-        val uid = getEffectiveUid(context)
-        // Hash the PIN before saving for better security
-        val hashedPin = hashPin(pin)
-        getEncryptedPrefs(context).edit().putString("app_pin_$uid", hashedPin).apply()
+        try {
+            val uid = getEffectiveUid(context)
+            // Hash the PIN before saving for better security
+            val hashedPin = hashPin(pin)
+            getEncryptedPrefs(context).edit().putString("app_pin_$uid", hashedPin).apply()
+        } catch (e: Throwable) {
+            android.util.Log.e("SecurityUtils", "Failed to set PIN", e)
+        }
     }
 
     fun verifyPin(context: Context, inputPin: String): Boolean {
-        val savedPin = getAppPin(context) ?: return false
-        // Migration: If saved PIN is exactly 4 chars, it might be an old unhashed PIN.
-        // SHA-256 hashes are always 64 characters long.
-        if (savedPin.length == 4 && savedPin == inputPin) {
-            setAppPin(context, inputPin) // Upgrade to hash
-            return true
+        return try {
+            val savedPin = getAppPin(context) ?: return false
+            // Migration: If saved PIN is exactly 4 chars, it might be an old unhashed PIN.
+            // SHA-256 hashes are always 64 characters long.
+            if (savedPin.length == 4 && savedPin == inputPin) {
+                setAppPin(context, inputPin) // Upgrade to hash
+                return true
+            }
+            savedPin == hashPin(inputPin)
+        } catch (e: Throwable) {
+            false
         }
-        return savedPin == hashPin(inputPin)
     }
 
     private fun hashPin(pin: String): String {
@@ -88,12 +111,20 @@ object SecurityUtils {
     }
 
     fun isBiometricEnabled(context: Context): Boolean {
-        val uid = getEffectiveUid(context)
-        return getEncryptedPrefs(context).getBoolean("biometric_enabled_$uid", false)
+        return try {
+            val uid = getEffectiveUid(context)
+            getEncryptedPrefs(context).getBoolean("biometric_enabled_$uid", false)
+        } catch (e: Throwable) {
+            false
+        }
     }
 
     fun setBiometricEnabled(context: Context, enabled: Boolean) {
-        val uid = getEffectiveUid(context)
-        getEncryptedPrefs(context).edit().putBoolean("biometric_enabled_$uid", enabled).apply()
+        try {
+            val uid = getEffectiveUid(context)
+            getEncryptedPrefs(context).edit().putBoolean("biometric_enabled_$uid", enabled).apply()
+        } catch (e: Throwable) {
+            android.util.Log.e("SecurityUtils", "Failed to set biometric", e)
+        }
     }
 }

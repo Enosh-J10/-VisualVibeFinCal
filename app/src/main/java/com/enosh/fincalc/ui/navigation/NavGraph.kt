@@ -56,7 +56,13 @@ fun NavGraph(
     val isGuest = remember { sharedPref.getBoolean("is_guest", false) }
     val uid = remember(isGuest) { 
         if (isGuest) "guest" 
-        else com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest" 
+        else {
+            try {
+                com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "guest"
+            } catch (e: Throwable) {
+                "guest"
+            }
+        }
     }
     val onboardingKey = remember(uid) { com.enosh.fincalc.utils.UserUtils.getScopedKey(uid, "onboarding_complete") }
     val isOnboardingComplete = remember(onboardingKey) { mutableStateOf(sharedPref.getBoolean(onboardingKey, false)) }
