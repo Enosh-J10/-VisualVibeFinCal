@@ -3,6 +3,7 @@ package com.enosh.fincalc.ui.screens
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -868,7 +869,9 @@ fun AddTravelExpenseDialog(
     var isUploading by remember { mutableStateOf(false) }
     var receiptUrl by remember { mutableStateOf(expense?.receiptUrl) }
 
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+    val imagePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
         uri?.let {
             coroutineScope.launch {
                 isUploading = true
@@ -982,7 +985,13 @@ fun AddTravelExpenseDialog(
                     AsyncImage(model = receiptUrl, contentDescription = null, modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(8.dp)), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
                     TextButton(onClick = { receiptUrl = null }) { Text("Remove Image", color = Color.Red) }
                 } else {
-                    OutlinedButton(onClick = { imagePicker.launch("image/*") }, modifier = Modifier.fillMaxWidth(), enabled = !isUploading) {
+                    OutlinedButton(
+                        onClick = { 
+                            imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) 
+                        }, 
+                        modifier = Modifier.fillMaxWidth(), 
+                        enabled = !isUploading
+                    ) {
                         if (isUploading) CircularProgressIndicator(Modifier.size(20.dp))
                         else {
                             Icon(Icons.Default.PhotoCamera, null)

@@ -28,10 +28,15 @@ object UserUtils {
     fun getScopedKey(uid: String, key: String) = "${key}_$uid"
     
     fun getEffectiveUid(context: Context): String {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val isGuest = prefs.getBoolean("is_guest", false)
-        if (isGuest) return "guest"
-        return FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
+        return try {
+            val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            val isGuest = prefs.getBoolean("is_guest", false)
+            if (isGuest) return "guest"
+            com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
+        } catch (e: Exception) {
+            android.util.Log.e("UserUtils", "Firebase not initialized: ${e.message}")
+            "anonymous"
+        }
     }
 
     fun getFinCalcIdKey(uid: String) = getScopedKey(uid, "finCalcId")

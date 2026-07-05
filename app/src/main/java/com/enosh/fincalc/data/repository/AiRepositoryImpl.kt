@@ -7,7 +7,6 @@ import com.enosh.fincalc.data.local.MessageEntity
 import com.enosh.fincalc.data.model.*
 import com.enosh.fincalc.domain.repository.AiRepository
 import com.enosh.fincalc.BuildConfig
-import com.google.firebase.auth.FirebaseAuth
 import android.content.Context
 import retrofit2.HttpException
 import android.util.Log
@@ -58,7 +57,8 @@ class AiRepositoryImpl(
             // Fetch previous messages for context (last 10 messages)
             val previousMessages = dao.getMessagesForChatOnce(chatId).filter { it.id != userMessage.id }.takeLast(10)
             
-            val isRoastMode = context.getSharedPreferences("AssistantPrefs_${FirebaseAuth.getInstance().currentUser?.uid ?: "guest"}", android.content.Context.MODE_PRIVATE).getBoolean("isRoastMode", false)
+            val currentUid = getCurrentUid()
+            val isRoastMode = context.getSharedPreferences("AssistantPrefs_$currentUid", android.content.Context.MODE_PRIVATE).getBoolean("isRoastMode", false)
 
             val contents = mutableListOf<Content>()
             var systemInstruction: Content? = null

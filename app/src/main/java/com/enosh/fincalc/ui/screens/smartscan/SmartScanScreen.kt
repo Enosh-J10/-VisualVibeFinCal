@@ -8,6 +8,7 @@ import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
@@ -120,8 +121,8 @@ fun SmartScanScreen(
 
     val otherCat = stringResource(R.string.cat_other)
 
-    val filePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
     ) { uri: Uri? ->
         uri?.let {
             scope.launch {
@@ -211,7 +212,7 @@ fun SmartScanScreen(
                             BouncyButton(
                                 onClick = { 
                                     assistantViewModel.showMessage(chooseFileMsg, AssistantState.IDLE)
-                                    filePickerLauncher.launch("*/*") 
+                                    imagePickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                                 },
                                 modifier = Modifier
                                     .weight(1f)

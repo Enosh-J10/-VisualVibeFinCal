@@ -21,6 +21,9 @@
 -keep class androidx.room.** { *; }
 -keep class com.enosh.fincalc.data.local.entity.** { *; }
 
+# WorkManager
+-keep class com.enosh.fincalc.worker.** { *; }
+
 # Gson
 -keep class com.google.gson.** { *; }
 -keep class com.enosh.fincalc.utils.BackupUtils$BackupData { *; }

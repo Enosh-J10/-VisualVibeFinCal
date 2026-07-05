@@ -105,16 +105,22 @@ class HomeActivity : ComponentActivity() {
                 val navController = rememberNavController()
 
                 LaunchedEffect(Unit) {
-                    assistantViewModel.loadPrefs(context)
-                    notificationsViewModel.loadSettings(context)
-                    
-                    val isGuest = sharedPref.getBoolean("is_guest", false)
-                    if (!isGuest && FirebaseAuth.getInstance().currentUser != null) {
-                        try {
-                            UserUtils.ensureFinCalcUserProfile(context)
-                        } catch (e: Exception) {
-                            android.util.Log.e("FinCalc", "Profile sync failed: ${e.message}")
+                    try {
+                        assistantViewModel.loadPrefs(context)
+                        notificationsViewModel.loadSettings(context)
+                        
+                        val isGuest = sharedPref.getBoolean("is_guest", false)
+                        val currentUser = try { FirebaseAuth.getInstance().currentUser } catch (e: Exception) { null }
+
+                        if (!isGuest && currentUser != null) {
+                            try {
+                                UserUtils.ensureFinCalcUserProfile(context)
+                            } catch (e: Exception) {
+                                android.util.Log.e("FinCalc", "Profile sync failed: ${e.message}")
+                            }
                         }
+                    } catch (e: Exception) {
+                        android.util.Log.e("HomeActivity", "Error in startup effect", e)
                     }
 
                     delay(1000)

@@ -54,9 +54,14 @@ class LoginActivity : AppCompatActivity() {
             lifecycleScope.launch {
                 setLoading(true)
                 try {
-                    auth.signInWithCredential(firebaseCredential).await()
-                    onAuthSuccess(account.email)
+                    if (::auth.isInitialized) {
+                        auth.signInWithCredential(firebaseCredential).await()
+                        onAuthSuccess(account.email)
+                    } else {
+                        Toast.makeText(this@LoginActivity, "Authentication service not available.", Toast.LENGTH_LONG).show()
+                    }
                 } catch (e: Exception) {
+                    android.util.Log.e("LoginActivity", "Google Auth Error", e)
                     Toast.makeText(this@LoginActivity, "Firebase Auth Failed: ${e.message}", Toast.LENGTH_LONG).show()
                 } finally {
                     setLoading(false)
@@ -140,6 +145,10 @@ class LoginActivity : AppCompatActivity() {
     }
 
     private fun performLogin() {
+        if (!::auth.isInitialized) {
+            Toast.makeText(this, "Authentication service not available.", Toast.LENGTH_LONG).show()
+            return
+        }
         val email = findViewById<TextInputEditText>(R.id.et_email).text.toString().trim()
         val password = findViewById<TextInputEditText>(R.id.et_password).text.toString()
 
@@ -157,7 +166,7 @@ class LoginActivity : AppCompatActivity() {
             try {
                 auth.signInWithEmailAndPassword(email, password).await()
                 val user = auth.currentUser
-                if (user != null && !user.isEmailVerified) {
+                if (user != null && (!user.isEmailVerified)) {
                     setLoading(false)
                     showResendVerificationDialog()
                     return@launch
@@ -251,8 +260,12 @@ class LoginActivity : AppCompatActivity() {
                 val credential = result.credential
                 if (credential is GoogleIdTokenCredential) {
                     val firebaseCredential = GoogleAuthProvider.getCredential(credential.idToken, null)
-                    auth.signInWithCredential(firebaseCredential).await()
-                    onAuthSuccess(auth.currentUser?.email)
+                    if (::auth.isInitialized) {
+                        auth.signInWithCredential(firebaseCredential).await()
+                        onAuthSuccess(auth.currentUser?.email)
+                    } else {
+                        Toast.makeText(this@LoginActivity, "Authentication service not available.", Toast.LENGTH_LONG).show()
+                    }
                 }
             } catch (e: Exception) {
                 startLegacyGoogleSignIn()

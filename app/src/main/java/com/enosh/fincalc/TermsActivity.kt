@@ -18,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.enosh.fincalc.ui.theme.FinCalcTheme
 import com.enosh.fincalc.utils.UserUtils
-import com.google.firebase.auth.FirebaseAuth
 
 class TermsActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
@@ -27,7 +26,7 @@ class TermsActivity : ComponentActivity() {
         enableEdgeToEdge()
         
         val sharedPref = getSharedPreferences(UserUtils.PREFS_NAME, MODE_PRIVATE)
-        val uid = FirebaseAuth.getInstance().currentUser?.uid ?: "guest"
+        val uid = UserUtils.getEffectiveUid(this)
         val darkModeKey = UserUtils.getScopedKey(uid, "is_dark_mode")
         val isDarkMode = sharedPref.getBoolean(darkModeKey, true)
 

@@ -9,7 +9,7 @@ import androidx.appcompat.app.AppCompatActivity
 
 import android.widget.TextView
 import com.enosh.fincalc.utils.SecurityUtils
-import com.enosh.fincalc.utils.NotificationHelper
+import com.enosh.fincalc.utils.UserUtils
 
 class MainActivity : AppCompatActivity() {
     private val tips = listOf(
@@ -18,7 +18,7 @@ class MainActivity : AppCompatActivity() {
         "The earlier you start saving, the more it grows! 🪙",
         "It's good to keep some cash for emergencies. 🏦",
         "Don't put all your eggs in one basket when investing. 🥚",
-        "Staying active helps keep your BMI in a healthy range 🍎"
+        "Staying active helps keep your BMI in a healthy range 🍎",
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -31,10 +31,10 @@ class MainActivity : AppCompatActivity() {
         val handler = Handler(Looper.getMainLooper())
         
         fun showNextTip() {
-            tvTip.animate().alpha(0f).setDuration(200).withEndAction {
+            tvTip?.animate()?.alpha(0f)?.setDuration(200)?.withEndAction {
                 tvTip.text = tips.random()
-                tvTip.animate().alpha(1f).setDuration(200).start()
-            }.start()
+                tvTip.animate()?.alpha(1f)?.setDuration(200)?.start()
+            }?.start()
         }
 
         val updateTipRunnable = object : Runnable {
@@ -45,7 +45,7 @@ class MainActivity : AppCompatActivity() {
         }
         handler.post(updateTipRunnable)
 
-        tvTip.setOnClickListener {
+        tvTip?.setOnClickListener {
             handler.removeCallbacks(updateTipRunnable)
             showNextTip()
             handler.postDelayed(updateTipRunnable, 3000)
@@ -55,26 +55,32 @@ class MainActivity : AppCompatActivity() {
         handler.postDelayed({
             handler.removeCallbacks(updateTipRunnable)
             
-            val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
-            val isGuest = getSharedPreferences("UserPrefs", MODE_PRIVATE).getBoolean("is_guest", false)
-            val keepMeSignedIn = getSharedPreferences("UserPrefs", MODE_PRIVATE).getBoolean("keep_me_signed_in", true)
+            try {
+                val auth = try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (ignored: Exception) { null }
+                val sharedPref = getSharedPreferences(UserUtils.PREFS_NAME, MODE_PRIVATE)
+                val isGuest = sharedPref.getBoolean("is_guest", false)
+                val keepMeSignedIn = sharedPref.getBoolean("keep_me_signed_in", true)
 
-            if ((auth.currentUser != null || isGuest) && keepMeSignedIn) {
-                val intent = if (SecurityUtils.isAppLockEnabled(this)) {
-                    Intent(this, LockActivity::class.java).apply {
-                        putExtra("DESTINATION", "HOME")
+                if (auth != null && (auth.currentUser != null || isGuest) && keepMeSignedIn) {
+                    val intent = if (SecurityUtils.isAppLockEnabled(this)) {
+                        Intent(this, LockActivity::class.java).apply {
+                            putExtra("DESTINATION", "HOME")
+                        }
+                    } else {
+                        Intent(this, HomeActivity::class.java)
                     }
+                    
+                    // Pass deep link data if any
+                    getIntent().data?.let { uri ->
+                        intent.data = uri
+                    }
+                    
+                    startActivity(intent)
                 } else {
-                    Intent(this, HomeActivity::class.java)
+                    startActivity(Intent(this, LoginActivity::class.java))
                 }
-                
-                // Pass deep link data if any
-                getIntent().data?.let { uri ->
-                    intent.data = uri
-                }
-                
-                startActivity(intent)
-            } else {
+            } catch (e: Exception) {
+                android.util.Log.e("MainActivity", "Startup failure", e)
                 startActivity(Intent(this, LoginActivity::class.java))
             }
             finish()

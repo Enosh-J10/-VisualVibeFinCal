@@ -28,7 +28,7 @@ object SecurityUtils {
                     EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
                     EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
                 )
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 android.util.Log.e("SecurityUtils", "Failed to create EncryptedSharedPreferences", e)
                 // Fallback to regular SharedPreferences if encryption fails
                 sharedPrefs = context.applicationContext.getSharedPreferences(

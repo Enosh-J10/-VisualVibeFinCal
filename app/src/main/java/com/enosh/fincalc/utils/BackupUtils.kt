@@ -153,8 +153,8 @@ object BackupUtils {
                 "backupId" to "latest",
                 "uid" to uid,
                 "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
-                "versionCode" to 10, // Matching your build.gradle.kts
-                "versionName" to "1.8.1",
+                "versionCode" to com.enosh.fincalc.BuildConfig.VERSION_CODE,
+                "versionName" to com.enosh.fincalc.BuildConfig.VERSION_NAME,
                 "data" to json
             )
             

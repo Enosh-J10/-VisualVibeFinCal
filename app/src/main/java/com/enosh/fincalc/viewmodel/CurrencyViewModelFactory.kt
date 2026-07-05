@@ -23,9 +23,11 @@ class CurrencyViewModelFactory : ViewModelProvider.Factory {
 
     override fun <T : ViewModel> create(modelClass: Class<T>, extras: androidx.lifecycle.viewmodel.CreationExtras): T {
         val application = extras[ViewModelProvider.AndroidViewModelFactory.APPLICATION_KEY]
+            ?: throw IllegalArgumentException("Application context is required for CurrencyViewModel")
+            
         if (modelClass.isAssignableFrom(CurrencyViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return CurrencyViewModel(repository, application!!) as T
+            return CurrencyViewModel(repository, application) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
