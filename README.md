@@ -27,6 +27,7 @@ FinCalc is a comprehensive Android personal finance application designed to simp
 - **AI Assistant**: Try enabling **Roast Mode** in the settings for a more playful and sarcastic financial coaching experience!
 - **Smart Travel**: Use the collaborative features to split dinner or hotel costs instantly with friends.
 - **Smart Scan**: For the best results, ensure receipts are well-lit and laid flat before scanning.
+- **Currency Converter**: Use the swap button between currency selectors to instantly reverse your conversion direction.
 
 ## Screenshots
 
