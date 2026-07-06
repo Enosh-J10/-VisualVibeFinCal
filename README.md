@@ -1,6 +1,6 @@
 # FinCalc – Smart Finance, AI & Travel Companion
 
-FinCalc is a comprehensive Android personal finance application designed to simplify budgeting, expense tracking, and financial planning. Featuring AI-powered assistance, shared travel expenses, and smart business tracking, FinCalc provides a suite of premium tools to keep your finances on track.
+FinCalc is a comprehensive Android personal finance application designed to simplify budgeting, expense tracking, and financial planning. Designed for both casual users and finance enthusiasts, it features an intuitive interface built with Material 3, AI-powered assistance, shared travel expenses, and smart business tracking.
 
 ## Key Features
 
@@ -21,6 +21,12 @@ FinCalc is a comprehensive Android personal finance application designed to simp
 - **Unit & Currency Converters**: Real-time exchange rates and measurement swaps.
 - **Financial Calculators**: Dedicated tools for Loans, Salary, Tax, and Tips.
 - **Guest Mode**: Full local functionality without requiring an account.
+
+## Usage Tips
+
+- **AI Assistant**: Try enabling **Roast Mode** in the settings for a more playful and sarcastic financial coaching experience!
+- **Smart Travel**: Use the collaborative features to split dinner or hotel costs instantly with friends.
+- **Smart Scan**: For the best results, ensure receipts are well-lit and laid flat before scanning.
 
 ## Screenshots
 
