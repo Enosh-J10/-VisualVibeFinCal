@@ -64,6 +64,21 @@ class CurrencyViewModel(
         sharedPrefs.edit().putString("fav_to", code).apply()
     }
 
+    fun swapCurrencies() {
+        val oldFrom = _fromCurrency.value
+        val oldTo = _toCurrency.value
+        _fromCurrency.value = oldTo
+        _toCurrency.value = oldFrom
+        
+        sharedPrefs.edit().apply {
+            putString("fav_from", oldTo)
+            putString("fav_to", oldFrom)
+        }.apply()
+        
+        _convertedAmount.value = null
+        fetchRates(oldTo)
+    }
+
     private fun loadHistory() {
         val historyJson = sharedPrefs.getString("history", null)
         if (historyJson != null) {

@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -172,12 +173,16 @@ fun CurrencyConverterScreen(
                         modifier = Modifier.weight(1f)
                     )
                     
-                    Icon(
-                        painter = androidx.compose.ui.res.painterResource(id = com.enosh.fincalc.R.drawable.ic_currency),
-                        contentDescription = null,
-                        modifier = Modifier.padding(horizontal = 8.dp).size(24.dp),
-                        tint = Color(0xFF00D1B2)
-                    )
+                    IconButton(
+                        onClick = { viewModel.swapCurrencies() },
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.SwapHoriz,
+                            contentDescription = "Swap Currencies",
+                            tint = Color(0xFF00D1B2)
+                        )
+                    }
 
                     CurrencySelector(
                         label = stringResource(R.string.to),
