@@ -47,4 +47,18 @@ object ValidationUtils {
             filtered
         }
     }
+
+    /**
+     * Sanitizes a string for use as a Firestore Document ID.
+     * Replaces characters that are problematic for document IDs.
+     */
+    fun sanitizeDocId(input: String): String {
+        return input.replace("/", "_")
+            .replace("\\", "_")
+            .replace(".", "_")
+            .replace("#", "_")
+            .replace("[", "_")
+            .replace("]", "_")
+            .trim()
+    }
 }

@@ -574,8 +574,10 @@ fun EditExpenseDialog(expense: Expense, isDarkMode: Boolean, onDismiss: () -> Un
                 com.enosh.fincalc.ui.components.ValidatedTextField(
                     value = merchant,
                     onValueChange = { 
-                        merchant = it
-                        merchantError = if (it.isBlank()) merchantRequiredError else null
+                        if (it.length <= 100) {
+                            merchant = it
+                            merchantError = if (it.isBlank()) merchantRequiredError else null
+                        }
                     },
                     label = stringResource(R.string.merchant),
                     keyboardType = KeyboardType.Text,
@@ -632,7 +634,7 @@ fun EditExpenseDialog(expense: Expense, isDarkMode: Boolean, onDismiss: () -> Un
 
                 com.enosh.fincalc.ui.components.ValidatedTextField(
                     value = notes,
-                    onValueChange = { notes = it },
+                    onValueChange = { if (it.length <= 500) notes = it },
                     label = stringResource(R.string.notes_optional),
                     keyboardType = KeyboardType.Text,
                     capitalization = KeyboardCapitalization.Sentences,
@@ -857,8 +859,22 @@ suspend fun processUri(context: Context, uri: Uri): ScanResult? = withContext(Di
         var bitmap = if (uri.toString().endsWith(".pdf")) {
             renderPdfToBitmap(context, uri)
         } else {
-            val inputStream = context.contentResolver.openInputStream(uri)
-            BitmapFactory.decodeStream(inputStream)
+            // Read image bounds first
+            val options = BitmapFactory.Options().apply {
+                inJustDecodeBounds = true
+            }
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                BitmapFactory.decodeStream(inputStream, null, options)
+            }
+
+            // Calculate inSampleSize based on target max dimension (e.g., 2048px)
+            options.inSampleSize = calculateInSampleSize(options, 2048, 2048)
+            options.inJustDecodeBounds = false
+
+            // Decode with inSampleSize
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                BitmapFactory.decodeStream(inputStream, null, options)
+            }
         }
         
         bitmap = bitmap?.let { preprocessImage(it) }
@@ -890,10 +906,27 @@ suspend fun processUri(context: Context, uri: Uri): ScanResult? = withContext(Di
                 confidenceLow = totalData.second || !isReceiptDetected || totalData.first == 0.0
             )
         }
+    } catch (e: OutOfMemoryError) {
+        Log.e(TAG, "Out of memory processing bitmap", e)
     } catch (e: Exception) {
         Log.e(TAG, "Processing error", e)
     }
     null
+}
+
+fun calculateInSampleSize(options: BitmapFactory.Options, reqWidth: Int, reqHeight: Int): Int {
+    val (height: Int, width: Int) = options.outHeight to options.outWidth
+    var inSampleSize = 1
+
+    if (height > reqHeight || width > reqWidth) {
+        val halfHeight: Int = height / 2
+        val halfWidth: Int = width / 2
+
+        while (halfHeight / inSampleSize >= reqHeight && halfWidth / inSampleSize >= reqWidth) {
+            inSampleSize *= 2
+        }
+    }
+    return inSampleSize
 }
 
 private fun preprocessImage(bitmap: Bitmap): Bitmap {
@@ -1087,9 +1120,13 @@ private fun renderPdfToBitmap(context: Context, uri: Uri): Bitmap? {
     return try {
         val fd = context.contentResolver.openFileDescriptor(uri, "r") ?: return null
         val renderer = PdfRenderer(fd)
-        if (renderer.pageCount == 0) return null
+        if (renderer.pageCount == 0) {
+            renderer.close()
+            fd.close()
+            return null
+        }
         val page = renderer.openPage(0)
-        val scale = 3f
+        val scale = 2f // Reduced from 3f for better memory safety
         val width = (page.width * scale).toInt()
         val height = (page.height * scale).toInt()
         val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -1102,6 +1139,9 @@ private fun renderPdfToBitmap(context: Context, uri: Uri): Bitmap? {
         renderer.close()
         fd.close()
         bitmap
+    } catch (e: OutOfMemoryError) {
+        Log.e(TAG, "OOM in PDF rendering", e)
+        null
     } catch (e: Exception) {
         e.printStackTrace()
         null

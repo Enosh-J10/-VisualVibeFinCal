@@ -42,6 +42,10 @@ class AiRepositoryImpl(
                 return Result.failure(Exception("Gemini API key not loaded. Please verify local.properties."))
             }
 
+            if (content.length > 5000) {
+                return Result.failure(Exception("Message too long (max 5000 characters)."))
+            }
+
             // Save User Message
             val userMessage = MessageEntity(
                 id = UUID.randomUUID().toString(),

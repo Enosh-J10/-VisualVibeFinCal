@@ -2,8 +2,8 @@ package com.enosh.fincalc
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -28,6 +28,7 @@ class LockActivity : FragmentActivity() {
     private var hasPrompted = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
         hasPrompted = savedInstanceState?.getBoolean("HAS_PROMPTED") ?: false
         

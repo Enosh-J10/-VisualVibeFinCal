@@ -82,6 +82,7 @@ fun NoteBookScreen(
     }
 
     var showAddDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf<Note?>(null) }
     var editingNote by remember { mutableStateOf<Note?>(null) }
     var noteTitle by remember { mutableStateOf("") }
     var noteText by remember { mutableStateOf("") }
@@ -126,9 +127,7 @@ fun NoteBookScreen(
                             note = note, 
                             isDarkMode = isDarkMode, 
                             onDelete = {
-                                assistantViewModel.showMessage("Note deleted", AssistantState.ERROR)
-                                sharedPref.edit { remove(note.id) }
-                                notes = notes.filter { it.id != note.id }
+                                showDeleteConfirm = note
                             },
                             onEdit = {
                                 editingNote = note
@@ -194,8 +193,10 @@ fun NoteBookScreen(
                     ValidatedTextField(
                         value = noteTitle,
                         onValueChange = { 
-                            noteTitle = it
-                            noteTitleError = if (it.isBlank()) "Title is required" else null
+                            if (it.length <= 100) {
+                                noteTitle = it
+                                noteTitleError = if (it.isBlank()) "Title is required" else null
+                            }
                         },
                         label = "Title",
                         error = noteTitleError,
@@ -206,8 +207,10 @@ fun NoteBookScreen(
                     ValidatedTextField(
                         value = noteText,
                         onValueChange = { 
-                            noteText = it
-                            noteTextError = if (it.isBlank()) "Content is required" else null
+                            if (it.length <= 5000) {
+                                noteText = it
+                                noteTextError = if (it.isBlank()) "Content is required" else null
+                            }
                         },
                         label = if (isChecklistMode) "List Items (One per line)" else "Content",
                         error = noteTextError,
@@ -280,6 +283,28 @@ fun NoteBookScreen(
                     noteText = ""
                     isChecklistMode = false
                 }) { Text("Cancel", color = Color.Gray) }
+            }
+        )
+    }
+
+    if (showDeleteConfirm != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = null },
+            title = { Text("Delete Note?") },
+            text = { Text("Are you sure you want to delete this note?") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val note = showDeleteConfirm!!
+                        assistantViewModel.showMessage("Note deleted", AssistantState.ERROR)
+                        sharedPref.edit { remove(note.id) }
+                        notes = notes.filter { it.id != note.id }
+                        showDeleteConfirm = null
+                    }
+                ) { Text("Delete", color = Color.Red) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") }
             }
         )
     }

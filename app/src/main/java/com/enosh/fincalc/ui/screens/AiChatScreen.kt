@@ -84,6 +84,7 @@ fun AiChatScreen(
     
     var showRenameDialog by remember { mutableStateOf<Conversation?>(null) }
     var renameText by remember { mutableStateOf("") }
+    var showClearConfirm by remember { mutableStateOf(false) }
     
     // TTS
     val tts = remember {
@@ -263,7 +264,7 @@ fun AiChatScreen(
                     }
                     
                     TextButton(
-                        onClick = { viewModel.clearAllChats() },
+                        onClick = { showClearConfirm = true },
                         modifier = Modifier.fillMaxWidth(),
                         colors = ButtonDefaults.textButtonColors(contentColor = Color.Red)
                     ) {
@@ -632,6 +633,23 @@ fun AiChatScreen(
             },
             dismissButton = {
                 TextButton(onClick = { showRenameDialog = null }) { Text("Cancel") }
+            }
+        )
+    }
+
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text("Clear All History?") },
+            text = { Text("This will permanently delete all your AI chat conversations and messages. This cannot be undone.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.clearAllChats()
+                    showClearConfirm = false
+                }) { Text("Clear All", color = Color.Red) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) { Text("Cancel") }
             }
         )
     }

@@ -36,6 +36,20 @@ class SmartTravelViewModel : ViewModel() {
     private val _memberProfiles = MutableStateFlow<Map<String, User>>(emptyMap())
     val memberProfiles: StateFlow<Map<String, User>> = _memberProfiles
 
+    private var tripsListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private var invitedTripsListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private var expensesListener: com.google.firebase.firestore.ListenerRegistration? = null
+    private val flagListeners = mutableMapOf<String, com.google.firebase.firestore.ListenerRegistration>()
+
+    override fun onCleared() {
+        super.onCleared()
+        tripsListener?.remove()
+        invitedTripsListener?.remove()
+        expensesListener?.remove()
+        flagListeners.values.forEach { it.remove() }
+        flagListeners.clear()
+    }
+
     fun clearError() {
         _errorMessage.value = null
     }
@@ -43,7 +57,9 @@ class SmartTravelViewModel : ViewModel() {
     fun fetchTrips() {
         val currentUser = auth.currentUser ?: return
         val uid = currentUser.uid
-        db.collection("trips")
+        
+        tripsListener?.remove()
+        tripsListener = db.collection("trips")
             .whereArrayContains("memberUids", uid)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
@@ -77,7 +93,8 @@ class SmartTravelViewModel : ViewModel() {
             }
             
         // Also fetch trips where user is invited
-        db.collection("trips")
+        invitedTripsListener?.remove()
+        invitedTripsListener = db.collection("trips")
             .whereArrayContains("invitedUids", uid)
             .addSnapshotListener { snapshot, e ->
                 if (e == null && snapshot != null) {
@@ -114,21 +131,21 @@ class SmartTravelViewModel : ViewModel() {
 
                 val tripData = mapOf(
                     "tripId" to tripId,
-                    "name" to tripName.trim(),
-                    "destinationCountry" to selectedCountryName,
-                    "destinationCity" to destinationCity.trim(),
-                    "currencyCode" to selectedCurrencyCode,
-                    "currencySymbol" to selectedCurrencySymbol,
+                    "name" to tripName.take(100).trim(),
+                    "destinationCountry" to selectedCountryName.take(100),
+                    "destinationCity" to destinationCity.take(100).trim(),
+                    "currencyCode" to selectedCurrencyCode.take(10),
+                    "currencySymbol" to selectedCurrencySymbol.take(10),
                     "createdByUid" to uid,
                     "memberUids" to listOf(uid),
                     "invitedUids" to emptyList<String>(),
                     "createdAt" to FieldValue.serverTimestamp(),
                     "updatedAt" to FieldValue.serverTimestamp(),
-                    "description" to description.trim(),
+                    "description" to description.take(500).trim(),
                     "memberDetails" to mapOf(
                         uid to MemberInfo(
-                            name = currentUser.displayName ?: "User",
-                            email = currentUser.email ?: "",
+                            name = (currentUser.displayName ?: "User").take(100),
+                            email = (currentUser.email ?: "").take(100),
                             status = "JOINED"
                         )
                     )
@@ -324,7 +341,8 @@ class SmartTravelViewModel : ViewModel() {
     fun fetchExpenses(tripId: String) {
         if (tripId.isBlank()) return
         
-        db.collection("trips").document(tripId).collection("expenses")
+        expensesListener?.remove()
+        expensesListener = db.collection("trips").document(tripId).collection("expenses")
             .orderBy("createdAt", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, e ->
                 if (e != null) {
@@ -353,7 +371,8 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     private fun fetchFlags(tripId: String, expenseId: String) {
-        db.collection("trips").document(tripId).collection("expenses").document(expenseId)
+        flagListeners[expenseId]?.remove()
+        flagListeners[expenseId] = db.collection("trips").document(tripId).collection("expenses").document(expenseId)
             .collection("flags").addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     Log.e("SmartTravel", "fetchFlags failed for $expenseId", e)

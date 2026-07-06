@@ -59,7 +59,7 @@ This document serves as the persistent architectural reference, engineering guid
 | Collection | Subcollection | Purpose |
 | :--- | :--- | :--- |
 | `users` | - | Core user profiles (UID, name, email, finCalcId). |
-| | `backups` | Stores JSON snapshots of app data for cloud restore. |
+| | `backups` | Private. Stores JSON snapshots of app data for cloud restore. |
 | | `friendSettings` | User-specific settings for friends (e.g., nicknames). |
 | | `blockedUsers` | List of blocked UIDs. |
 | `friends` | - | Friendship records using sorted deterministic IDs (`uid1_uid2`). |
@@ -115,6 +115,7 @@ This document serves as the persistent architectural reference, engineering guid
 - **AssistantPrefs_$uid:** AI-specific settings (Roast mode, personality, enabled state).
 - **Security:** App Lock (PIN) and Biometric toggle.
 - **Guest Mode:** A stateless mode that clears all data on logout.
+- **Account Deletion:** Mandatory for Play Store. Deletes user profile, backups, friend settings, and blocked users from Firestore before deleting the Firebase Auth account.
 
 ---
 

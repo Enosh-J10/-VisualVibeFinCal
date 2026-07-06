@@ -10,6 +10,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
 import java.security.MessageDigest
 
@@ -109,6 +110,55 @@ object UserUtils {
             SecurityUtils.skipNextLock = false
             com.enosh.fincalc.data.local.AppDatabase.resetInstance()
             onComplete()
+        }
+    }
+
+    fun deleteAccount(context: Context, onComplete: (Boolean, String?) -> Unit) {
+        val user = FirebaseAuth.getInstance().currentUser
+        if (user == null) {
+            onComplete(false, "No active user session")
+            return
+        }
+
+        val uid = user.uid
+        
+        // 1. Delete from Firestore first (requires rules permission)
+        val db = FirebaseFirestore.getInstance()
+        
+        // Clean up user-owned collections before deleting Auth account
+        GlobalScope.launch(Dispatchers.IO) {
+            try {
+                // Delete user profile and subcollections
+                val userRef = db.collection("users").document(uid)
+                
+                // 1. Delete Backups
+                userRef.collection("backups").get().await().documents.forEach { it.reference.delete().await() }
+                // 2. Delete Friend Settings
+                userRef.collection("friendSettings").get().await().documents.forEach { it.reference.delete().await() }
+                // 3. Delete Blocked Users
+                userRef.collection("blockedUsers").get().await().documents.forEach { it.reference.delete().await() }
+                
+                // Finally delete profile doc
+                userRef.delete().await()
+                
+                // Note: Trips and Chats are shared. We don't delete them here to avoid breaking other users' data.
+                // We should ideally remove the user from member lists, but that's a complex multi-collection update.
+                
+                // 2. Delete Auth Account (Requires recent login)
+                user.delete().await()
+                
+                // 3. Local Cleanup
+                withContext(Dispatchers.Main) {
+                    logout(context) {
+                        onComplete(true, null)
+                    }
+                }
+            } catch (e: com.google.firebase.auth.FirebaseAuthRecentLoginRequiredException) {
+                onComplete(false, "For security, please log out and log back in before deleting your account.")
+            } catch (e: Exception) {
+                android.util.Log.e("UserUtils", "Account deletion failed", e)
+                onComplete(false, e.localizedMessage ?: "Failed to delete account")
+            }
         }
     }
 

@@ -37,6 +37,7 @@ fun SmartBusinessScreen(
     val target by viewModel.monthlyTarget.collectAsState()
     
     var showAddDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf<String?>(null) }
     var editingIncome by remember { mutableStateOf<BusinessIncome?>(null) }
     var showTargetDialog by remember { mutableStateOf(false) }
     var selectedFilterCategory by remember { mutableStateOf("All") }
@@ -122,7 +123,7 @@ fun SmartBusinessScreen(
                                 income = income, 
                                 isDarkMode = isDarkMode, 
                                 onEdit = { editingIncome = income },
-                                onDelete = { viewModel.deleteIncome(income.incomeId) }
+                                onDelete = { showDeleteConfirm = income.incomeId }
                             )
                         }
                     }
@@ -155,6 +156,23 @@ fun SmartBusinessScreen(
             onSave = { 
                 viewModel.updateTarget(it)
                 showTargetDialog = false
+            }
+        )
+    }
+
+    if (showDeleteConfirm != null) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = null },
+            title = { Text("Delete Record?") },
+            text = { Text("Are you sure you want to delete this income record?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm?.let { viewModel.deleteIncome(it) }
+                    showDeleteConfirm = null
+                }) { Text("Delete", color = Color.Red) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = null }) { Text("Cancel") }
             }
         )
     }
@@ -272,14 +290,14 @@ fun AddIncomeDialog(existingIncome: BusinessIncome? = null, onDismiss: () -> Uni
                 )
                 ValidatedTextField(
                     value = source, 
-                    onValueChange = { source = it }, 
+                    onValueChange = { if (it.length <= 100) source = it }, 
                     label = "Customer",
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
                     capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Words
                 )
                 ValidatedTextField(
                     value = reason, 
-                    onValueChange = { reason = it }, 
+                    onValueChange = { if (it.length <= 100) reason = it }, 
                     label = "Reason",
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
                     capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences
@@ -311,7 +329,7 @@ fun AddIncomeDialog(existingIncome: BusinessIncome? = null, onDismiss: () -> Uni
 
                 ValidatedTextField(
                     value = notes, 
-                    onValueChange = { notes = it }, 
+                    onValueChange = { if (it.length <= 500) notes = it },
                     label = "Notes (Optional)",
                     keyboardType = androidx.compose.ui.text.input.KeyboardType.Text,
                     capitalization = androidx.compose.ui.text.input.KeyboardCapitalization.Sentences

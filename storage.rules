@@ -12,23 +12,32 @@ service firebase.storage {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
+    // --- Profile Pictures ---
+    // Note: App currently uses local storage for performance,
+    // but these rules protect the path if sync is re-enabled.
     match /profile_pictures/{userId}/{allPaths=**} {
       allow read: if isAuthenticated();
-      allow write: if isOwner(userId);
+      allow write: if isOwner(userId) && request.resource.size < 5 * 1024 * 1024; // 5MB limit
     }
 
-    match /chat_uploads/{chatId}/{allPaths=**} {
-      allow read: if isAuthenticated() && request.auth.uid in firestore.get(/databases/(default)/documents/chats/$(chatId)).data.memberUids;
-      allow write: if isAuthenticated() && request.auth.uid in firestore.get(/databases/(default)/documents/chats/$(chatId)).data.memberUids;
+    // --- Trip Uploads (Receipts) ---
+    // Match the 'trip_uploads' path used in AddTravelExpenseDialog
+    match /trip_uploads/{tripId}/receipts/{expenseId}/{allPaths=**} {
+      allow read: if isAuthenticated() &&
+                  request.auth.uid in firestore.get(/databases/(default)/documents/trips/$(tripId)).data.memberUids;
+      allow write: if isAuthenticated() &&
+                   request.auth.uid in firestore.get(/databases/(default)/documents/trips/$(tripId)).data.memberUids &&
+                   request.resource.size < 10 * 1024 * 1024; // 10MB limit
     }
 
-    match /trip_receipts/{tripId}/{allPaths=**} {
-      allow read: if isAuthenticated() && request.auth.uid in firestore.get(/databases/(default)/documents/trips/$(tripId)).data.memberUids;
-      allow write: if isAuthenticated() && request.auth.uid in firestore.get(/databases/(default)/documents/trips/$(tripId)).data.memberUids;
-    }
-
+    // --- AI Uploads ---
     match /ai_uploads/{userId}/{allPaths=**} {
-      allow read, write: if isOwner(userId);
+      allow read, write: if isOwner(userId) && request.resource.size < 5 * 1024 * 1024;
+    }
+
+    // Deny all other access
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

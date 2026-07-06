@@ -222,6 +222,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
 
+        if (text.length > 2000) {
+            onResult(false, "Message too long (max 2000 characters).")
+            return
+        }
+
         if (receiverUid.isBlank() || chatId.isBlank() || text.isBlank()) {
             onResult(false, "Invalid message parameters")
             return
@@ -327,12 +332,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (chatId.isBlank() || friendUid.isBlank()) return
         
         try {
-            val chatRef = db.collection("chats").document(chatId)
+            val safeChatId = com.enosh.fincalc.utils.ValidationUtils.sanitizeDocId(chatId)
+            val chatRef = db.collection("chats").document(safeChatId)
             val doc = chatRef.get().await()
             
             if (!doc.exists()) {
                 val chatData = mapOf(
-                    "chatId" to chatId,
+                    "chatId" to safeChatId,
                     "memberUids" to listOf(currentUid, friendUid).sorted(),
                     "lastMessage" to "Chat started",
                     "lastMessageAt" to FieldValue.serverTimestamp(),

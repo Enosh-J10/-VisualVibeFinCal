@@ -107,6 +107,7 @@ fun SettingsScreen(
     var showRoastWarningDialog by remember { mutableStateOf(false) }
     var showLogoutConfirmDialog by remember { mutableStateOf(false) }
     var showGuestLogoutConfirmDialog by remember { mutableStateOf(false) }
+    var showDeleteAccountConfirm by remember { mutableStateOf(false) }
     var showProfilePreview by remember { mutableStateOf(false) }
     var isUploading by remember { mutableStateOf(false) }
 
@@ -618,6 +619,16 @@ fun SettingsScreen(
                     Spacer(Modifier.width(8.dp))
                     Text(if (isGuest) "Leave Guest Mode" else "Logout", fontWeight = FontWeight.Bold, color = Color.Red)
                 }
+
+                if (!isGuest) {
+                    Spacer(Modifier.height(12.dp))
+                    TextButton(
+                        onClick = { showDeleteAccountConfirm = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Delete Account", color = Color.Red.copy(alpha = 0.6f), fontSize = 12.sp)
+                    }
+                }
             }
 
             Spacer(Modifier.height(80.dp))
@@ -693,6 +704,33 @@ fun SettingsScreen(
                 }, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF00D1B2))) { Text("Turn On", color = Color.White) }
             },
             dismissButton = { TextButton(onClick = { showRoastWarningDialog = false }) { Text("Cancel", color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Gray) } },
+            containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White
+        )
+    }
+
+    if (showDeleteAccountConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteAccountConfirm = false },
+            title = { Text("Delete Account?", color = Color.Red) },
+            text = { Text("This will permanently delete your profile and personal data. This action cannot be undone.", color = if (isDarkMode) Color.White.copy(alpha = 0.7f) else Color.Black) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        UserUtils.deleteAccount(context) { success, error ->
+                            if (success) {
+                                onLogout() // Navigates to Login
+                            } else {
+                                Toast.makeText(context, error ?: "Deletion failed", Toast.LENGTH_LONG).show()
+                            }
+                        }
+                        showDeleteAccountConfirm = false
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
+                ) { Text("Delete Permanently", color = Color.White) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteAccountConfirm = false }) { Text("Cancel") }
+            },
             containerColor = if (isDarkMode) Color(0xFF1B2C33) else Color.White
         )
     }

@@ -20,15 +20,66 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid in getChat(chatId).memberUids;
     }
 
-    // Secure Chat Rules
+    function getTrip(tripId) {
+      return get(/databases/$(database)/documents/trips/$(tripId)).data;
+    }
+
+    function isTripMember(tripId) {
+      return isAuthenticated() && (request.auth.uid in getTrip(tripId).memberUids || request.auth.uid == getTrip(tripId).createdByUid);
+    }
+
+    // --- Users Collection ---
+    match /users/{userId} {
+      // Allow searching for users by email or ID (public fields only)
+      allow read: if isAuthenticated();
+      // Only the user can manage their own profile
+      allow create, update: if isOwner(userId);
+      // Explicitly deny delete unless through administrative process or verified re-auth
+      allow delete: if isOwner(userId);
+
+      match /friendSettings/{friendId} {
+        allow read, write: if isOwner(userId);
+      }
+      match /blockedUsers/{blockedId} {
+        allow read, write: if isOwner(userId);
+      }
+      // Backup data MUST be private
+      match /backups/{backupId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // --- Friend Requests ---
+    match /friendRequests/{requestId} {
+      allow create: if isAuthenticated() &&
+                    request.resource.data.fromUid == request.auth.uid &&
+                    request.resource.data.status == "pending" &&
+                    requestId == request.auth.uid + "_" + request.resource.data.toUid;
+
+      allow read, update, delete: if isAuthenticated() &&
+                                   (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
+    }
+
+    // --- Friends ---
+    match /friends/{friendshipId} {
+      // resource.data is only for existing docs. For create, use request.resource.data
+      allow create: if isAuthenticated() && request.auth.uid in request.resource.data.memberUids;
+      allow read, update, delete: if isAuthenticated() && request.auth.uid in resource.data.memberUids;
+    }
+
+    // --- Chats & Messages ---
     match /chats/{chatId} {
       allow create: if isAuthenticated() && request.auth.uid in request.resource.data.memberUids;
       allow read, update: if isAuthenticated() && request.auth.uid in resource.data.memberUids;
 
       match /messages/{messageId} {
         allow read: if isChatMember(chatId);
-        allow create: if isChatMember(chatId) && request.resource.data.senderUid == request.auth.uid;
-        allow update, delete: if isChatMember(chatId) && resource.data.senderUid == request.auth.uid;
+        // Ensure no attachments or oversized text via rules if possible (text only app limit check)
+        allow create: if isChatMember(chatId) &&
+                      request.resource.data.senderUid == request.auth.uid &&
+                      request.resource.data.text.size() < 2000;
+        allow update: if isChatMember(chatId) && resource.data.senderUid == request.auth.uid;
+        allow delete: if isChatMember(chatId) && resource.data.senderUid == request.auth.uid;
       }
 
       match /status/{uid} {
@@ -37,48 +88,31 @@ service cloud.firestore {
       }
     }
 
-    match /users/{userId} {
-      allow read: if isAuthenticated();
-      allow create, update: if isOwner(userId);
-
-      match /friendSettings/{friendId} {
-        allow read, write: if isOwner(userId);
-      }
-      match /blockedUsers/{blockedId} {
-        allow read, write: if isOwner(userId);
-      }
-    }
-
-    // Friend Requests Rules
-    match /friendRequests/{requestId} {
-      // Allow create only if fromUid matches auth user and status is pending
-      allow create: if isAuthenticated() &&
-                    request.resource.data.fromUid == request.auth.uid &&
-                    request.resource.data.status == "pending" &&
-                    requestId == request.auth.uid + "_" + request.resource.data.toUid;
-
-      // Allow read/update/delete if user is involved in the request
-      allow read, update, delete: if isAuthenticated() &&
-                                   (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid);
-    }
-
-    // Friends Rules
-    match /friends/{friendshipId} {
-      allow read, create, update, delete: if isAuthenticated() && request.auth.uid in resource.data.memberUids;
-    }
-
+    // --- Smart Travel ---
     match /trips/{tripId} {
       allow create: if isAuthenticated() && request.resource.data.createdByUid == request.auth.uid;
-      allow read, update, delete: if isAuthenticated() && (request.auth.uid in resource.data.memberUids || request.auth.uid == resource.data.createdByUid);
+      allow read: if isAuthenticated() && (request.auth.uid in resource.data.memberUids || request.auth.uid == resource.data.createdByUid);
+      // Only creator can delete or update trip metadata
+      allow update, delete: if isAuthenticated() && resource.data.createdByUid == request.auth.uid;
 
       match /expenses/{expenseId} {
-        // Secure expense access - must be trip member
-        allow read: if isAuthenticated() && (request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.memberUids || request.auth.uid == get(/databases/$(database)/documents/trips/$(tripId)).data.createdByUid);
-        allow create: if isAuthenticated() && request.resource.data.createdByUid == request.auth.uid;
-        allow update, delete: if isAuthenticated() && request.resource.data.createdByUid == request.auth.uid;
+        allow read: if isTripMember(tripId);
+        // Must be a member to add expenses
+        allow create: if isTripMember(tripId) && request.resource.data.createdByUid == request.auth.uid;
+        // Only the one who added the expense (or admin) can edit/delete it
+        allow update, delete: if isTripMember(tripId) &&
+                              (resource.data.createdByUid == request.auth.uid || getTrip(tripId).createdByUid == request.auth.uid);
+
+        match /flags/{flagId} {
+           allow read: if isTripMember(tripId);
+           allow create: if isTripMember(tripId) && request.resource.data.createdByUid == request.auth.uid;
+           // Flags can be resolved (deleted) by the Trip Admin
+           allow delete: if isTripMember(tripId) && getTrip(tripId).createdByUid == request.auth.uid;
+        }
       }
     }
 
+    // --- Legacy / Miscellaneous ---
     match /business/{docId} {
       allow create: if isAuthenticated() && request.resource.data.uid == request.auth.uid;
       allow read, update, delete: if isAuthenticated() && resource.data.uid == request.auth.uid;

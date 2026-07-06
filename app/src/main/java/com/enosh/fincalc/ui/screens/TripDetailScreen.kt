@@ -824,14 +824,14 @@ fun EditTripDialog(
         title = { Text("Edit Trip Details") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.verticalScroll(rememberScrollState())) {
-                ValidatedTextField(value = name, onValueChange = { name = it }, label = "Trip Name", keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Words)
-                ValidatedTextField(value = country, onValueChange = { country = it }, label = "Country", keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Words)
-                ValidatedTextField(value = city, onValueChange = { city = it }, label = "City", keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Words)
+                ValidatedTextField(value = name, onValueChange = { if (it.length <= 100) name = it }, label = "Trip Name", keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Words)
+                ValidatedTextField(value = country, onValueChange = { if (it.length <= 100) country = it }, label = "Country", keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Words)
+                ValidatedTextField(value = city, onValueChange = { if (it.length <= 100) city = it }, label = "City", keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Words)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     ValidatedTextField(value = code, onValueChange = { code = it.uppercase() }, label = "Currency Code", modifier = Modifier.weight(1f), keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Characters)
                     ValidatedTextField(value = symbol, onValueChange = { symbol = it }, label = "Symbol", modifier = Modifier.weight(0.5f), keyboardType = KeyboardType.Text)
                 }
-                ValidatedTextField(value = desc, onValueChange = { desc = it }, label = "Description", keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Sentences)
+                ValidatedTextField(value = desc, onValueChange = { if (it.length <= 500) desc = it }, label = "Description", keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Sentences)
             }
         },
         confirmButton = {
@@ -903,8 +903,10 @@ fun AddTravelExpenseDialog(
                 ValidatedTextField(
                     value = title, 
                     onValueChange = { 
-                        title = it
-                        titleError = if (it.isBlank()) "Expense title is required." else null
+                        if (it.length <= 100) {
+                            title = it
+                            titleError = if (it.isBlank()) "Expense title is required." else null
+                        }
                     }, 
                     label = "Title", 
                     modifier = Modifier.fillMaxWidth(),
@@ -958,7 +960,7 @@ fun AddTravelExpenseDialog(
                     keyboardType = KeyboardType.Decimal
                 )
 
-                ValidatedTextField(value = notes, onValueChange = { notes = it }, label = "Note (Optional)", keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Sentences)
+                ValidatedTextField(value = notes, onValueChange = { if (it.length <= 500) notes = it }, label = "Note (Optional)", keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Sentences)
 
                 Text("Category", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
                 FlowRow(
