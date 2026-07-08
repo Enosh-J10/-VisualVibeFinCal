@@ -4,6 +4,9 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.TypeConverters
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.enosh.fincalc.data.local.dao.BudgetDao
 import com.enosh.fincalc.data.local.dao.BudgetExtraAmountDao
 import com.enosh.fincalc.data.local.dao.ExpenseDao
@@ -15,9 +18,6 @@ import com.enosh.fincalc.data.local.entity.Expense
 import com.enosh.fincalc.data.local.entity.Goal
 import com.enosh.fincalc.data.local.entity.BusinessIncomeEntity
 import com.enosh.fincalc.data.local.entity.BusinessTargetEntity
-import com.enosh.fincalc.data.local.ConversationEntity
-import com.enosh.fincalc.data.local.MessageEntity
-import com.enosh.fincalc.data.local.AiChatDao
 
 @Database(
     entities = [
@@ -30,9 +30,10 @@ import com.enosh.fincalc.data.local.AiChatDao
         ConversationEntity::class,
         MessageEntity::class
     ], 
-    version = 7
+    version = 8,
+    exportSchema = true
 )
-@androidx.room.TypeConverters(Converters::class)
+@TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun expenseDao(): ExpenseDao
     abstract fun goalDao(): GoalDao
@@ -42,35 +43,49 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun aiChatDao(): AiChatDao
 
     companion object {
+        private const val DATABASE_NAME = "fincalc_master_db"
+
         @Volatile
         private var INSTANCE: AppDatabase? = null
 
         fun resetInstance() {
-            INSTANCE = null
+            synchronized(this) {
+                INSTANCE?.close()
+                INSTANCE = null
+            }
+        }
+
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Safely add uid columns with NOT NULL and DEFAULT values
+                try {
+                    db.execSQL("ALTER TABLE expenses ADD COLUMN uid TEXT NOT NULL DEFAULT 'guest'")
+                } catch (e: Exception) {
+                    android.util.Log.e("AppDatabase", "Migration 7-8: expenses.uid failed", e)
+                }
+                
+                try {
+                    db.execSQL("ALTER TABLE goals ADD COLUMN uid TEXT NOT NULL DEFAULT 'guest'")
+                } catch (e: Exception) {
+                    android.util.Log.e("AppDatabase", "Migration 7-8: goals.uid failed", e)
+                }
+                
+                try {
+                    db.execSQL("ALTER TABLE budgets ADD COLUMN uid TEXT NOT NULL DEFAULT 'guest'")
+                } catch (e: Exception) {
+                    android.util.Log.e("AppDatabase", "Migration 7-8: budgets.uid failed", e)
+                }
+            }
         }
 
         fun getDatabase(context: Context): AppDatabase {
-            val prefs = context.getSharedPreferences("UserPrefs", Context.MODE_PRIVATE)
-            val isGuest = prefs.getBoolean("is_guest", false)
-            val userId = try {
-                com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid ?: "anonymous"
-            } catch (e: Throwable) {
-                "anonymous"
-            }
-            val dbName = if (isGuest) "fincalc_database_guest" else "fincalc_database_$userId"
-
-            val currentInstance = INSTANCE
-            if (currentInstance != null && currentInstance.openHelper.databaseName == dbName) {
-                return currentInstance
-            }
-
-            return synchronized(this) {
+            return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
-                    dbName
+                    DATABASE_NAME
                 )
-                // TODO: Replace fallbackToDestructiveMigration with explicit Room migrations before production release.
+                .addMigrations(MIGRATION_7_8)
                 .fallbackToDestructiveMigration(true)
                 .build()
                 INSTANCE = instance

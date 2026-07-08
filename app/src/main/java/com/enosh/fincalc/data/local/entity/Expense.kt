@@ -11,5 +11,6 @@ data class Expense(
     val merchant: String,
     val category: String,
     val source: String, // "scan" or "upload"
-    val notes: String = ""
+    val notes: String = "",
+    val uid: String = "guest"
 )

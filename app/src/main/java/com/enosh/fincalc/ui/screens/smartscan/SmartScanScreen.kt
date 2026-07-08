@@ -90,8 +90,9 @@ fun SmartScanScreen(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val currentUid = com.enosh.fincalc.utils.UserUtils.getEffectiveUid(context)
     val expenseDao = remember { AppDatabase.getDatabase(context).expenseDao() }
-    val expenses by expenseDao.getAllExpenses().collectAsState(initial = emptyList())
+    val expenses by expenseDao.getAllExpenses(currentUid).collectAsState(initial = emptyList())
 
     var showScanner by remember { mutableStateOf(false) }
     var isProcessing by remember { mutableStateOf(false) }
@@ -144,7 +145,7 @@ fun SmartScanScreen(
                         pendingScanResult = newExpense
                         showLowConfidenceDialog = true
                     } else {
-                        val duplicate = expenseDao.findDuplicate(newExpense.amount, newExpense.date, newExpense.merchant)
+                        val duplicate = expenseDao.findDuplicate(newExpense.amount, newExpense.date, newExpense.merchant, currentUid)
                         if (duplicate != null) {
                             pendingScanResult = newExpense
                             showDuplicateDialog = true
@@ -323,7 +324,7 @@ fun SmartScanScreen(
                             pendingScanResult = newExpense
                             showLowConfidenceDialog = true
                         } else {
-                            val duplicate = expenseDao.findDuplicate(newExpense.amount, newExpense.date, newExpense.merchant)
+                            val duplicate = expenseDao.findDuplicate(newExpense.amount, newExpense.date, newExpense.merchant, currentUid)
                             if (duplicate != null) {
                                 pendingScanResult = newExpense
                                 showDuplicateDialog = true
@@ -350,9 +351,9 @@ fun SmartScanScreen(
             onSave = { updatedExpense ->
                 scope.launch {
                     if (updatedExpense.id == 0) {
-                        expenseDao.insertExpense(updatedExpense)
+                        expenseDao.insertExpense(updatedExpense.copy(uid = currentUid))
                     } else {
-                        expenseDao.updateExpense(updatedExpense)
+                        expenseDao.updateExpense(updatedExpense.copy(uid = currentUid))
                     }
                     editingExpense = null
                     Toast.makeText(context, expenseSavedToast, Toast.LENGTH_SHORT).show()

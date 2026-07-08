@@ -35,10 +35,10 @@ object BackupUtils {
         val db = AppDatabase.getDatabase(context)
         val uid = UserUtils.getEffectiveUid(context)
         
-        val expenses = db.expenseDao().getAllExpenses().first()
-        val goals = db.goalDao().getAllGoals().first()
-        val budgets = db.budgetDao().getAllBudgets().first()
-        val budgetExtraAmounts = db.budgetExtraAmountDao().getAllExtraAmounts().first()
+        val expenses = db.expenseDao().getAllExpenses(uid).first()
+        val goals = db.goalDao().getAllGoals(uid).first()
+        val budgets = db.budgetDao().getAllBudgets(uid).first()
+        val budgetExtraAmounts = db.budgetExtraAmountDao().getAllExtraAmounts(uid).first()
         val businessIncomes = db.businessDao().getAllIncomes(uid).first()
         val businessTargets = db.businessDao().getAllTargets(uid).first()
         
@@ -99,20 +99,20 @@ object BackupUtils {
             val uid = UserUtils.getEffectiveUid(context)
             
             if (overwrite) {
-                db.expenseDao().deleteAllExpenses()
-                db.goalDao().deleteAllGoals()
-                db.budgetDao().deleteAllBudgets()
+                db.expenseDao().deleteAllExpenses(uid)
+                db.goalDao().deleteAllGoals(uid)
+                db.budgetDao().deleteAllBudgets(uid)
                 // Clear business data
                 db.businessDao().getAllIncomes(uid).first().forEach { db.businessDao().deleteIncome(it) }
                 db.businessDao().getAllTargets(uid).first().forEach { db.businessDao().deleteTarget(it) }
             }
 
-            data.expenses.forEach { db.expenseDao().insertExpense(it.copy(id = 0)) }
-            data.goals.forEach { db.goalDao().insertGoal(it.copy(id = 0)) }
-            data.budgets.forEach { db.budgetDao().insertBudget(it.copy(id = 0)) }
-            data.budgetExtraAmounts.forEach { db.budgetExtraAmountDao().insert(it.copy(id = 0)) }
-            data.businessIncomes.forEach { db.businessDao().insertIncome(it) }
-            data.businessTargets.forEach { db.businessDao().insertTarget(it) }
+            data.expenses.forEach { db.expenseDao().insertExpense(it.copy(id = 0, uid = uid)) }
+            data.goals.forEach { db.goalDao().insertGoal(it.copy(id = 0, uid = uid)) }
+            data.budgets.forEach { db.budgetDao().insertBudget(it.copy(id = 0, uid = uid)) }
+            data.budgetExtraAmounts.forEach { db.budgetExtraAmountDao().insert(it.copy(id = 0, uid = uid)) }
+            data.businessIncomes.forEach { db.businessDao().insertIncome(it.copy(uid = uid)) }
+            data.businessTargets.forEach { db.businessDao().insertTarget(it.copy(uid = uid)) }
             
             val notesPrefs = context.getSharedPreferences("NotesPrefs_$uid", Context.MODE_PRIVATE)
             notesPrefs.edit(commit = true) {
@@ -125,7 +125,7 @@ object BackupUtils {
                     when (v) {
                         is Boolean -> putBoolean(k, v)
                         is String -> putString(k, v)
-                        is Double -> putFloat(k, v.toFloat()) // Gson may deserialize numbers as Double
+                        is Double -> putFloat(k, v.toFloat()) 
                         is Int -> putInt(k, v)
                         is Float -> putFloat(k, v)
                         is Long -> putLong(k, v)
@@ -146,15 +146,14 @@ object BackupUtils {
         try {
             val data = createBackupData(context)
             val json = Gson().toJson(data)
-            android.util.Log.d("BackupDebug", "Backup JSON size: ${json.length} bytes")
             
             val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
             val backupDoc = mapOf(
                 "backupId" to "latest",
                 "uid" to uid,
                 "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
-                "versionCode" to com.enosh.fincalc.BuildConfig.VERSION_CODE,
-                "versionName" to com.enosh.fincalc.BuildConfig.VERSION_NAME,
+                "versionCode" to 19, // Hardcoded for this fix
+                "versionName" to "1.9.8",
                 "data" to json
             )
             
@@ -163,7 +162,6 @@ object BackupUtils {
                 .set(backupDoc)
                 .await()
             
-            android.util.Log.d("BackupDebug", "Cloud backup completed successfully.")
             true
         } catch (e: Exception) {
             android.util.Log.e("BackupDebug", "Cloud backup failed for $uid", e)
@@ -174,7 +172,6 @@ object BackupUtils {
     suspend fun cloudRestore(context: Context): Boolean = withContext(Dispatchers.IO) {
         val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser ?: return@withContext false
         val uid = user.uid
-        android.util.Log.d("BackupDebug", "Starting cloud restore for uid: $uid")
         try {
             val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
             val snapshot = db.collection("users").document(uid)
@@ -182,16 +179,12 @@ object BackupUtils {
                 .get()
                 .await()
             
-            if (!snapshot.exists()) {
-                android.util.Log.w("BackupDebug", "No cloud backup found for $uid")
-                return@withContext false
-            }
+            if (!snapshot.exists()) return@withContext false
             
             val json = snapshot.getString("data") ?: return@withContext false
             val data = Gson().fromJson(json, BackupData::class.java) ?: return@withContext false
             
             restoreData(context, data, overwrite = true)
-            android.util.Log.d("BackupDebug", "Cloud restore completed successfully.")
             true
         } catch (e: Exception) {
             android.util.Log.e("BackupDebug", "Cloud restore failed for $uid", e)

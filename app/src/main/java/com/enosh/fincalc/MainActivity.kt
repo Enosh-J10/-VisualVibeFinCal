@@ -24,8 +24,24 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        enableEdgeToEdge()
-        setContentView(R.layout.activity_main)
+        try {
+            com.google.firebase.FirebaseApp.initializeApp(this)
+        } catch (e: Throwable) {
+            android.util.Log.e("MainActivity", "Firebase initialization failed", e)
+        }
+
+        try {
+            enableEdgeToEdge()
+        } catch (e: Throwable) {
+            // Fallback for older devices or incompatible library versions
+        }
+        
+        try {
+            setContentView(R.layout.activity_main)
+        } catch (e: Throwable) {
+            // Critical failure - if layout inflation fails, we might still want to try starting LoginActivity
+            android.util.Log.e("MainActivity", "setContentView failed", e)
+        }
 
         val tvTip = findViewById<TextView>(R.id.tv_tagline)
         val handler = Handler(Looper.getMainLooper())

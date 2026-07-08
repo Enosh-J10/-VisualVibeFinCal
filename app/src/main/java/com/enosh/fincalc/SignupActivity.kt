@@ -96,13 +96,16 @@ class SignupActivity : AppCompatActivity() {
             auth = FirebaseAuth.getInstance()
             
             // Initialize Legacy Google Sign-In
-            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(getString(R.string.default_web_client_id))
-                .requestEmail()
-                .build()
-            googleSignInClient = GoogleSignIn.getClient(this, gso)
-        } catch (e: Exception) {
-            Toast.makeText(this, "Firebase configuration error.", Toast.LENGTH_LONG).show()
+            val webClientId = try { getString(R.string.default_web_client_id) } catch (e: Throwable) { null }
+            if (webClientId != null) {
+                val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(webClientId)
+                    .requestEmail()
+                    .build()
+                googleSignInClient = GoogleSignIn.getClient(this, gso)
+            }
+        } catch (e: Throwable) {
+            Toast.makeText(this, "Authentication service error.", Toast.LENGTH_LONG).show()
             android.util.Log.e("FirebaseInit", "Firebase initialization failed", e)
         }
 

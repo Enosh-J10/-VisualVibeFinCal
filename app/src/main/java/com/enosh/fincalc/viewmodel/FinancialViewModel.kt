@@ -9,6 +9,7 @@ import com.enosh.fincalc.data.local.entity.BudgetExtraAmount
 import com.enosh.fincalc.data.local.entity.Expense
 import com.enosh.fincalc.data.local.entity.Goal
 import com.enosh.fincalc.data.repository.FinancialRepository
+import com.enosh.fincalc.utils.UserUtils
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -21,27 +22,40 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
     private val repository: FinancialRepository
     val allExpenses: StateFlow<List<Expense>>
     val allGoals: StateFlow<List<Goal>>
+    private val uid: String = UserUtils.getEffectiveUid(application)
 
     init {
         val db = AppDatabase.getDatabase(application)
         repository = FinancialRepository(db.expenseDao(), db.goalDao(), db.budgetDao(), db.budgetExtraAmountDao())
-        allExpenses = repository.allExpenses.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-        allGoals = repository.allGoals.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        allExpenses = repository.getAllExpenses(uid).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        allGoals = repository.getAllGoals(uid).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
     }
 
-    fun insertExpense(expense: Expense) = viewModelScope.launch { repository.insertExpense(expense) }
-    fun updateExpense(expense: Expense) = viewModelScope.launch { repository.updateExpense(expense) }
+    fun insertExpense(expense: Expense) = viewModelScope.launch { 
+        repository.insertExpense(expense.copy(uid = uid)) 
+    }
+    fun updateExpense(expense: Expense) = viewModelScope.launch { 
+        repository.updateExpense(expense.copy(uid = uid)) 
+    }
     fun deleteExpense(expense: Expense) = viewModelScope.launch { repository.deleteExpense(expense) }
 
-    fun insertGoal(goal: Goal) = viewModelScope.launch { repository.insertGoal(goal) }
-    fun updateGoal(goal: Goal) = viewModelScope.launch { repository.updateGoal(goal) }
+    fun insertGoal(goal: Goal) = viewModelScope.launch { 
+        repository.insertGoal(goal.copy(uid = uid)) 
+    }
+    fun updateGoal(goal: Goal) = viewModelScope.launch { 
+        repository.updateGoal(goal.copy(uid = uid)) 
+    }
     fun deleteGoal(goal: Goal) = viewModelScope.launch { repository.deleteGoal(goal) }
 
-    fun getBudgetForMonth(month: String): Flow<Budget?> = repository.getBudgetForMonth(month)
-    fun setBudget(budget: Budget) = viewModelScope.launch { repository.insertBudget(budget) }
+    fun getBudgetForMonth(month: String): Flow<Budget?> = repository.getBudgetForMonth(month, uid)
+    fun setBudget(budget: Budget) = viewModelScope.launch { 
+        repository.insertBudget(budget.copy(uid = uid)) 
+    }
 
-    fun getExtraAmountsForMonth(month: String): Flow<List<BudgetExtraAmount>> = repository.getExtraAmountsForMonth(month)
-    fun insertExtraAmount(extraAmount: BudgetExtraAmount) = viewModelScope.launch { repository.insertExtraAmount(extraAmount) }
+    fun getExtraAmountsForMonth(month: String): Flow<List<BudgetExtraAmount>> = repository.getExtraAmountsForMonth(month, uid)
+    fun insertExtraAmount(extraAmount: BudgetExtraAmount) = viewModelScope.launch { 
+        repository.insertExtraAmount(extraAmount.copy(uid = uid)) 
+    }
     fun deleteExtraAmount(extraAmount: BudgetExtraAmount) = viewModelScope.launch { repository.deleteExtraAmount(extraAmount) }
     
     fun getCurrentMonth(): String {
@@ -64,7 +78,9 @@ class FinancialViewModel(application: Application) : AndroidViewModel(applicatio
 
         val currentMonth = getCurrentMonth()
         val currentMonthExpenses = expenses.filter { 
-            SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date(it.date)) == currentMonth 
+            try {
+                SimpleDateFormat("yyyy-MM", Locale.getDefault()).format(Date(it.date)) == currentMonth 
+            } catch (e: Exception) { false }
         }
 
         if (currentMonthExpenses.isEmpty() && budget != null && budget.amount > 0) {

@@ -6,11 +6,11 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ExpenseDao {
-    @Query("SELECT * FROM expenses ORDER BY date DESC")
-    fun getAllExpenses(): Flow<List<Expense>>
+    @Query("SELECT * FROM expenses WHERE uid = :uid ORDER BY date DESC")
+    fun getAllExpenses(uid: String): Flow<List<Expense>>
 
-    @Query("SELECT * FROM expenses WHERE amount = :amount AND date = :date AND merchant = :merchant LIMIT 1")
-    suspend fun findDuplicate(amount: Double, date: Long, merchant: String): Expense?
+    @Query("SELECT * FROM expenses WHERE amount = :amount AND date = :date AND merchant = :merchant AND uid = :uid LIMIT 1")
+    suspend fun findDuplicate(amount: Double, date: Long, merchant: String, uid: String): Expense?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertExpense(expense: Expense)
@@ -21,6 +21,6 @@ interface ExpenseDao {
     @Update
     suspend fun updateExpense(expense: Expense)
 
-    @Query("DELETE FROM expenses")
-    suspend fun deleteAllExpenses()
+    @Query("DELETE FROM expenses WHERE uid = :uid")
+    suspend fun deleteAllExpenses(uid: String)
 }

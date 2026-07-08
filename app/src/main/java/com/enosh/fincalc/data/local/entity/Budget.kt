@@ -7,5 +7,6 @@ import androidx.room.PrimaryKey
 data class Budget(
     @PrimaryKey(autoGenerate = true) val id: Int = 0,
     val month: String, // e.g., "2023-10"
-    val amount: Double
+    val amount: Double,
+    val uid: String = "guest"
 )

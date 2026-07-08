@@ -65,24 +65,32 @@ class NotificationsViewModel : ViewModel() {
     }
 
     private fun scheduleWorker(context: Context, policy: ExistingPeriodicWorkPolicy) {
-        val intervalHours = when (_settings.value.frequency) {
-            ReminderFrequency.LOW -> 24L
-            ReminderFrequency.MEDIUM -> 5L
-            ReminderFrequency.HIGH -> 3L
+        try {
+            val intervalHours = when (_settings.value.frequency) {
+                ReminderFrequency.LOW -> 24L
+                ReminderFrequency.MEDIUM -> 5L
+                ReminderFrequency.HIGH -> 3L
+            }
+
+            val workRequest = PeriodicWorkRequestBuilder<FunReminderWorker>(intervalHours, TimeUnit.HOURS)
+                .setInitialDelay(intervalHours / 2, TimeUnit.HOURS) 
+                .build()
+
+            WorkManager.getInstance(context).enqueueUniquePeriodicWork(
+                WORK_NAME,
+                policy,
+                workRequest
+            )
+        } catch (e: Throwable) {
+            android.util.Log.e("NotificationsVM", "Failed to schedule worker", e)
         }
-
-        val workRequest = PeriodicWorkRequestBuilder<FunReminderWorker>(intervalHours, TimeUnit.HOURS)
-            .setInitialDelay(intervalHours / 2, TimeUnit.HOURS) 
-            .build()
-
-        WorkManager.getInstance(context).enqueueUniquePeriodicWork(
-            WORK_NAME,
-            policy,
-            workRequest
-        )
     }
 
     private fun cancelWorker(context: Context) {
-        WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        try {
+            WorkManager.getInstance(context).cancelUniqueWork(WORK_NAME)
+        } catch (e: Throwable) {
+            android.util.Log.e("NotificationsVM", "Failed to cancel worker", e)
+        }
     }
 }
