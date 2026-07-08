@@ -15,8 +15,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class SmartTravelViewModel : ViewModel() {
-    private val db = FirebaseFirestore.getInstance()
-    private val auth = FirebaseAuth.getInstance()
+    private val auth: com.google.firebase.auth.FirebaseAuth? by lazy { 
+        try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Throwable) { null } 
+    }
+    private val db: com.google.firebase.firestore.FirebaseFirestore? by lazy { 
+        try { com.google.firebase.firestore.FirebaseFirestore.getInstance() } catch (e: Throwable) { null } 
+    }
 
     private val _trips = MutableStateFlow<List<TravelTrip>>(emptyList())
     val trips: StateFlow<List<TravelTrip>> = _trips
@@ -39,14 +43,14 @@ class SmartTravelViewModel : ViewModel() {
     private var tripsListener: com.google.firebase.firestore.ListenerRegistration? = null
     private var invitedTripsListener: com.google.firebase.firestore.ListenerRegistration? = null
     private var expensesListener: com.google.firebase.firestore.ListenerRegistration? = null
-    private val flagListeners = mutableMapOf<String, com.google.firebase.firestore.ListenerRegistration>()
+    private val flagListeners = mutableMapOf<String, com.google.firebase.firestore.ListenerRegistration?>()
 
     override fun onCleared() {
         super.onCleared()
         tripsListener?.remove()
         invitedTripsListener?.remove()
         expensesListener?.remove()
-        flagListeners.values.forEach { it.remove() }
+        flagListeners.values.forEach { it?.remove() }
         flagListeners.clear()
     }
 
@@ -55,13 +59,14 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     fun fetchTrips() {
-        val currentUser = auth.currentUser ?: return
+        val currentUser = auth?.currentUser ?: return
         val uid = currentUser.uid
+        if (db == null) return
         
         tripsListener?.remove()
-        tripsListener = db.collection("trips")
-            .whereArrayContains("memberUids", uid)
-            .addSnapshotListener { snapshot, e ->
+        tripsListener = db?.collection("trips")
+            ?.whereArrayContains("memberUids", uid)
+            ?.addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     Log.e("SmartTravelError", "Listen failed: collection=trips, uid=$uid", e)
                     return@addSnapshotListener
@@ -94,9 +99,9 @@ class SmartTravelViewModel : ViewModel() {
             
         // Also fetch trips where user is invited
         invitedTripsListener?.remove()
-        invitedTripsListener = db.collection("trips")
-            .whereArrayContains("invitedUids", uid)
-            .addSnapshotListener { snapshot, e ->
+        invitedTripsListener = db?.collection("trips")
+            ?.whereArrayContains("invitedUids", uid)
+            ?.addSnapshotListener { snapshot, e ->
                 if (e == null && snapshot != null) {
                     val invitedTrips = snapshot.documents.mapNotNull { it.toObject(TravelTrip::class.java) }
                     val currentList = _trips.value.toMutableList()
@@ -118,15 +123,17 @@ class SmartTravelViewModel : ViewModel() {
         selectedCurrencySymbol: String,
         description: String = ""
     ) {
-        val currentUser = auth.currentUser ?: run {
-            _errorMessage.value = "Please log in to create shared trips."
+        val currentUser = auth?.currentUser ?: run {
+            _errorMessage.value = "Authentication service not available."
             return
         }
         val uid = currentUser.uid
+        if (db == null) return
         
         viewModelScope.launch {
             try {
-                val tripRef = db.collection("trips").document()
+                val currentDb = db ?: throw Exception("Database not available")
+                val tripRef = currentDb.collection("trips").document()
                 val tripId = tripRef.id
 
                 val tripData = mapOf(
@@ -139,8 +146,8 @@ class SmartTravelViewModel : ViewModel() {
                     "createdByUid" to uid,
                     "memberUids" to listOf(uid),
                     "invitedUids" to emptyList<String>(),
-                    "createdAt" to FieldValue.serverTimestamp(),
-                    "updatedAt" to FieldValue.serverTimestamp(),
+                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                    "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                     "description" to description.take(500).trim(),
                     "memberDetails" to mapOf(
                         uid to MemberInfo(
@@ -169,17 +176,18 @@ class SmartTravelViewModel : ViewModel() {
         currencySymbol: String,
         description: String
     ) {
+        if (db == null) return
         viewModelScope.launch {
             try {
-                db.collection("trips").document(tripId).update(
+                db?.collection("trips")?.document(tripId)?.update(
                     "name", name.trim(),
                     "destinationCountry", destinationCountry,
                     "destinationCity", destinationCity.trim(),
                     "currencyCode", currencyCode,
                     "currencySymbol", currencySymbol,
                     "description", description.trim(),
-                    "updatedAt", FieldValue.serverTimestamp()
-                ).await()
+                    "updatedAt", com.google.firebase.firestore.FieldValue.serverTimestamp()
+                )?.await()
                 _errorMessage.value = "Trip Updated"
             } catch (e: Exception) {
                 Log.e("SmartTravel", "Update trip failed", e)
@@ -189,9 +197,11 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     fun deleteTrip(tripId: String, onComplete: () -> Unit) {
+        if (db == null) return
         viewModelScope.launch {
             try {
-                val tripDocRef = db.collection("trips").document(tripId)
+                val currentDb = db ?: throw Exception("Database not available")
+                val tripDocRef = currentDb.collection("trips").document(tripId)
                 
                 // 1. Delete all expenses and their flags
                 val expensesSnapshot = tripDocRef.collection("expenses").get().await()
@@ -199,7 +209,7 @@ class SmartTravelViewModel : ViewModel() {
                 for (expenseDoc in expensesSnapshot.documents) {
                     val flagsSnapshot = expenseDoc.reference.collection("flags").get().await()
                     
-                    val subBatch = db.batch()
+                    val subBatch = currentDb.batch()
                     for (flagDoc in flagsSnapshot.documents) {
                         subBatch.delete(flagDoc.reference)
                     }
@@ -212,7 +222,7 @@ class SmartTravelViewModel : ViewModel() {
                 for (sub in subcollections) {
                     val snap = tripDocRef.collection(sub).get().await()
                     if (!snap.isEmpty) {
-                        val batch = db.batch()
+                        val batch = currentDb.batch()
                         snap.documents.forEach { batch.delete(it.reference) }
                         batch.commit().await()
                     }
@@ -235,7 +245,7 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     fun addMember(tripId: String, memberUid: String, name: String, email: String) {
-        db.collection("trips").document(tripId).get().addOnSuccessListener { snapshot ->
+        db?.collection("trips")?.document(tripId)?.get()?.addOnSuccessListener { snapshot ->
             val trip = snapshot.toObject(TravelTrip::class.java) ?: return@addOnSuccessListener
             
             val invited = trip.invitedUids.toMutableList()
@@ -243,10 +253,10 @@ class SmartTravelViewModel : ViewModel() {
                 invited.add(memberUid)
                 val newDetails = trip.memberDetails.toMutableMap()
                 newDetails[memberUid] = MemberInfo(name = name, email = email, status = "INVITED")
-                db.collection("trips").document(tripId).update(
+                db?.collection("trips")?.document(tripId)?.update(
                     "invitedUids", invited,
                     "memberDetails", newDetails
-                ).addOnFailureListener { e ->
+                )?.addOnFailureListener { e ->
                     Log.e("SmartTravelError", "Add member failed", e)
                 }
             }
@@ -254,10 +264,10 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     fun joinTrip(tripId: String) {
-        val currentUser = auth.currentUser ?: return
+        val currentUser = auth?.currentUser ?: return
         val uid = currentUser.uid
         
-        db.collection("trips").document(tripId).get().addOnSuccessListener { snapshot ->
+        db?.collection("trips")?.document(tripId)?.get()?.addOnSuccessListener { snapshot ->
             val trip = snapshot.toObject(TravelTrip::class.java) ?: return@addOnSuccessListener
             if (trip.invitedUids.contains(uid)) {
                 val invited = trip.invitedUids.toMutableList()
@@ -273,18 +283,18 @@ class SmartTravelViewModel : ViewModel() {
                     status = "JOINED"
                 )
                 
-                db.collection("trips").document(tripId).update(
+                db?.collection("trips")?.document(tripId)?.update(
                     "invitedUids", invited,
                     "memberUids", members,
                     "memberDetails", details,
-                    "updatedAt", FieldValue.serverTimestamp()
+                    "updatedAt", com.google.firebase.firestore.FieldValue.serverTimestamp()
                 )
             }
         }
     }
 
     fun removeMember(tripId: String, memberUid: String) {
-        db.collection("trips").document(tripId).get().addOnSuccessListener { snapshot ->
+        db?.collection("trips")?.document(tripId)?.get()?.addOnSuccessListener { snapshot ->
             val trip = snapshot.toObject(TravelTrip::class.java) ?: return@addOnSuccessListener
             
             val invited = trip.invitedUids.toMutableList()
@@ -296,11 +306,11 @@ class SmartTravelViewModel : ViewModel() {
             val details = trip.memberDetails.toMutableMap()
             details.remove(memberUid)
             
-            db.collection("trips").document(tripId).update(
+            db?.collection("trips")?.document(tripId)?.update(
                 "invitedUids", invited,
                 "memberUids", members,
                 "memberDetails", details,
-                "updatedAt", FieldValue.serverTimestamp()
+                "updatedAt", com.google.firebase.firestore.FieldValue.serverTimestamp()
             )
         }
     }
@@ -320,12 +330,12 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     fun fetchMemberProfiles(uids: List<String>) {
-        if (uids.isEmpty()) return
+        if (uids.isEmpty() || db == null) return
         viewModelScope.launch {
             try {
                 val profiles = mutableMapOf<String, User>()
                 for (uid in uids) {
-                    val doc = db.collection("users").document(uid).get().await()
+                    val doc = db?.collection("users")?.document(uid)?.get()?.await() ?: continue
                     val user = doc.toObject(User::class.java)
                     if (user != null) {
                         profiles[uid] = user
@@ -339,12 +349,12 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     fun fetchExpenses(tripId: String) {
-        if (tripId.isBlank()) return
+        if (tripId.isBlank() || db == null) return
         
         expensesListener?.remove()
-        expensesListener = db.collection("trips").document(tripId).collection("expenses")
-            .orderBy("createdAt", Query.Direction.DESCENDING)
-            .addSnapshotListener { snapshot, e ->
+        expensesListener = db?.collection("trips")?.document(tripId)?.collection("expenses")
+            ?.orderBy("createdAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            ?.addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     Log.e("SmartTravel", "Expense listener failed", e)
                     return@addSnapshotListener
@@ -371,9 +381,10 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     private fun fetchFlags(tripId: String, expenseId: String) {
+        if (db == null) return
         flagListeners[expenseId]?.remove()
-        flagListeners[expenseId] = db.collection("trips").document(tripId).collection("expenses").document(expenseId)
-            .collection("flags").addSnapshotListener { snapshot, e ->
+        flagListeners[expenseId] = db?.collection("trips")?.document(tripId)?.collection("expenses")?.document(expenseId)
+            ?.collection("flags")?.addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     Log.e("SmartTravel", "fetchFlags failed for $expenseId", e)
                     return@addSnapshotListener
@@ -395,8 +406,9 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     fun addExpense(tripId: String, expense: TravelExpense) {
-        val uid = auth.currentUser?.uid ?: ""
-        val expenseRef = db.collection("trips").document(tripId).collection("expenses").document()
+        val uid = auth?.currentUser?.uid ?: ""
+        if (db == null) return
+        val expenseRef = db?.collection("trips")?.document(tripId)?.collection("expenses")?.document() ?: return
         val expenseId = expenseRef.id
         
         val expenseToSave = expense.copy(
@@ -411,18 +423,20 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     fun updateExpense(tripId: String, expense: TravelExpense) {
-        db.collection("trips").document(tripId).collection("expenses").document(expense.expenseId).set(expense.copy(updatedAt = System.currentTimeMillis()))
+        db?.collection("trips")?.document(tripId)?.collection("expenses")?.document(expense.expenseId)?.set(expense.copy(updatedAt = System.currentTimeMillis()))
     }
 
     fun deleteExpense(tripId: String, expenseId: String) {
+        if (db == null) return
         viewModelScope.launch {
             try {
-                val expenseRef = db.collection("trips").document(tripId).collection("expenses").document(expenseId)
+                val currentDb = db ?: throw Exception("Database not available")
+                val expenseRef = currentDb.collection("trips").document(tripId).collection("expenses").document(expenseId)
                 
                 // 1. Delete nested flags
                 val flagsSnapshot = expenseRef.collection("flags").get().await()
                 
-                val batch = db.batch()
+                val batch = currentDb.batch()
                 flagsSnapshot.documents.forEach { batch.delete(it.reference) }
                 
                 // 2. Delete expense
@@ -442,7 +456,8 @@ class SmartTravelViewModel : ViewModel() {
     }
 
     fun flagExpense(tripId: String, expenseId: String, reason: String, note: String) {
-        val user = auth.currentUser ?: return
+        val user = auth?.currentUser ?: return
+        if (db == null) return
         val flagId = java.util.UUID.randomUUID().toString()
         val flag = TravelExpenseFlag(
             flagId = flagId,
@@ -456,11 +471,11 @@ class SmartTravelViewModel : ViewModel() {
             status = "open"
         )
         
-        db.collection("trips").document(tripId).collection("expenses").document(expenseId)
-            .collection("flags").document(flagId).set(flag).addOnSuccessListener {
-                db.collection("trips").document(tripId).collection("expenses").document(expenseId)
-                    .update("hasOpenFlags", true)
-            }.addOnFailureListener {
+        db?.collection("trips")?.document(tripId)?.collection("expenses")?.document(expenseId)
+            ?.collection("flags")?.document(flagId)?.set(flag)?.addOnSuccessListener {
+                db?.collection("trips")?.document(tripId)?.collection("expenses")?.document(expenseId)
+                    ?.update("hasOpenFlags", true)
+            }?.addOnFailureListener {
                 Log.e("SmartTravel", "Failed to create flag", it)
             }
     }
@@ -468,31 +483,32 @@ class SmartTravelViewModel : ViewModel() {
     fun resolveFlag(tripId: String, expenseId: String, flagId: String) {
         // The requirement says "Resolved flags should disappear after confirmation."
         // We delete the flag document to make it disappear.
-        db.collection("trips").document(tripId).collection("expenses").document(expenseId)
-            .collection("flags").document(flagId).delete().addOnSuccessListener {
+        if (db == null) return
+        db?.collection("trips")?.document(tripId)?.collection("expenses")?.document(expenseId)
+            ?.collection("flags")?.document(flagId)?.delete()?.addOnSuccessListener {
                 // Check if any open flags remain
-                db.collection("trips").document(tripId).collection("expenses").document(expenseId)
-                    .collection("flags").get().addOnSuccessListener { snapshot ->
+                db?.collection("trips")?.document(tripId)?.collection("expenses")?.document(expenseId)
+                    ?.collection("flags")?.get()?.addOnSuccessListener { snapshot ->
                         if (snapshot.isEmpty) {
-                            db.collection("trips").document(tripId).collection("expenses").document(expenseId)
-                                .update("hasOpenFlags", false)
+                            db?.collection("trips")?.document(tripId)?.collection("expenses")?.document(expenseId)
+                                ?.update("hasOpenFlags", false)
                         }
                     }
-            }.addOnFailureListener {
+            }?.addOnFailureListener {
                 Log.e("SmartTravel", "Failed to resolve/delete flag", it)
             }
     }
 
     fun finalizeTrip(tripId: String) {
-        db.collection("trips").document(tripId).update(
+        db?.collection("trips")?.document(tripId)?.update(
             "isFinalized", true,
-            "finalizedAt", FieldValue.serverTimestamp(),
-            "finalizedByUid", auth.currentUser?.uid
+            "finalizedAt", com.google.firebase.firestore.FieldValue.serverTimestamp(),
+            "finalizedByUid", auth?.currentUser?.uid
         )
     }
 
     fun reopenTrip(tripId: String) {
-        db.collection("trips").document(tripId).update("isFinalized", false)
+        db?.collection("trips")?.document(tripId)?.update("isFinalized", false)
     }
 
     fun calculateSettlements(trip: TravelTrip, expenses: List<TravelExpense>, profiles: Map<String, User> = emptyMap()): List<String> {
@@ -548,8 +564,8 @@ class SmartTravelViewModel : ViewModel() {
                 val cNameRaw = profiles[creditor.first]?.name ?: trip.memberDetails[creditor.first]?.name ?: "Someone"
                 val dNameRaw = profiles[debtor.first]?.name ?: trip.memberDetails[debtor.first]?.name ?: "Someone"
                 
-                val cName = if (cNameRaw.equals("Me", true)) (auth.currentUser?.displayName ?: "You") else cNameRaw
-                val dName = if (dNameRaw.equals("Me", true)) (auth.currentUser?.displayName ?: "You") else dNameRaw
+                val cName = if (cNameRaw.equals("Me", true)) (auth?.currentUser?.displayName ?: "You") else cNameRaw
+                val dName = if (dNameRaw.equals("Me", true)) (auth?.currentUser?.displayName ?: "You") else dNameRaw
 
                 settlements.add("$dName owes $cName ${trip.currencySymbol}${String.format(java.util.Locale.getDefault(), "%.2f", amount)}")
             }

@@ -22,8 +22,12 @@ import kotlinx.coroutines.tasks.await
 import java.util.UUID
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
-    private val auth = FirebaseAuth.getInstance()
-    private val db = FirebaseFirestore.getInstance()
+    private val auth: com.google.firebase.auth.FirebaseAuth? by lazy { 
+        try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Throwable) { null } 
+    }
+    private val db: com.google.firebase.firestore.FirebaseFirestore? by lazy { 
+        try { com.google.firebase.firestore.FirebaseFirestore.getInstance() } catch (e: Throwable) { null } 
+    }
 
     init {
         logFirebaseDiagnostic("Init")
@@ -61,25 +65,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun setTypingStatus(chatId: String, isTyping: Boolean) {
         logFirebaseDiagnostic("setTypingStatus")
-        val currentUid = auth.currentUser?.uid ?: return
+        val currentUid = auth?.currentUser?.uid ?: return
         if (chatId.isBlank()) return
         
-        db.collection("chats").document(chatId)
-            .collection("status").document(currentUid)
-            .set(mapOf(
+        db?.collection("chats")?.document(chatId)
+            ?.collection("status")?.document(currentUid)
+            ?.set(mapOf(
                 "isTyping" to isTyping,
-                "lastActive" to FieldValue.serverTimestamp()
+                "lastActive" to com.google.firebase.firestore.FieldValue.serverTimestamp()
             ))
     }
 
     fun listenToFriendStatus(chatId: String, friendUid: String) {
         logFirebaseDiagnostic("listenToFriendStatus")
-        if (chatId.isBlank() || friendUid.isBlank()) return
+        if (chatId.isBlank() || friendUid.isBlank() || db == null) return
         
         statusListener?.remove()
-        statusListener = db.collection("chats").document(chatId)
-            .collection("status").document(friendUid)
-            .addSnapshotListener { snapshot, _ ->
+        statusListener = db?.collection("chats")?.document(chatId)
+            ?.collection("status")?.document(friendUid)
+            ?.addSnapshotListener { snapshot, _ ->
                 if (snapshot != null && snapshot.exists()) {
                     val isTyping = snapshot.getBoolean("isTyping") ?: false
                     val lastActive = snapshot.getTimestamp("lastActive")
@@ -104,9 +108,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     suspend fun getUserProfile(uid: String): User? {
         logFirebaseDiagnostic("getUserProfile")
-        if (uid.isBlank()) return null
+        if (uid.isBlank() || db == null) return null
         return try {
-            db.collection("users").document(uid).get().await().toObject(User::class.java)
+            db?.collection("users")?.document(uid)?.get()?.await()?.toObject(User::class.java)
         } catch (e: Exception) {
             Log.e("ChatViewModel", "Failed to fetch user profile for $uid", e)
             null
@@ -122,12 +126,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun listenToChats() {
         logFirebaseDiagnostic("listenToChats")
-        val currentUid = auth.currentUser?.uid ?: return
+        val currentUid = auth?.currentUser?.uid ?: return
+        if (db == null) return
         chatsListener?.remove()
-        chatsListener = db.collection("chats")
-            .whereArrayContains("memberUids", currentUid)
-            .orderBy("lastMessageAt", Query.Direction.DESCENDING)
-            .addSnapshotListener { snapshot, e ->
+        chatsListener = db?.collection("chats")
+            ?.whereArrayContains("memberUids", currentUid)
+            ?.orderBy("lastMessageAt", com.google.firebase.firestore.Query.Direction.DESCENDING)
+            ?.addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     return@addSnapshotListener
                 }
@@ -141,15 +146,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun listenToMessages(chatId: String) {
         logFirebaseDiagnostic("listenToMessages")
-        if (chatId.isBlank()) return
+        if (chatId.isBlank() || db == null) return
         
         messagesListener?.remove()
         isFirstLoad = true
         
-        messagesListener = db.collection("chats").document(chatId)
-            .collection("messages")
-            .orderBy("createdAt", Query.Direction.ASCENDING)
-            .addSnapshotListener { snapshot, e ->
+        messagesListener = db?.collection("chats")?.document(chatId)
+            ?.collection("messages")
+            ?.orderBy("createdAt", com.google.firebase.firestore.Query.Direction.ASCENDING)
+            ?.addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     return@addSnapshotListener
                 }
@@ -157,7 +162,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 val msgList = snapshot?.documents?.mapNotNull { it.toObject(Message::class.java) } ?: emptyList()
                 _messages.value = msgList
 
-                val currentUid = auth.currentUser?.uid ?: return@addSnapshotListener
+                val currentUid = auth?.currentUser?.uid ?: return@addSnapshotListener
 
                 // Initialize notified IDs on first load to prevent notifying history
                 if (isFirstLoad) {
@@ -169,9 +174,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 // Mark as read
                 msgList.forEach { msg ->
                     if (msg.senderUid != currentUid && !msg.readBy.contains(currentUid)) {
-                        db.collection("chats").document(chatId)
-                            .collection("messages").document(msg.messageId)
-                            .update("readBy", FieldValue.arrayUnion(currentUid))
+                        db?.collection("chats")?.document(chatId)
+                            ?.collection("messages")?.document(msg.messageId)
+                            ?.update("readBy", com.google.firebase.firestore.FieldValue.arrayUnion(currentUid))
                     }
                 }
 
@@ -215,10 +220,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     fun sendMessage(chatId: String, text: String, receiverUid: String, replyTo: Message? = null, onResult: (Boolean, String?) -> Unit = { _, _ -> }) {
         logFirebaseDiagnostic("sendMessage")
-        val currentUid = auth.currentUser?.uid ?: ""
+        val currentUid = auth?.currentUser?.uid ?: ""
         
-        if (currentUid.isBlank()) {
-            onResult(false, "Please sign in again.")
+        if (currentUid.isBlank() || db == null) {
+            onResult(false, "Authentication service error.")
             return
         }
 
@@ -265,8 +270,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
         viewModelScope.launch {
             try {
-                val batch = db.batch()
-                val chatRef = db.collection("chats").document(chatId)
+                val currentDb = db ?: throw Exception("Database not available")
+                val batch = currentDb.batch()
+                val chatRef = currentDb.collection("chats").document(chatId)
                 val msgRef = chatRef.collection("messages").document(messageId)
 
                 batch.set(chatRef, chatData, com.google.firebase.firestore.SetOptions.merge())
@@ -276,7 +282,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 // For background notification trigger (Cloud Function) - decoupled from message send success
                 launch {
                     try {
-                        val notificationRef = db.collection("notifications").document(receiverUid)
+                        val notificationRef = currentDb.collection("notifications").document(receiverUid)
                             .collection("items").document(messageId)
                         
                         val notificationData = mapOf(
@@ -287,7 +293,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                             "toUid" to receiverUid,
                             "title" to "New Message", 
                             "body" to text.trim(),
-                            "createdAt" to FieldValue.serverTimestamp(),
+                            "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                             "read" to false
                         )
                         notificationRef.set(notificationData).await()
@@ -313,27 +319,27 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteMessage(chatId: String, messageId: String) {
         logFirebaseDiagnostic("deleteMessage")
         if (chatId.isBlank() || messageId.isBlank()) return
-        db.collection("chats").document(chatId)
-            .collection("messages").document(messageId)
-            .delete()
+        db?.collection("chats")?.document(chatId)
+            ?.collection("messages")?.document(messageId)
+            ?.delete()
     }
 
     fun editMessage(chatId: String, messageId: String, newText: String) {
         logFirebaseDiagnostic("editMessage")
         if (chatId.isBlank() || messageId.isBlank()) return
-        db.collection("chats").document(chatId)
-            .collection("messages").document(messageId)
-            .update("text", newText, "updatedAt", FieldValue.serverTimestamp())
+        db?.collection("chats")?.document(chatId)
+            ?.collection("messages")?.document(messageId)
+            ?.update("text", newText, "updatedAt", com.google.firebase.firestore.FieldValue.serverTimestamp())
     }
 
     suspend fun ensureChatExists(chatId: String, friendUid: String) {
         logFirebaseDiagnostic("ensureChatExists")
-        val currentUid = auth.currentUser?.uid ?: return
-        if (chatId.isBlank() || friendUid.isBlank()) return
+        val currentUid = auth?.currentUser?.uid ?: return
+        if (chatId.isBlank() || friendUid.isBlank() || db == null) return
         
         try {
             val safeChatId = com.enosh.fincalc.utils.ValidationUtils.sanitizeDocId(chatId)
-            val chatRef = db.collection("chats").document(safeChatId)
+            val chatRef = db?.collection("chats")?.document(safeChatId) ?: return
             val doc = chatRef.get().await()
             
             if (!doc.exists()) {
@@ -341,9 +347,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     "chatId" to safeChatId,
                     "memberUids" to listOf(currentUid, friendUid).sorted(),
                     "lastMessage" to "Chat started",
-                    "lastMessageAt" to FieldValue.serverTimestamp(),
-                    "createdAt" to FieldValue.serverTimestamp(),
-                    "updatedAt" to FieldValue.serverTimestamp(),
+                    "lastMessageAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                    "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
                     "lastMessageSenderUid" to ""
                 )
                 chatRef.set(chatData).await()

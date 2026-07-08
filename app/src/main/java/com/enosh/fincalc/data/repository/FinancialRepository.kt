@@ -16,8 +16,8 @@ class FinancialRepository(
     private val budgetDao: BudgetDao,
     private val budgetExtraAmountDao: BudgetExtraAmountDao
 ) {
-    val allExpenses: Flow<List<Expense>> = expenseDao.getAllExpenses()
-    val allGoals: Flow<List<Goal>> = goalDao.getAllGoals()
+    fun getAllExpenses(uid: String): Flow<List<Expense>> = expenseDao.getAllExpenses(uid)
+    fun getAllGoals(uid: String): Flow<List<Goal>> = goalDao.getAllGoals(uid)
 
     suspend fun insertExpense(expense: Expense) = expenseDao.insertExpense(expense)
     suspend fun updateExpense(expense: Expense) = expenseDao.updateExpense(expense)
@@ -27,11 +27,11 @@ class FinancialRepository(
     suspend fun updateGoal(goal: Goal) = goalDao.updateGoal(goal)
     suspend fun deleteGoal(goal: Goal) = goalDao.deleteGoal(goal)
 
-    fun getBudgetForMonth(month: String): Flow<Budget?> = budgetDao.getBudgetForMonth(month)
+    fun getBudgetForMonth(month: String, uid: String): Flow<Budget?> = budgetDao.getBudgetForMonth(month, uid)
     suspend fun insertBudget(budget: Budget) = budgetDao.insertBudget(budget)
     suspend fun updateBudget(budget: Budget) = budgetDao.updateBudget(budget)
 
-    fun getExtraAmountsForMonth(month: String): Flow<List<BudgetExtraAmount>> = budgetExtraAmountDao.getExtraAmountsForMonth(month)
+    fun getExtraAmountsForMonth(month: String, uid: String): Flow<List<BudgetExtraAmount>> = budgetExtraAmountDao.getExtraAmountsForMonth(month, uid)
     suspend fun insertExtraAmount(extraAmount: BudgetExtraAmount) = budgetExtraAmountDao.insert(extraAmount)
     suspend fun updateExtraAmount(extraAmount: BudgetExtraAmount) = budgetExtraAmountDao.update(extraAmount)
     suspend fun deleteExtraAmount(extraAmount: BudgetExtraAmount) = budgetExtraAmountDao.delete(extraAmount)

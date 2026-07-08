@@ -12,13 +12,18 @@ class FinCalcMessagingService : FirebaseMessagingService() {
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d("NotificationDebug", "Refreshed token: $token")
-        val uid = FirebaseAuth.getInstance().currentUser?.uid
-        if (uid != null) {
-            FirebaseFirestore.getInstance().collection("users").document(uid)
-                .update("fcmToken", token)
-                .addOnFailureListener {
-                    Log.e("NotificationDebug", "Failed to update FCM token", it)
-                }
+        try {
+            val auth = com.google.firebase.auth.FirebaseAuth.getInstance()
+            val uid = auth.currentUser?.uid
+            if (uid != null) {
+                com.google.firebase.firestore.FirebaseFirestore.getInstance().collection("users").document(uid)
+                    .update("fcmToken", token)
+                    .addOnFailureListener {
+                        Log.e("NotificationDebug", "Failed to update FCM token", it)
+                    }
+            }
+        } catch (e: Throwable) {
+            Log.e("NotificationDebug", "Firebase not ready for token update", e)
         }
     }
 

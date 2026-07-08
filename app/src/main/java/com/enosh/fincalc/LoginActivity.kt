@@ -86,11 +86,15 @@ class LoginActivity : AppCompatActivity() {
         
         try {
             auth = try { FirebaseAuth.getInstance() } catch (e: Throwable) { null }
-            val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                .requestIdToken(getString(R.string.default_web_client_id))
-                .requestEmail()
-                .build()
-            googleSignInClient = GoogleSignIn.getClient(this, gso)
+            val webClientId = try { getString(R.string.default_web_client_id) } catch (e: Throwable) { null }
+            
+            if (webClientId != null) {
+                val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                    .requestIdToken(webClientId)
+                    .requestEmail()
+                    .build()
+                googleSignInClient = GoogleSignIn.getClient(this, gso)
+            }
         } catch (e: Throwable) {
             android.util.Log.e("LoginActivity", "Setup error", e)
         }

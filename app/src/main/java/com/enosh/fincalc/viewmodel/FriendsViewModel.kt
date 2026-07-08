@@ -18,8 +18,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
 class FriendsViewModel : ViewModel() {
-    private val auth = FirebaseAuth.getInstance()
-    private val db = FirebaseFirestore.getInstance()
+    private val auth: com.google.firebase.auth.FirebaseAuth? by lazy { 
+        try { com.google.firebase.auth.FirebaseAuth.getInstance() } catch (e: Throwable) { null } 
+    }
+    private val db: com.google.firebase.firestore.FirebaseFirestore? by lazy { 
+        try { com.google.firebase.firestore.FirebaseFirestore.getInstance() } catch (e: Throwable) { null } 
+    }
 
     init {
         logFirebaseDiagnostic("Init")
@@ -80,7 +84,7 @@ class FriendsViewModel : ViewModel() {
         viewModelScope.launch {
             _isSearching.value = true
             try {
-                val currentUid = auth.currentUser?.uid
+                val currentUid = auth?.currentUser?.uid
                 val users = UserUtils.searchUsers(query)
                 val blocked = _blockedUsers.value
                 _searchResults.value = users.filter { it.uid != currentUid && !blocked.contains(it.uid) }
@@ -95,11 +99,11 @@ class FriendsViewModel : ViewModel() {
 
     fun sendFriendRequest(toUser: User) {
         logFirebaseDiagnostic("sendFriendRequest")
-        val currentUserAuth = auth.currentUser
+        val currentUserAuth = auth?.currentUser
         val authUid = currentUserAuth?.uid
         
-        if (authUid == null) {
-            _errorMessage.value = "Please sign in again."
+        if (authUid == null || db == null) {
+            _errorMessage.value = "Authentication service not available."
             return
         }
 
@@ -118,8 +122,9 @@ class FriendsViewModel : ViewModel() {
 
         viewModelScope.launch {
             try {
+                val currentDb = db ?: throw Exception("Database not available")
                 // Fetch current user profile from Firestore
-                val currentUserDoc = db.collection("users").document(fromUid).get().await()
+                val currentUserDoc = currentDb.collection("users").document(fromUid).get().await()
                 if (!currentUserDoc.exists()) {
                     _errorMessage.value = "Profile is still syncing. Please try again."
                     return@launch
@@ -141,15 +146,15 @@ class FriendsViewModel : ViewModel() {
                 val uids = listOf(fromUid, toUid).sorted()
                 val friendshipId = "${uids[0]}_${uids[1]}"
                 
-                val friendDoc = db.collection("friends").document(friendshipId).get().await()
+                val friendDoc = currentDb.collection("friends").document(friendshipId).get().await()
                 if (friendDoc.exists()) {
                     _errorMessage.value = "You are already friends."
                     return@launch
                 }
 
                 // Check if request already exists (either direction)
-                val existingOut = db.collection("friendRequests").document(requestId).get().await()
-                val existingIn = db.collection("friendRequests").document(reverseRequestId).get().await()
+                val existingOut = currentDb.collection("friendRequests").document(requestId).get().await()
+                val existingIn = currentDb.collection("friendRequests").document(reverseRequestId).get().await()
                 
                 if (existingOut.exists()) {
                     val status = existingOut.getString("status") ?: "pending"
@@ -184,13 +189,13 @@ class FriendsViewModel : ViewModel() {
                     "toEmail" to (toUser.email),
                     "toFinCalcId" to (toUser.finCalcId),
                     "status" to "pending",
-                    "createdAt" to FieldValue.serverTimestamp(),
-                    "updatedAt" to FieldValue.serverTimestamp()
+                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                    "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
                 )
 
-                db.collection("friendRequests").document(requestId).set(requestData).await()
+                currentDb.collection("friendRequests").document(requestId).set(requestData).await()
                 _errorMessage.value = "Friend request sent!"
-            } catch (e: FirebaseFirestoreException) {
+            } catch (e: com.google.firebase.firestore.FirebaseFirestoreException) {
                 _errorMessage.value = "Friend request failed: ${e.code} - ${e.message}"
             } catch (e: Exception) {
                 Log.e("Friends", "Failed to send friend request", e)
@@ -207,10 +212,10 @@ class FriendsViewModel : ViewModel() {
             "memberUids" to sortedUids,
             "user1Uid" to sortedUids[0],
             "user2Uid" to sortedUids[1],
-            "createdAt" to FieldValue.serverTimestamp(),
-            "updatedAt" to FieldValue.serverTimestamp()
+            "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+            "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
         )
-        db.collection("friends").document(friendshipId).set(friendship, com.google.firebase.firestore.SetOptions.merge()).await()
+        db?.collection("friends")?.document(friendshipId)?.set(friendship, com.google.firebase.firestore.SetOptions.merge())?.await()
     }
 
     fun clearError() {
@@ -219,13 +224,14 @@ class FriendsViewModel : ViewModel() {
 
     fun fetchPendingRequests() {
         logFirebaseDiagnostic("fetchPendingRequests")
-        val currentUid = auth.currentUser?.uid ?: return
+        val currentUid = auth?.currentUser?.uid ?: return
+        if (db == null) return
         
         pendingListener?.remove()
-        pendingListener = db.collection("friendRequests")
-            .whereEqualTo("toUid", currentUid)
-            .whereEqualTo("status", "pending")
-            .addSnapshotListener { snapshot, e ->
+        pendingListener = db?.collection("friendRequests")
+            ?.whereEqualTo("toUid", currentUid)
+            ?.whereEqualTo("status", "pending")
+            ?.addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     return@addSnapshotListener
                 }
@@ -240,10 +246,10 @@ class FriendsViewModel : ViewModel() {
             }
 
         sentListener?.remove()
-        sentListener = db.collection("friendRequests")
-            .whereEqualTo("fromUid", currentUid)
-            .whereEqualTo("status", "pending")
-            .addSnapshotListener { snapshot, e ->
+        sentListener = db?.collection("friendRequests")
+            ?.whereEqualTo("fromUid", currentUid)
+            ?.whereEqualTo("status", "pending")
+            ?.addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     return@addSnapshotListener
                 }
@@ -260,14 +266,15 @@ class FriendsViewModel : ViewModel() {
 
     fun acceptRequest(request: FriendRequest) {
         logFirebaseDiagnostic("acceptRequest")
-        val currentUid = auth.currentUser?.uid ?: return
-        if (currentUid != request.toUid) {
-            _errorMessage.value = "You can only accept requests sent to you."
+        val currentUid = auth?.currentUser?.uid ?: return
+        if (currentUid != request.toUid || db == null) {
+            _errorMessage.value = "Operation not available."
             return
         }
 
         viewModelScope.launch {
             try {
+                val currentDb = db ?: throw Exception("Database not available")
                 // Determine friendship ID (sorted UIDs)
                 val uids = listOf(request.fromUid, request.toUid).sorted()
                 val friendshipId = "${uids[0]}_${uids[1]}"
@@ -278,26 +285,26 @@ class FriendsViewModel : ViewModel() {
                     "memberUids" to uids,
                     "user1Uid" to uids[0],
                     "user2Uid" to uids[1],
-                    "createdAt" to FieldValue.serverTimestamp(),
-                    "updatedAt" to FieldValue.serverTimestamp()
+                    "createdAt" to com.google.firebase.firestore.FieldValue.serverTimestamp(),
+                    "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
                 )
 
                 // Use a batch to update request and create friendship atomically
-                val batch = db.batch()
+                val batch = currentDb.batch()
                 
-                val requestRef = db.collection("friendRequests").document(request.requestId)
+                val requestRef = currentDb.collection("friendRequests").document(request.requestId)
                 batch.update(requestRef, mapOf(
                     "status" to "accepted",
-                    "updatedAt" to FieldValue.serverTimestamp()
+                    "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
                 ))
                 
-                val friendshipRef = db.collection("friends").document(friendshipId)
+                val friendshipRef = currentDb.collection("friends").document(friendshipId)
                 batch.set(friendshipRef, friendship)
                 
                 batch.commit().await()
                 
                 _errorMessage.value = "Friend request accepted!"
-            } catch (e: FirebaseFirestoreException) {
+            } catch (e: com.google.firebase.firestore.FirebaseFirestoreException) {
                 _errorMessage.value = "Accept failed: ${e.code} - ${e.message}"
             } catch (e: Exception) {
                 Log.e("Friends", "Accept failed", e)
@@ -308,15 +315,16 @@ class FriendsViewModel : ViewModel() {
 
     fun rejectRequest(request: FriendRequest) {
         logFirebaseDiagnostic("rejectRequest")
+        if (db == null) return
         viewModelScope.launch {
             try {
-                db.collection("friendRequests").document(request.requestId)
-                    .update(mapOf(
+                db?.collection("friendRequests")?.document(request.requestId)
+                    ?.update(mapOf(
                         "status" to "rejected",
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )).await()
+                        "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                    ))?.await()
                 _errorMessage.value = "Request rejected."
-            } catch (e: FirebaseFirestoreException) {
+            } catch (e: com.google.firebase.firestore.FirebaseFirestoreException) {
                 _errorMessage.value = "Decline failed: ${e.code} - ${e.message}"
             } catch (e: Exception) {
                 _errorMessage.value = "Reject failed. Please try again."
@@ -325,20 +333,21 @@ class FriendsViewModel : ViewModel() {
     }
 
     fun cancelFriendRequest(request: FriendRequest) {
-        val currentUid = auth.currentUser?.uid ?: return
+        val currentUid = auth?.currentUser?.uid ?: return
+        if (db == null) return
         viewModelScope.launch {
             try {
                 val requestId = if (request.requestId.isNotBlank()) request.requestId else "${request.fromUid}_${request.toUid}"
                 val reverseRequestId = "${request.toUid}_${request.fromUid}"
                 
-                val doc = db.collection("friendRequests").document(requestId).get().await()
-                if (doc.exists()) {
-                    db.collection("friendRequests").document(requestId).delete().await()
+                val doc = db?.collection("friendRequests")?.document(requestId)?.get()?.await()
+                if (doc != null && doc.exists()) {
+                    db?.collection("friendRequests")?.document(requestId)?.delete()?.await()
                     _errorMessage.value = "Friend request cancelled."
                 } else {
-                    val reverseDoc = db.collection("friendRequests").document(reverseRequestId).get().await()
-                    if (reverseDoc.exists()) {
-                        db.collection("friendRequests").document(reverseRequestId).delete().await()
+                    val reverseDoc = db?.collection("friendRequests")?.document(reverseRequestId)?.get()?.await()
+                    if (reverseDoc != null && reverseDoc.exists()) {
+                        db?.collection("friendRequests")?.document(reverseRequestId)?.delete()?.await()
                         _errorMessage.value = "Friend request cancelled."
                     } else {
                         _errorMessage.value = "Friend request not found."
@@ -352,11 +361,12 @@ class FriendsViewModel : ViewModel() {
 
     fun fetchFriends() {
         logFirebaseDiagnostic("fetchFriends")
-        val currentUid = auth.currentUser?.uid ?: return
+        val currentUid = auth?.currentUser?.uid ?: return
+        if (db == null) return
         friendsListener?.remove()
-        friendsListener = db.collection("friends")
-            .whereArrayContains("memberUids", currentUid)
-            .addSnapshotListener { snapshot, e ->
+        friendsListener = db?.collection("friends")
+            ?.whereArrayContains("memberUids", currentUid)
+            ?.addSnapshotListener { snapshot, e ->
                 if (e != null) {
                     return@addSnapshotListener
                 }
@@ -377,8 +387,8 @@ class FriendsViewModel : ViewModel() {
                         if (_blockedUsers.value.contains(uid)) continue
                         
                         try {
-                            val userDoc = db.collection("users").document(uid).get().await()
-                            if (userDoc.exists()) {
+                            val userDoc = db?.collection("users")?.document(uid)?.get()?.await()
+                            if (userDoc != null && userDoc.exists()) {
                                 userDoc.toObject(User::class.java)?.let { users.add(it) }
                             } else {
                                 users.add(User(uid = uid, name = "Unknown User", finCalcId = "FIN ID unavailable"))
@@ -395,12 +405,13 @@ class FriendsViewModel : ViewModel() {
 
     private fun fetchFriendMetadata() {
         logFirebaseDiagnostic("fetchFriendMetadata")
-        val currentUid = auth.currentUser?.uid ?: return
+        val currentUid = auth?.currentUser?.uid ?: return
+        if (db == null) return
         
         nicknamesListener?.remove()
-        nicknamesListener = db.collection("users").document(currentUid)
-            .collection("friendSettings")
-            .addSnapshotListener { snapshot, _ ->
+        nicknamesListener = db?.collection("users")?.document(currentUid)
+            ?.collection("friendSettings")
+            ?.addSnapshotListener { snapshot, _ ->
                 val nicknames = snapshot?.documents?.associate { doc ->
                     doc.id to (doc.getString("nickname") ?: "")
                 } ?: emptyMap()
@@ -408,9 +419,9 @@ class FriendsViewModel : ViewModel() {
             }
 
         blockedListener?.remove()
-        blockedListener = db.collection("users").document(currentUid)
-            .collection("blockedUsers")
-            .addSnapshotListener { snapshot, _ ->
+        blockedListener = db?.collection("users")?.document(currentUid)
+            ?.collection("blockedUsers")
+            ?.addSnapshotListener { snapshot, _ ->
                 val blocked = snapshot?.documents?.map { it.id }?.toSet() ?: emptySet()
                 _blockedUsers.value = blocked
                 fetchFriends()
@@ -419,15 +430,16 @@ class FriendsViewModel : ViewModel() {
 
     fun setNickname(friendUid: String, nickname: String) {
         logFirebaseDiagnostic("setNickname")
-        val currentUid = auth.currentUser?.uid ?: return
+        val currentUid = auth?.currentUser?.uid ?: return
+        if (db == null) return
         viewModelScope.launch {
             try {
-                db.collection("users").document(currentUid)
-                    .collection("friendSettings").document(friendUid)
-                    .set(mapOf(
+                db?.collection("users")?.document(currentUid)
+                    ?.collection("friendSettings")?.document(friendUid)
+                    ?.set(mapOf(
                         "nickname" to nickname,
-                        "updatedAt" to FieldValue.serverTimestamp()
-                    )).await()
+                        "updatedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                    ))?.await()
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to set nickname."
             }
@@ -436,27 +448,29 @@ class FriendsViewModel : ViewModel() {
 
     fun removeFriend(friendUid: String) {
         logFirebaseDiagnostic("removeFriend")
-        val currentUid = auth.currentUser?.uid ?: return
+        val currentUid = auth?.currentUser?.uid ?: return
+        if (db == null) return
         viewModelScope.launch {
             try {
                 val uids = listOf(currentUid, friendUid).sorted()
                 val friendshipId = "${uids[0]}_${uids[1]}"
                 
-                val batch = db.batch()
+                val currentDb = db ?: throw Exception("Database not available")
+                val batch = currentDb.batch()
                 
-                val friendshipRef = db.collection("friends").document(friendshipId)
+                val friendshipRef = currentDb.collection("friends").document(friendshipId)
                 batch.delete(friendshipRef)
                 
-                val req1Ref = db.collection("friendRequests").document("${currentUid}_$friendUid")
+                val req1Ref = currentDb.collection("friendRequests").document("${currentUid}_$friendUid")
                 batch.delete(req1Ref)
                 
-                val req2Ref = db.collection("friendRequests").document("${friendUid}_$currentUid")
+                val req2Ref = currentDb.collection("friendRequests").document("${friendUid}_$currentUid")
                 batch.delete(req2Ref)
                 
                 batch.commit().await()
                 
                 _errorMessage.value = "Friend removed."
-            } catch (e: FirebaseFirestoreException) {
+            } catch (e: com.google.firebase.firestore.FirebaseFirestoreException) {
                 _errorMessage.value = "Remove failed: ${e.code} - ${e.message}"
             } catch (e: Exception) {
                 Log.e("Friends", "Remove failed", e)
@@ -467,17 +481,18 @@ class FriendsViewModel : ViewModel() {
 
     fun blockUser(blockedUid: String) {
         logFirebaseDiagnostic("blockUser")
-        val currentUid = auth.currentUser?.uid ?: return
+        val currentUid = auth?.currentUser?.uid ?: return
+        if (db == null) return
         viewModelScope.launch {
             try {
                 removeFriend(blockedUid)
                 
-                db.collection("users").document(currentUid)
-                    .collection("blockedUsers").document(blockedUid)
-                    .set(mapOf(
+                db?.collection("users")?.document(currentUid)
+                    ?.collection("blockedUsers")?.document(blockedUid)
+                    ?.set(mapOf(
                         "blockedUid" to blockedUid,
-                        "blockedAt" to FieldValue.serverTimestamp()
-                    )).await()
+                        "blockedAt" to com.google.firebase.firestore.FieldValue.serverTimestamp()
+                    ))?.await()
                 
                 _errorMessage.value = "User blocked."
             } catch (e: Exception) {
@@ -488,12 +503,13 @@ class FriendsViewModel : ViewModel() {
 
     fun unblockUser(blockedUid: String) {
         logFirebaseDiagnostic("unblockUser")
-        val currentUid = auth.currentUser?.uid ?: return
+        val currentUid = auth?.currentUser?.uid ?: return
+        if (db == null) return
         viewModelScope.launch {
             try {
-                db.collection("users").document(currentUid)
-                    .collection("blockedUsers").document(blockedUid)
-                    .delete().await()
+                db?.collection("users")?.document(currentUid)
+                    ?.collection("blockedUsers")?.document(blockedUid)
+                    ?.delete()?.await()
                 _errorMessage.value = "User unblocked."
             } catch (e: Exception) {
                 _errorMessage.value = "Failed to unblock user."

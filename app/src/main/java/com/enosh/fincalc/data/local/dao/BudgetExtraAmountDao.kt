@@ -6,8 +6,8 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface BudgetExtraAmountDao {
-    @Query("SELECT * FROM budget_extra_amounts WHERE month = :month")
-    fun getExtraAmountsForMonth(month: String): Flow<List<BudgetExtraAmount>>
+    @Query("SELECT * FROM budget_extra_amounts WHERE month = :month AND uid = :uid")
+    fun getExtraAmountsForMonth(month: String, uid: String): Flow<List<BudgetExtraAmount>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(extraAmount: BudgetExtraAmount)
@@ -18,6 +18,6 @@ interface BudgetExtraAmountDao {
     @Delete
     suspend fun delete(extraAmount: BudgetExtraAmount)
 
-    @androidx.room.Query("SELECT * FROM budget_extra_amounts")
-    fun getAllExtraAmounts(): kotlinx.coroutines.flow.Flow<List<BudgetExtraAmount>>
+    @Query("SELECT * FROM budget_extra_amounts WHERE uid = :uid")
+    fun getAllExtraAmounts(uid: String): Flow<List<BudgetExtraAmount>>
 }

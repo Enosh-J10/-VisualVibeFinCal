@@ -9,5 +9,6 @@ data class Goal(
     val name: String,
     val targetAmount: Double,
     val savedAmount: Double,
-    val deadline: Long
+    val deadline: Long,
+    val uid: String = "guest"
 )
