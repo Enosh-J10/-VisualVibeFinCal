@@ -1,7 +1,7 @@
 package com.enosh.fincalc.ui.screens
 
 import android.widget.Toast
-import androidx.compose.foundation.background
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -84,7 +84,6 @@ fun ChatRoomScreen(
     var editText by remember { mutableStateOf("") }
     
     val listState = rememberLazyListState()
-    val scope = rememberCoroutineScope()
 
     LaunchedEffect(chatId, friendUid) {
         chatViewModel.currentlyOpenChatId = chatId
@@ -218,6 +217,7 @@ fun ChatRoomScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun MessageItem(
     message: Message, currentUid: String, isDarkMode: Boolean,
