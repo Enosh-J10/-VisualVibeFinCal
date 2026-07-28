@@ -37,7 +37,6 @@ import com.enosh.fincalc.data.model.*
 import com.enosh.fincalc.viewmodel.SmartTravelViewModel
 import com.enosh.fincalc.ui.components.ValidatedTextField
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.storage.FirebaseStorage
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 import java.util.*
@@ -66,7 +65,6 @@ fun TripDetailScreen(
     var showEditTripDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     
-    val context = LocalContext.current
     val currentUser = remember { FirebaseAuth.getInstance().currentUser }
     val currentUid = currentUser?.uid ?: ""
     val effectiveTripId = trip?.tripId ?: tripId
@@ -963,6 +961,7 @@ fun AddTravelExpenseDialog(
                 ValidatedTextField(value = notes, onValueChange = { if (it.length <= 500) notes = it }, label = "Note (Optional)", keyboardType = KeyboardType.Text, capitalization = KeyboardCapitalization.Sentences)
 
                 Text("Category", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF00D1B2))
+                @OptIn(ExperimentalLayoutApi::class)
                 FlowRow(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),

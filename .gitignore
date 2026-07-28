@@ -1,6 +1,7 @@
 # Build folder
 /build
 app/build
+app/release/
 
 # Gradle
 .gradle/
@@ -15,6 +16,7 @@ local.properties
 # Logs and captures
 /captures
 *.hprof
+.artifacts/
 
 # OS generated files
 .DS_Store
@@ -25,3 +27,6 @@ local.properties
 
 # Secrets (if any)
 google-services.json
+*.jks
+*.keystore
+keystore.properties
